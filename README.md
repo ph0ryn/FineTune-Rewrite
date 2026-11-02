@@ -36,34 +36,34 @@ Swift 6とC++20に対応するXcode、およびXcode付属の`swift format`を�
 
 ```bash
 # 選択中のXcode・Swift・Clang・macOS SDKを確認
-./scripts/dev.sh doctor
+xcodebuild -version
+xcrun swift --version
+xcrun clang++ --version
+xcrun --sdk macosx --show-sdk-path
 
 # Swiftの書式確認 → debugビルド → スモークテスト
-./scripts/dev.sh check
-```
+xcrun swift format lint --strict --recursive Package.swift Sources Tests/BuildSmokeTests
+xcrun swift build
+xcrun swift test
 
-[開発スクリプト](<scripts/dev.sh>)は、`xcrun --sdk macosx`で取得したSDKを子プロセスに明示します。
-SDKの自動検出が古いCommand Line Toolsを参照する場合にも、選択中のXcodeのSDKで実行するためです。
-`xcode-select`やユーザーの永続設定は変更せず、SDKを取得できなければ失敗します。
-Xcodeの選択自体が誤っている場合は、先に開発環境の設定を確認してください。
-
-### 個別に実行する
-
-```bash
-./scripts/dev.sh build
-./scripts/dev.sh test
-
-# build/testにはSwiftPMのオプションを渡せる
-./scripts/dev.sh build -c release
-./scripts/dev.sh test -c release
+# release構成でビルド・テスト
+xcrun swift build -c release
+xcrun swift test -c release
 
 # Swiftの書式を修正
 xcrun swift format format --in-place --recursive Package.swift Sources Tests/BuildSmokeTests
 ```
 
-`check`の書式確認対象はSwiftのみです。C++／Objective-C++のlintやリアルタイム検査は含みません。
-SwiftPMのビルド生成物と共有キャッシュは`.build/`以下を使用します。
-コンパイラ自身がmacOS標準のキャッシュも使うため、sandbox環境ではその書き込み権限が別途必要になる場合があります。
+SDKの自動検出が古いCommand Line Toolsを参照する場合は、選択中のXcodeのSDKを明示して実行できます。
+`test`も同様です。Xcodeの選択自体が誤っている場合は、先に開発環境の設定を確認してください。
+
+```bash
+SDKROOT="$(xcrun --sdk macosx --show-sdk-path)" xcrun swift build
+```
+
+書式確認対象はSwiftのみです。C++／Objective-C++のlintやリアルタイム検査は含みません。
+SwiftPMのビルド生成物は`.build/`以下に作成されます。
+SwiftPMやコンパイラはユーザー領域のキャッシュも使うため、sandbox環境ではその書き込み権限が別途必要になる場合があります。
 
 ### Xcodeから開く
 
@@ -83,7 +83,6 @@ open Package.swift
 | [Sources](<Sources/>) | 各ライブラリのビルド用の空の骨格。製品APIは未定義 |
 | [BuildSmokeTests](<Tests/BuildSmokeTests/BuildSmokeTests.swift>) | Swiftからテスト用C APIを呼ぶスモークテスト |
 | [NativeBuildSupport](<Tests/NativeBuildSupport/>) | テスト専用のC++／Objective-C++コード。製品ライブラリからは依存しない |
-| [dev.sh](<scripts/dev.sh>) | 環境確認・ビルド・テストの共通入口 |
 
 ライブラリの依存方向は次のとおりです。矢印はコード上の依存を表します。
 具体的な宣言の管理元は[Package.swift](<Package.swift>)です。
