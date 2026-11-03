@@ -13,12 +13,21 @@ let package = Package(
     .library(name: "AudioDSP", targets: ["AudioDSP"]),
     .executable(name: "FineTune", targets: ["FineTune"]),
   ],
+  dependencies: [
+    .package(
+      url: "https://github.com/sindresorhus/KeyboardShortcuts",
+      revision: "1aef85578fdd4f9eaeeb8d53b7b4fc31bf08fe27"
+    )
+  ],
   targets: [
     .target(name: "FineTuneDomain"),
     .target(name: "FineTuneControl", dependencies: ["FineTuneDomain"]),
     .target(
       name: "FineTunePlatform",
-      dependencies: ["FineTuneDomain", "FineTuneControl", "NativeAudio"]
+      dependencies: [
+        "FineTuneDomain", "FineTuneControl", "NativeAudio",
+        .product(name: "KeyboardShortcuts", package: "KeyboardShortcuts"),
+      ]
     ),
     .target(
       name: "NativeAudio",
@@ -28,12 +37,17 @@ let package = Package(
     .target(name: "AudioDSP"),
     .executableTarget(
       name: "FineTune",
-      dependencies: ["FineTuneDomain", "FineTuneControl", "FineTunePlatform"],
+      dependencies: [
+        "FineTuneDomain", "FineTuneControl", "FineTunePlatform",
+        .product(name: "KeyboardShortcuts", package: "KeyboardShortcuts"),
+      ],
       path: "App"
     ),
     .testTarget(
       name: "UpstreamCompatibilityTests",
-      dependencies: ["FineTune"],
+      dependencies: [
+        "FineTune", .product(name: "KeyboardShortcuts", package: "KeyboardShortcuts"),
+      ],
       exclude: ["COPYING", "README.md"],
       resources: [.copy("Fixtures")],
       // Match the fixed upstream Xcode test target without changing test bodies.
