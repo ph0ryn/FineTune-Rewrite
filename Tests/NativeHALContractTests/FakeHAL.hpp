@@ -52,7 +52,11 @@ struct FakeHAL {
     bool wrongTapFormat = false, wrongRate = false, wrongCertificate = false, planar = false;
     bool partial = true, holdAggregate = false;
     Fault fault = Fault::none, cleanupFault = Fault::none;
-    bool disabledStreams = false, oversized = false;
+    bool disabledStreams = false, oversized = false, preferredStereo = true;
+    bool variableFrames = false, missingSubTap = false;
+    UInt32 driftCompensation = 1, driftQuality = kAudioAggregateDriftCompensationHighQuality;
+    UInt32 maximumFrames = 64, subTapOffset = 4000;
+    double nominalRate = 48000;
     std::uint32_t creates = 0, starts = 0, stops = 0, nextID = 1000, listenerAttempts = 0;
     std::vector<Tap> taps;
     std::vector<Aggregate> aggregates;
@@ -89,6 +93,8 @@ struct FakeHAL {
             return noErr;
         };
         a.inspectOutput = [](void *c, const char *uid, OutputDevice &out) -> FTNativeError {
+            if (!c)
+                return failure(FT_NATIVE_FAILURE, FT_NATIVE_RESOLVE_OUTPUT, acquisitionError);
             auto &f = at(c);
             if (!uid || (std::strcmp(uid, "fixture-a") != 0 && std::strcmp(uid, "fixture-b") != 0))
                 return failure(FT_NATIVE_UNAVAILABLE, FT_NATIVE_RESOLVE_OUTPUT, acquisitionError);
@@ -96,10 +102,11 @@ struct FakeHAL {
             out.id = std::strcmp(uid, "fixture-a") == 0 ? 801 : 802;
             out.uid = uid;
             out.inputChannels = f.microphone ? 1 : 0;
-            out.nominalSampleRate = 48000;
+            out.outputChannels = 2;
+            out.nominalSampleRate = f.nominalRate;
             out.output = stereo(f.planar);
             out.output.nativePackedFloat32 = !f.unsupportedOutput;
-            out.stereoOrderKnown = true;
+            out.stereoOrderKnown = f.preferredStereo;
             out.outputStreams = {out.id + 100};
             return {};
         };
@@ -196,7 +203,11 @@ struct FakeHAL {
             out.output = physical.output;
             if (f.wrongRate)
                 out.input.sampleRate = 44100;
-            out.maximumFrames = f.oversized ? 65537 : 64;
+            out.maximumFrames = f.oversized ? 65537 : f.maximumFrames;
+            out.subTap = f.missingSubTap ? kAudioObjectUnknown : device + f.subTapOffset;
+            out.subTapDriftCompensation = f.driftCompensation;
+            out.subTapDriftQuality = f.driftQuality;
+            out.hasVariableBufferFrames = f.variableFrames;
             out.onlyOwnedTapInput = !f.wrongCertificate;
             out.intendedPhysicalOutput = true;
             out.ioStreamsEnabled = !f.disabledStreams;

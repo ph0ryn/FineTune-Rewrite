@@ -147,8 +147,16 @@ void acquisitionGuards() {
     }
 }
 void capabilityAndCertificate() {
-    invocations = 7;
-    for (unsigned mode = 0; mode < 7; ++mode) {
+    invocations = 11;
+    resetFixture();
+    FTNativeOutputDescription description{};
+    FTNativeError descriptionError{};
+    CHECK(ft_native_describe_output("fixture-a", &description, &descriptionError) == FT_NATIVE_OK);
+    CHECK(descriptionError.kind == FT_NATIVE_NO_FAILURE && description.object_id == 801);
+    CHECK(description.input_channels == 0 && description.output_channels == 2);
+    CHECK(description.virtual_sample_rate == 48000 && description.stereo_float32_supported);
+    CHECK(hal.creates == 0 && hal.starts == 0 && hal.resources() == 0);
+    for (unsigned mode = 0; mode < 10; ++mode) {
         resetFixture();
         if (mode == 0)
             hal.microphone = true;
@@ -164,12 +172,22 @@ void capabilityAndCertificate() {
             hal.disabledStreams = true;
         if (mode == 6)
             hal.oversized = true;
+        if (mode == 7)
+            hal.missingSubTap = true;
+        if (mode == 8)
+            hal.driftCompensation = 0;
+        if (mode == 9)
+            hal.driftQuality = kAudioAggregateDriftCompensationLowQuality;
         auto r = request(state());
         FTNativeRoute *p = nullptr;
         FTNativeError error{};
         CHECK(ft_native_route_prepare(&r, &p, &error) == FT_NATIVE_FAILED);
         CHECK(error.kind != FT_NATIVE_NO_FAILURE && hal.starts == 0);
         CHECK(p == nullptr && hal.resources() == 0);
+        // A broken guard may unexpectedly acquire; still retire it after recording failure.
+        Route unexpected(p);
+        unexpected.reset();
+        CHECK(hal.resources() == 0);
     }
 }
 void partialAcquisition() {
@@ -352,6 +370,7 @@ void callbackSilenceAndInput() {
     }
 }
 void lateCloseAndReuse() {
+    invocations = 10;
     resetFixture();
     auto a = prepare(request(state()));
     if (!a || hal.ios.empty() || hal.listeners.empty())
@@ -384,6 +403,112 @@ void lateCloseAndReuse() {
     current.render(io);
     CHECK(current.output[0] == current.input[0] * 0.75F);
     CHECK(snapshot(b).failure.kind == FT_NATIVE_NO_FAILURE);
+    b.reset();
+
+    const std::array properties{
+        AudioObjectPropertyAddress{kAudioDevicePropertyNominalSampleRate,
+                                   kAudioObjectPropertyScopeGlobal,
+                                   kAudioObjectPropertyElementMain},
+        AudioObjectPropertyAddress{kAudioDevicePropertyPreferredChannelsForStereo,
+                                   kAudioObjectPropertyScopeOutput,
+                                   kAudioObjectPropertyElementMain},
+        AudioObjectPropertyAddress{kAudioDevicePropertyStreamConfiguration,
+                                   kAudioObjectPropertyScopeInput, kAudioObjectPropertyElementMain},
+        AudioObjectPropertyAddress{kAudioDevicePropertyStreamConfiguration,
+                                   kAudioObjectPropertyScopeOutput,
+                                   kAudioObjectPropertyElementMain},
+        AudioObjectPropertyAddress{kAudioSubTapPropertyDriftCompensation,
+                                   kAudioObjectPropertyScopeGlobal,
+                                   kAudioObjectPropertyElementMain},
+        AudioObjectPropertyAddress{kAudioSubTapPropertyDriftCompensationQuality,
+                                   kAudioObjectPropertyScopeGlobal,
+                                   kAudioObjectPropertyElementMain},
+        AudioObjectPropertyAddress{kAudioAggregateDevicePropertySubTapList,
+                                   kAudioObjectPropertyScopeGlobal,
+                                   kAudioObjectPropertyElementMain},
+        AudioObjectPropertyAddress{kAudioDevicePropertyUsesVariableBufferFrameSizes,
+                                   kAudioObjectPropertyScopeGlobal,
+                                   kAudioObjectPropertyElementMain},
+    };
+    for (std::size_t n = 0; n < properties.size(); ++n) {
+        resetFixture();
+        hal.variableFrames = n == 7;
+        auto p = prepare(request(state()));
+        if (!p || hal.ios.empty())
+            return;
+        const auto activeIO = hal.ios.back();
+        commit(p, state());
+        Signal warm;
+        warm.render(activeIO);
+        CHECK(!warm.zero());
+        if (n == 0)
+            hal.nominalRate = 44100;
+        if (n == 1)
+            hal.preferredStereo = false;
+        if (n == 2)
+            hal.microphone = true;
+        if (n == 3)
+            hal.planar = true;
+        const auto subTap = activeIO.device + hal.subTapOffset;
+        if (n == 4)
+            hal.driftCompensation = 0;
+        if (n == 5)
+            hal.driftQuality = kAudioAggregateDriftCompensationLowQuality;
+        if (n == 6)
+            ++hal.subTapOffset;
+        if (n == 7)
+            hal.maximumFrames = 128;
+        const auto changedObject = n < 4 ? 801 : n < 6 ? subTap : activeIO.device;
+        // Fake OS emits only this changed property, not an assumed related notification.
+        // No assertion counts registrations: actual signal/status must show invalidation.
+        const auto &property = properties[n];
+        for (const auto &listener : hal.listeners) {
+            if (listener.object != changedObject ||
+                listener.property.mSelector != property.mSelector ||
+                listener.property.mScope != property.mScope)
+                continue;
+            callback_observation::active = true;
+            const auto changed = listener.callback(listener.object, 1, &property, listener.data);
+            callback_observation::active = false;
+            CHECK(changed == noErr);
+        }
+        Signal after;
+        after.render(activeIO);
+        CHECK(after.zero());
+        const auto s = snapshot(p);
+        CHECK(s.phase == FT_NATIVE_ROUTE_FAILED && s.failure.kind == FT_NATIVE_BINDING_CHANGED);
+    }
+
+    resetFixture();
+    auto bindingRoute = prepare(request(state()));
+    if (!bindingRoute || hal.ios.empty())
+        return;
+    const auto bindingIO = hal.ios.back();
+    commit(bindingRoute, state());
+    Signal warm;
+    warm.render(bindingIO);
+    CHECK(!warm.zero());
+    // Invalid input is transactional: the still-valid old graph may continue.
+    auto invalid = state(2, std::numeric_limits<float>::quiet_NaN());
+    FTNativeError updateError{};
+    CHECK(ft_native_route_update(bindingRoute.get(), &invalid, &updateError) == FT_NATIVE_FAILED);
+    CHECK(updateError.kind == FT_NATIVE_FAILURE);
+    Signal unchanged;
+    unchanged.render(bindingIO);
+    CHECK(!unchanged.zero() && snapshot(bindingRoute).failure.kind == FT_NATIVE_NO_FAILURE);
+    // NRT can observe PID reuse/self before the corresponding listener is delivered.
+    hal.selfPID = true;
+    auto next = state(2, 0.75F);
+    CHECK(ft_native_route_update(bindingRoute.get(), &next, &updateError) == FT_NATIVE_FAILED);
+    CHECK(updateError.kind == FT_NATIVE_BINDING_CHANGED);
+    Signal afterQuery;
+    afterQuery.render(bindingIO);
+    CHECK(afterQuery.zero());
+    const auto failed = snapshot(bindingRoute);
+    CHECK(failed.phase == FT_NATIVE_ROUTE_FAILED &&
+          failed.failure.kind == FT_NATIVE_BINDING_CHANGED);
+    CHECK(failed.callback_error_count == 0 &&
+          failed.peak == 0); // NRT detection is not a callback error.
 }
 void copiedConfiguration() {
     resetFixture();
@@ -533,16 +658,16 @@ struct Result {
     std::size_t count = 0, checks = 0, failed = 0;
 };
 std::array<Result, 10> results{{
-    {"NativeHALContract.latestCommitState", latestCommitState},
-    {"NativeHALContract.acquisitionGuards", acquisitionGuards},
-    {"NativeHALContract.capabilityAndCertificate", capabilityAndCertificate},
-    {"NativeHALContract.partialAcquisition", partialAcquisition},
-    {"NativeHALContract.boundedCleanupDebt", boundedCleanupDebt},
-    {"NativeHALContract.savedTargetsAndPermit", savedTargetsAndPermit},
-    {"NativeHALContract.callbackSilenceAndInput", callbackSilenceAndInput},
-    {"NativeHALContract.lateCloseAndReuse", lateCloseAndReuse},
-    {"NativeHALContract.copiedConfiguration", copiedConfiguration},
-    {"NativeHALContract.coalescedCoverage", coalescedCoverage},
+    {"Tests/NativeHALContractTests/main.cpp::latestCommitState", latestCommitState},
+    {"Tests/NativeHALContractTests/main.cpp::acquisitionGuards", acquisitionGuards},
+    {"Tests/NativeHALContractTests/main.cpp::capabilityAndCertificate", capabilityAndCertificate},
+    {"Tests/NativeHALContractTests/main.cpp::partialAcquisition", partialAcquisition},
+    {"Tests/NativeHALContractTests/main.cpp::boundedCleanupDebt", boundedCleanupDebt},
+    {"Tests/NativeHALContractTests/main.cpp::savedTargetsAndPermit", savedTargetsAndPermit},
+    {"Tests/NativeHALContractTests/main.cpp::callbackSilenceAndInput", callbackSilenceAndInput},
+    {"Tests/NativeHALContractTests/main.cpp::lateCloseAndReuse", lateCloseAndReuse},
+    {"Tests/NativeHALContractTests/main.cpp::copiedConfiguration", copiedConfiguration},
+    {"Tests/NativeHALContractTests/main.cpp::coalescedCoverage", coalescedCoverage},
 }};
 bool report(const char *path, bool complete) {
     auto *f = std::fopen(path, "w");
