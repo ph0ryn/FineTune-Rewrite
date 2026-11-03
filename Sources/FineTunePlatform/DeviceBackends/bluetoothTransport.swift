@@ -110,7 +110,7 @@ public final class SystemBluetoothDeviceTransport: BluetoothDeviceTransport, Sen
   private func execute<Value: Sendable>(
     _ operation: @escaping @Sendable () throws -> Value
   ) async throws -> Value {
-    let cancellation = BluetoothIOCancellation()
+    let cancellation = DeviceIOCancellation()
     return try await withTaskCancellationHandler {
       try await withCheckedThrowingContinuation { continuation in
         queue.async {
@@ -128,22 +128,5 @@ public final class SystemBluetoothDeviceTransport: BluetoothDeviceTransport, Sen
     } onCancel: {
       cancellation.cancel()
     }
-  }
-}
-
-private final class BluetoothIOCancellation: @unchecked Sendable {
-  private let lock = NSLock()
-  private var isCancelled = false
-
-  func cancel() {
-    lock.lock()
-    defer { lock.unlock() }
-    isCancelled = true
-  }
-
-  func check() throws {
-    lock.lock()
-    defer { lock.unlock() }
-    if isCancelled { throw CancellationError() }
   }
 }
