@@ -306,11 +306,11 @@ struct Result {
     std::size_t count = 0, checks = 0, failed = 0;
 };
 std::array<Result, 5> results{{
-    {"NativeStageTests::fourStageSwapClearAndRetire", fourStageSwapClearAndRetire},
-    {"NativeStageTests::unmaskedGainAndHistory", unmaskedGainAndHistory},
-    {"NativeStageTests::singleStagePreservesOthers", singleStagePreservesOthers},
-    {"NativeStageTests::mergePendingTwoAndNewThree", mergePendingTwoAndNewThree},
-    {"NativeStageTests::exhaustiveUnconsumedMerge", exhaustiveUnconsumedMerge},
+    {"Tests/NativeStageTests/main.cpp::fourStageSwapClearAndRetire", fourStageSwapClearAndRetire},
+    {"Tests/NativeStageTests/main.cpp::unmaskedGainAndHistory", unmaskedGainAndHistory},
+    {"Tests/NativeStageTests/main.cpp::singleStagePreservesOthers", singleStagePreservesOthers},
+    {"Tests/NativeStageTests/main.cpp::mergePendingTwoAndNewThree", mergePendingTwoAndNewThree},
+    {"Tests/NativeStageTests/main.cpp::exhaustiveUnconsumedMerge", exhaustiveUnconsumedMerge},
 }};
 bool report(const char *path, bool complete) {
     auto *f = std::fopen(path, "w");
