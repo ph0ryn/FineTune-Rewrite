@@ -127,7 +127,7 @@ open FineTune.xcodeproj
 
 本repositoryは複数licenseを含みます。独立MIT部分の[MIT License](<LICENSE>)を維持しますが、production全体や生成AppをMIT-onlyとは扱いません。
 原作由来のテスト・fixtureと派生C++ unitはGNU GPL version 3の対象で、MITへ再ライセンスしません。
-製品側にも、icon/daemon語彙のdataだけでなく、URL grammarやAutoEQ catalog/parser/repository/storeの派生codeを含みます。
+製品側にも、icon/daemon語彙のdataだけでなく、URL grammar、device-default echo token管理、AutoEQ catalog/parser/repository/storeの派生codeを含みます。
 これらは各ファイル全体を`GPL-3.0-only`とし、[製品側の正確な区分と固定元](<docs/compatibility.md#製品側の派生codeとdata>)を記録しています。
 これは新規行すべてを原作者のliteral copyと主張するものでも、他の独立MITファイルを再分類するものでもありません。
 

@@ -1,9 +1,10 @@
 FineTune Rewrite — license notices
 
 This development application contains components with different licenses.
-The application must not be described as MIT-only. The seven source files
+The application must not be described as MIT-only. The eight source files
 listed below are GPL-3.0-only derived components: device catalog and daemon data,
-URL grammar, profile parsing/search, acquisition/cache and file-store behavior.
+URL grammar, profile parsing/search, acquisition/cache, file-store behavior and
+default-device echo tracking.
 Their whole-file declarations cover derived code as well as data; they do not
 mean every newly written line was copied from or authored by Ronit Singh.
 Other independently written source files retain their stated licenses.
@@ -61,6 +62,13 @@ FineTune profile file schema, cache and modification-time behavior
   Upstream: https://github.com/ronitsingh10/FineTune
   Fixed revision: 2285279d36d3f8115c1c2d4aecd904f1bdf96a51
   Local file: Sources/FineTunePlatform/Profiles/ProfileFileStore.swift
+  License: GPL-3.0-only, complete text and attribution below.
+
+FineTune default-device echo tracking
+  Source: FineTune/Audio/Engine/EchoTracker.swift, lines 4–73
+  Upstream: https://github.com/ronitsingh10/FineTune
+  Fixed revision: 2285279d36d3f8115c1c2d4aecd904f1bdf96a51
+  Local file: Sources/FineTuneControl/Routing/deviceDefaultEchoes.swift
   License: GPL-3.0-only, complete text and attribution below.
 
 Independent FineTune Rewrite source
