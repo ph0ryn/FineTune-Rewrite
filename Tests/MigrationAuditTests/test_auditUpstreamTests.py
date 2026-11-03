@@ -292,6 +292,46 @@ struct Sample {
                                    "guarantee": "Inputs 1 and 2 remain below 10; exact scalar comparison."}]
         return native_path + "::values"
 
+    def test_unlisted_native_case_source_fails_closed(self):
+        path = "Tests/NativeRuntimeTests/OmittedTests.cpp"
+        source = self.root / path
+        source.parent.mkdir(parents=True)
+        source.write_text("#include <cassert>\nvoid omittedContract() { assert(1 < 10); }\n")
+        errors, expected_swift = audit.audit_static(self.root, self.manifest)
+        self.assertIn(f"Unlisted native test/helper source: {path}", errors)
+        self.assertEqual(expected_swift, {self.destination_id: 2})
+        self.assertEqual(audit.cpp_expectations(self.manifest), {})
+
+    def test_native_helpers_require_registration_without_inventing_cases(self):
+        identifier = self.make_cpp_guarantee()
+        paths = []
+        for directory in ("Tests/NativeSupport", "Tools/NativeSupport"):
+            for suffix in (".c", ".cc", ".cpp", ".cxx", ".h", ".hpp", ".m", ".mm"):
+                path = f"{directory}/helper{suffix}"
+                file = self.root / path
+                file.parent.mkdir(parents=True, exist_ok=True)
+                file.write_text("// Explicit native test helper, not a named contract.\n")
+                paths.append(path)
+        for path in ("Tests/NativeSupport/.build/generated.cpp",
+                     "Tools/NativeSupport/__pycache__/generated.hpp"):
+            file = self.root / path
+            file.parent.mkdir(parents=True, exist_ok=True)
+            file.write_text("// Generated build/cache artifact.\n")
+        errors, _ = audit.audit_static(self.root, self.manifest)
+        for path in paths:
+            self.assertIn(f"Unlisted native test/helper source: {path}", errors)
+            self.manifest["native_files"].append({
+                "destination": path, "derived_from": [], "review": "sample",
+                "sha256": hashlib.sha256((self.root / path).read_bytes()).hexdigest(),
+            })
+        self.assertEqual(audit.audit_static(self.root, self.manifest), ([], {}))
+        self.assertEqual(audit.cpp_expectations(self.manifest), {identifier: 1})
+        self.assertTrue(set(paths).issubset(audit.source_snapshot(self.root)["files"]))
+        changed = paths[0]
+        (self.root / changed).write_text("// Changed helper input.\n")
+        errors, _ = audit.audit_static(self.root, self.manifest)
+        self.assertIn(f"Unreviewed native unit source change: {changed}", errors)
+
     def test_cpp_unit_replaces_swift_shape_with_reviewed_guarantee_mapping(self):
         identifier = self.make_cpp_guarantee()
         errors, expected_swift = audit.audit_static(self.root, self.manifest)

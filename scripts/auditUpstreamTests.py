@@ -20,6 +20,7 @@ import time
 UPSTREAM_REVISION = "2285279d36d3f8115c1c2d4aecd904f1bdf96a51"
 FINGERPRINT_ALGORITHM = "swift-format-lexical-v1"
 BASELINE_TOTALS = {"source_files": 54, "declarations": 758, "invocations": 966}
+NATIVE_SOURCE_SUFFIXES = {".c", ".cc", ".cpp", ".cxx", ".h", ".hpp", ".m", ".mm"}
 
 
 def digest(value):
@@ -305,6 +306,17 @@ def audit_static(root, manifest, include_optional=False):
             source = file.read_text()
             if "SPDX-License-Identifier: GPL-3.0-only" not in source or UPSTREAM_REVISION not in source:
                 errors.append(f"Missing native GPL/fixed-source provenance: {path}")
+    # Source/helper registration is separate from the explicit named CPP destinations below.
+    for directory in ("Tests", "Tools"):
+        for file in sorted((root / directory).rglob("*")):
+            relative = file.relative_to(root)
+            if not file.is_file() or file.suffix not in NATIVE_SOURCE_SUFFIXES or any(
+                part in (".build", "__pycache__") for part in relative.parts
+            ):
+                continue
+            path = relative.as_posix()
+            if path not in native_paths:
+                errors.append(f"Unlisted native test/helper source: {path}")
     actual = {}
     accounted_paths = set()
     for entry in files + manifest.get("support_files", []):
@@ -532,8 +544,8 @@ def source_snapshot(root):
     """Hash compile inputs, not mutable review/docs metadata or build artifacts."""
     root = root.resolve()
     files = {}
-    suffixes = {".swift", ".h", ".hpp", ".cpp", ".c", ".mm", ".m", ".json", ".png", ".jpg", ".icns",
-                ".plist", ".entitlements", ".xcconfig", ".modulemap"}
+    suffixes = NATIVE_SOURCE_SUFFIXES | {".swift", ".json", ".png", ".jpg", ".icns",
+                                         ".plist", ".entitlements", ".xcconfig", ".modulemap"}
     for directory in ("Sources", "App", "Tests", "Tools"):
         base = root / directory
         if not base.is_dir():
