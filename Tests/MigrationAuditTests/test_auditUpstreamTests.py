@@ -225,9 +225,19 @@ struct Sample {
         metadata = self.root / "Tools/DSPTests/adaptations.json"
         metadata.parent.mkdir(parents=True)
         metadata.write_text('{"review": "pending"}\n')
+        recipes = {
+            "Justfile": "test-native:\n    clang++ -O0 actual.cpp\n",
+            "scripts/testNativeHAL.py": 'SOURCES = ["actual.cpp"]\n',
+        }
+        for path, content in recipes.items():
+            recipe = self.root / path
+            recipe.parent.mkdir(parents=True, exist_ok=True)
+            recipe.write_text(content)
         before = audit.source_snapshot(self.root)
         self.assertIn("Tools/AudioProbe/main.swift", before["files"])
         self.assertIn("Tools/AudioProbe/Fixtures/devices.txt", before["files"])
+        for path in recipes:
+            self.assertIn(path, before["files"])
         metadata.write_text('{"review": "approved"}\n')
         self.assertEqual(audit.source_snapshot(self.root)["sha256"], before["sha256"])
         probe.write_text('print("describe")\n')
@@ -235,6 +245,14 @@ struct Sample {
         self.assertNotEqual(changed_source["sha256"], before["sha256"])
         fixture.write_text('device=43\n')
         self.assertNotEqual(audit.source_snapshot(self.root)["sha256"], changed_source["sha256"])
+        for path, content in recipes.items():
+            with self.subTest(recipe=path):
+                prepared = audit.source_snapshot(self.root)
+                self.assertEqual(audit.snapshot_errors(self.root, prepared, []), [])
+                (self.root / path).write_text(content + "# compile recipe changed\n")
+                self.assertNotEqual(audit.source_snapshot(self.root)["sha256"], prepared["sha256"])
+                self.assertIn("Compile input snapshot changed during/after this test run",
+                              audit.snapshot_errors(self.root, prepared, []))
 
     def test_stale_event_artifact_is_not_current_source_runtime_evidence(self):
         events = self.root / "events.jsonl"
