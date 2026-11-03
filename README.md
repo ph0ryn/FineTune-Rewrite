@@ -1,25 +1,16 @@
 # FineTune-Rewrite
 
-macOS向けFineTuneの基本互換再実装に向けた、開発用の足場です。
-**アプリの機能・音声取得・DSP・設定移行は実装していません。**
-
-## 文書の案内
-
-| 文書 | 内容 |
-| --- | --- |
-| このREADME | 現在の実装状況、開発環境、実行手順、実行可能なテストの範囲 |
-| [開発ガイド](<AGENTS.md>) | 目的・参照基準・作業時の判断ルール |
-| [アーキテクチャ設計案](<docs/architecture.md>) | 構成・責務・依存・所有権・未決の設計選択 |
-| [検証方針](<docs/validation.md>) | 試験対象・検証方法・実機での確認条件 |
+macOS向け[FineTune](https://github.com/ronitsingh10/FineTune)を再設計・再実装するプロジェクトです。
+機能・UI・操作体系・設定・外部連携の基本互換を目指し、不具合を自分たちで再現・修正・保守できる構成にします。
 
 ## 開発環境
 
 Swift 6とC++20に対応するXcode、およびXcode付属の`swift format`を使用します。
 追加のパッケージマネージャーや外部ライブラリは不要です。
 
-今回確認した環境は次のとおりです。他のツールチェーンやIntel Macでは未検証です。
+開発に使用するツールチェーンは次のとおりです。
 
-| 項目 | 検証環境 |
+| 項目 | 開発環境 |
 | --- | --- |
 | Xcode | 27.2 |
 | Swift | 6.4.2、Swift 6 language mode |
@@ -27,10 +18,9 @@ Swift 6とC++20に対応するXcode、およびXcode付属の`swift format`を�
 | macOS SDK | 27.2 |
 | アーキテクチャ | Apple Silicon（arm64） |
 
-[Package.swift](<Package.swift>)のdeployment targetは、共有設計案を出発点にmacOS 15.4としています。
-これはビルド設定であり、macOS 15.4上での動作確認や製品の対応OS確定を意味しません。
+ビルド対象はmacOS 15.4以降です。OS・言語・依存関係の設定は[Package.swift](<Package.swift>)で管理します。
 
-## 開始手順
+## ビルドとテスト
 
 リポジトリのルートで実行します。
 
@@ -61,7 +51,7 @@ SDKの自動検出が古いCommand Line Toolsを参照する場合は、選択�
 SDKROOT="$(xcrun --sdk macosx --show-sdk-path)" xcrun swift build
 ```
 
-書式確認対象はSwiftのみです。C++／Objective-C++のlintやリアルタイム検査は含みません。
+書式確認対象はSwiftです。
 SwiftPMのビルド生成物は`.build/`以下に作成されます。
 SwiftPMやコンパイラはユーザー領域のキャッシュも使うため、sandbox環境ではその書き込み権限が別途必要になる場合があります。
 
@@ -71,18 +61,16 @@ SwiftPMやコンパイラはユーザー領域のキャッシュも使うため�
 open Package.swift
 ```
 
-ローカルSwift Packageとしてライブラリの開発ができます。
-アプリ用Xcodeプロジェクト、bundle ID、署名、権限、配布設定はまだ用意していません。
-アプリを起動する手順ではありません。
+ローカルSwift Packageとして各ライブラリを編集・ビルド・テストできます。
 
 ## リポジトリの構成
 
 | 場所 | 内容 |
 | --- | --- |
-| [Package.swift](<Package.swift>) | 5つのライブラリtarget、Swift 6／C++20、依存方向の宣言 |
-| [Sources](<Sources/>) | 各ライブラリのビルド用の空の骨格。製品APIは未定義 |
+| [Package.swift](<Package.swift>) | ライブラリとテストtarget、言語バージョン、依存関係の設定 |
+| [Sources](<Sources/>) | 各ライブラリのソースコード |
 | [BuildSmokeTests](<Tests/BuildSmokeTests/BuildSmokeTests.swift>) | Swiftからテスト用C APIを呼ぶスモークテスト |
-| [NativeBuildSupport](<Tests/NativeBuildSupport/>) | テスト専用のC++／Objective-C++コード。製品ライブラリからは依存しない |
+| [NativeBuildSupport](<Tests/NativeBuildSupport/>) | スモークテスト用のC++／Objective-C++コード |
 
 ライブラリの依存方向は次のとおりです。矢印はコード上の依存を表します。
 具体的な宣言の管理元は[Package.swift](<Package.swift>)です。
@@ -93,17 +81,22 @@ FineTunePlatform → FineTuneControl, FineTuneDomain, NativeAudio
 NativeAudio      → AudioDSP
 ```
 
-Swift側はC互換の公開ヘッダーだけをimportします。
-C++ヘッダーはnative実装内で扱い、SwiftのC++ interoperabilityは有効にしていません。
+Swift側はC互換の公開ヘッダーだけをimportし、C++ヘッダーはnative実装内で扱います。
 
-## 検証の範囲
+## テスト
 
-スモークテストで確認するのは、次の開発基盤だけです。
+スモークテストでは、次の項目を確認します。
 
 - Swiftの各moduleとnative targetをコンパイル・リンクできること。
 - C++20でコンパイルされたテスト用関数を、C形式の境界を通してSwiftから呼べること。
 - Foundationを使うObjective-C++のテスト用関数をSwiftから呼べること。
 
-製品の振る舞い、互換性、DSPの正しさ、リアルタイム安全性、実機の音声経路を確認するテストではありません。
-製品の試験と音声経路の検証用プログラムは未作成です。追加する試験の対象・確認条件は[検証方針](<docs/validation.md>)で扱います。
-CI・自動配布・外部公開の設定は、この開発準備には含めていません。
+機能・互換性・DSP・音声経路の試験対象と確認条件は[検証方針](<docs/validation.md>)を参照してください。
+
+## 関連ドキュメント
+
+| 文書 | 内容 |
+| --- | --- |
+| [開発ガイド](<AGENTS.md>) | 目的・参照基準・作業時の判断ルール |
+| [アーキテクチャ設計案](<docs/architecture.md>) | 構成・責務・依存・所有権・設計上の検討事項 |
+| [検証方針](<docs/validation.md>) | 試験対象・検証方法・実機での確認条件 |
