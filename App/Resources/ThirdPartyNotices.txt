@@ -1,8 +1,9 @@
 FineTune Rewrite — license notices
 
 This development application contains components with different licenses.
-The application must not be described as MIT-only: its device icon catalog is
-GPL-3.0-only, derived from FineTune by Ronit Singh. Other independently written
+The application must not be described as MIT-only: its device icon catalog and
+URL automation grammar are GPL-3.0-only, derived from FineTune by Ronit Singh.
+Other independently written
 source files retain their stated licenses. These notices do not certify that a
 particular binary distribution has met every applicable license condition.
 
@@ -16,6 +17,13 @@ FineTune device icon catalog
   terms, including corresponding source obligations. Bundling notices alone is
   not a substitute for those obligations. No application distribution is
   performed by the source build/test instructions.
+
+FineTune URL automation grammar
+  Source: FineTune/Utilities/URLHandler.swift
+  Upstream: https://github.com/ronitsingh10/FineTune
+  Fixed revision: 2285279d36d3f8115c1c2d4aecd904f1bdf96a51
+  Local file: Sources/FineTuneControl/Automation/URLAutomationParser.swift
+  License: GPL-3.0-only, complete text and attribution below.
 
 Independent FineTune Rewrite source
   License: MIT, complete text below. This does not relicense GPL-derived code.
