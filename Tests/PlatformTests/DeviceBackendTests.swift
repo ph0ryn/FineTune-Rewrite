@@ -123,7 +123,7 @@ struct DeviceBackendTests {
 
   @Test("Alert writes debounce to the latest rounded percent and confirm the observed readback")
   func alertDebounceAndReadback() async throws {
-    let clock = BackendManualClock()
+    let clock = DeviceBackendTestClock()
     let scripts = BackendScriptSpy(percent: 20)
     let backend = AlertVolumeBackend(
       scriptRunner: scripts, clock: DeviceBackendClock { try await clock.sleep(for: $0) })
@@ -149,7 +149,7 @@ struct DeviceBackendTests {
 
   @Test("Alert command success without matching readback is not reported as applied")
   func alertUnconfirmedWrite() async {
-    let clock = BackendManualClock()
+    let clock = DeviceBackendTestClock()
     let scripts = BackendScriptSpy(percent: 20, ignoreWrites: true)
     let backend = AlertVolumeBackend(
       scriptRunner: scripts, clock: DeviceBackendClock { try await clock.sleep(for: $0) })
@@ -165,7 +165,7 @@ struct DeviceBackendTests {
 
   @Test("Stopping an alert request cancels its pending write without executing a script")
   func alertStopAndValidation() async {
-    let clock = BackendManualClock()
+    let clock = DeviceBackendTestClock()
     let scripts = BackendScriptSpy(percent: 20)
     let backend = AlertVolumeBackend(
       scriptRunner: scripts, clock: DeviceBackendClock { try await clock.sleep(for: $0) })
@@ -330,7 +330,8 @@ private actor BackendScriptSpy: DeviceScriptRunning {
   }
 }
 
-private actor BackendManualClock {
+// Test-only monotonic clock shared by the device backend suites.
+actor DeviceBackendTestClock {
   private var now = Duration.zero
   private var sleepers:
     [UUID: (deadline: Duration, continuation: CheckedContinuation<Void, any Error>)] = [:]
