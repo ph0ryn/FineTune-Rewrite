@@ -109,3 +109,10 @@ Swift側はC互換の公開ヘッダーだけをimportし、C++ヘッダーはna
 | [開発ガイド](<AGENTS.md>) | 目的・参照基準・作業時の判断ルール |
 | [アーキテクチャ設計案](<docs/architecture.md>) | 構成・責務・依存・所有権・設計上の検討事項 |
 | [検証方針](<docs/validation.md>) | 試験対象・検証方法・実機での確認条件 |
+
+## ライセンス
+
+本プロジェクトの独自実装および独立して作成したテストコードは、[MIT License](<LICENSE>)で提供します。
+
+[FineTune](https://github.com/ronitsingh10/FineTune)に由来するテストコードには、その後の変更・リファクタリング・派生物を含め、元の[GNU GPLv3](https://www.gnu.org/licenses/gpl-3.0.html)が引き続き適用されます。
+コードの出自はGit履歴を参照してください。
