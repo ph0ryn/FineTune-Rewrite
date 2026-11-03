@@ -157,6 +157,35 @@ def matching(values):
     return pairs
 
 
+def static_literal_start(values, pairs, name, owner):
+    """Resolve only a direct same-type static let array, never evaluate Swift expressions."""
+    candidates = []
+    boundaries = {"@", "}", ";", "private", "fileprivate", "internal", "public", "nonisolated",
+                  "static", "let", "var", "func", "struct", "class", "enum", "actor", "extension"}
+    for index in range(len(values) - 2):
+        if values[index:index + 3] != ["static", "let", name]:
+            continue
+        enclosing = max((start for start, end in pairs.items()
+                         if values[start] == "{" and start < index < end), default=None)
+        if enclosing != owner:
+            continue
+        cursor = index + 3
+        if values[cursor:cursor + 1] == [":"]:
+            if values[cursor + 1:cursor + 2] != ["["]:
+                raise ValueError(f"Unsupported static collection type: {name}")
+            cursor = pairs[cursor + 1] + 1
+        if values[cursor:cursor + 2] != ["=", "["]:
+            raise ValueError(f"Static collection is not a finite array literal: {name}")
+        start = cursor + 1
+        end = pairs[start]
+        if end + 1 < len(values) and values[end + 1] not in boundaries:
+            raise ValueError(f"Static collection has a dynamic initializer suffix: {name}")
+        candidates.append(start)
+    if len(candidates) != 1:
+        raise ValueError(f"Missing/ambiguous same-type static literal collection: {name}")
+    return candidates[0]
+
+
 def scan_swift(source, path):
     items = tokens(source)
     values = [value for value, _ in items]
@@ -190,6 +219,11 @@ def scan_swift(source, path):
         count = 1
         if argument_index is not None:
             start = argument_index + 2
+            argument_tokens = values[start:attr_end - 1]
+            if values[start] != "[" and len(argument_tokens) == 1:
+                owner = max((opening for opening, closing, _ in types
+                             if opening < function < closing), default=None)
+                start = static_literal_start(values, pairs, argument_tokens[0], owner)
             if values[start] == "[":
                 end = pairs[start]
                 arguments = values[start:end + 1]

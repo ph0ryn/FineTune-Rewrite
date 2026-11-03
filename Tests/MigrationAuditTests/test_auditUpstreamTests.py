@@ -292,6 +292,42 @@ struct Sample {
                                    "guarantee": "Inputs 1 and 2 remain below 10; exact scalar comparison."}]
         return native_path + "::values"
 
+    def test_same_type_static_literal_matrix_uses_actual_values_and_count(self):
+        source = self.source.replace(
+            "struct Sample {", "struct Sample {\n    static let goldens: [Int] = [1, 2]")
+        source = source.replace("arguments: [1, 2]", "arguments: goldens")
+        method = audit.scan_swift(source, self.path)[self.destination_id]
+        inline = audit.scan_swift(self.source, self.path)[self.destination_id]
+        self.assertEqual(method["invocations"], 2)
+        self.assertEqual(method["fingerprints"]["arguments"], inline["fingerprints"]["arguments"])
+        changed = audit.scan_swift(source.replace("= [1, 2]", "= [1, 3]"), self.path)[self.destination_id]
+        self.assertNotEqual(changed["fingerprints"]["arguments"], method["fingerprints"]["arguments"])
+        smaller = audit.scan_swift(source.replace("= [1, 2]", "= [1]"), self.path)[self.destination_id]
+        self.assertEqual(smaller["invocations"], 1)
+
+    def test_named_matrices_reject_dynamic_and_wrong_scope_bindings(self):
+        declaration = "static let goldens: [Int] = [1, 2]"
+        source = self.source.replace("struct Sample {", "struct Sample {\n    " + declaration)
+        source = source.replace("arguments: [1, 2]", "arguments: goldens")
+        other = source.replace("Sample", "Other").replace("= [1, 2]", "= [3, 4, 5]")
+        methods = audit.scan_swift(source + other, self.path)
+        self.assertEqual(methods[self.destination_id]["invocations"], 2)
+        self.assertEqual(methods[self.path + "::Other.values"]["invocations"], 3)
+        invalid = [
+            source.replace(declaration, "static let goldens = externalTable"),
+            source.replace(declaration, "static let goldens = loadCases()"),
+            source.replace(declaration, "static let goldens = goldens"),
+            source.replace(declaration, "static var goldens: [Int] = [1, 2]"),
+            source.replace(declaration, declaration + " + externalTable"),
+            source.replace(declaration, declaration + "\n    " + declaration),
+            source.replace("arguments: goldens", "arguments: Other.goldens"),
+            source.replace(declaration, "") + other,
+        ]
+        for invalid_source in invalid:
+            with self.subTest(source=invalid_source):
+                with self.assertRaises(ValueError):
+                    audit.scan_swift(invalid_source, self.path)
+
     def test_unlisted_native_case_source_fails_closed(self):
         path = "Tests/NativeRuntimeTests/OmittedTests.cpp"
         source = self.root / path
