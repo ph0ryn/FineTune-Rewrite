@@ -131,8 +131,11 @@ JSONL・source snapshot・監査JSONと合わせて読みます。
 
 最終required件数は、review済みmanifestの**新しい対応先**から導出します。
 元966への固定比較や、欠落を覆う総数だけの比較は行いません。
-optional-hardwareには明示理由とreviewが必要で、通常CIの期待件数から除外します。
+optional-hardwareにはSwift/C++を問わず明示理由とreviewが必要で、通常CIの期待件数から除外します。
 明示的に確認するrunだけ`--include-optional-hardware`で要求し、未実施をpassへ加えません。
+このflagは**証拠の要求範囲**を選ぶもので、SwiftPMやnative runnerの実行filterではありません。
+実機操作を伴うtestは既定test targetに入れず、別package/明示manual runnerへ隔離してください。
+metadataをoptionalにしただけで、通常の`swift test`が実機操作を止めてくれるとは扱いません。
 
 ## 監査器自身の試験
 
@@ -143,6 +146,7 @@ optional-hardwareには明示理由とreviewが必要で、通常CIの期待件�
 - pending/自己review、理由・代替のない非可搬扱いを失敗にする
 - many-to-many統合により元の2宣言/3呼出しが新1unit/1呼出しになっても、review済みなら受け入れる
 - runtime欠落・重複・skip・issue・未完run・未知schema・stale report/変更済みsourceを失敗にする
+- Swift/C++のoptional-hardwareを既定の期待件数へ混ぜず、明示include・理由・reviewを要求する
 
 監査器はCIを通すために再設計を拒否する装置ではなく、説明のない保証低下や証拠の取り違えを検出するものです。
 
@@ -153,4 +157,6 @@ unit/component passは、App consumer全接続・実HAL音声・権限・最小O
 
 原作由来test/fixtureと派生C++ unitもGNU GPL version 3を維持します。
 [出自説明](<../Tests/UpstreamCompatibilityTests/README.md>)と[原作copyright/GPL本文](<../Tests/UpstreamCompatibilityTests/COPYING>)を同梱し、
-独立production実装や独自試験の[MIT License](<../LICENSE>)と区別します。
+独立実装や独自試験の[MIT License](<../LICENSE>)と区別します。
+また製品側の[DeviceIconCatalog](<../App/DeviceIcons/DeviceIconCatalog.swift>)全体も、原作由来dataを含む`GPL-3.0-only`の対象です。
+テストの隔離を理由に、GPL対象を含む製品binaryの配布条件まで不要とは扱いません。

@@ -67,4 +67,8 @@ parserのunit、共通Control操作、App event/bundle登録は異なる保証�
 原作由来のtest/fixtureと派生物はGNU GPL version 3です。
 [出自説明](<../Tests/UpstreamCompatibilityTests/README.md>)・[COPYING](<../Tests/UpstreamCompatibilityTests/COPYING>)・
 [元path/SHAと対応表](<../Tests/UpstreamCompatibilityTests/migrationManifest.json>)を保持します。
-独立production実装の[MIT License](<../LICENSE>)と混同しません。
+製品側の[DeviceIconCatalog](<../App/DeviceIcons/DeviceIconCatalog.swift>)も、固定原作の85項目・category順・keyword dataを引き継ぐため、
+当該ファイル全体を`GPL-3.0-only`とします。機能語彙の著作性を法的に断定した結論ではなく、出自を保守的に明示する区分です。
+他の独立した[MIT License](<../LICENSE>)部分はそのまま区別し、productionすべてをMIT-onlyとは表現しません。
+GPL対象を含む製品binaryの配布時は、組合せ・対応source・通知とlicense提供等の条件を別途確認します。
+テストの隔離だけで製品のGPL条件が消えるとは扱わず、現時点で法的適合性や配布完了を保証しません。

@@ -1,3 +1,10 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// The catalog symbol/category/keyword data is derived from FineTune by Ronit Singh.
+// Fixed source: FineTune/Models/DeviceIconCatalog.swift
+// https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Models/DeviceIconCatalog.swift
+// Upstream revision: 2285279d36d3f8115c1c2d4aecd904f1bdf96a51
+// This entire file is licensed under GPL-3.0-only; this notice does not reclassify other files.
+
 import FineTuneDomain
 import Foundation
 

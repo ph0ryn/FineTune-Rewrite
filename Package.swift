@@ -41,7 +41,8 @@ let package = Package(
         "FineTuneDomain", "FineTuneControl", "FineTunePlatform",
         .product(name: "KeyboardShortcuts", package: "KeyboardShortcuts"),
       ],
-      path: "App"
+      path: "App",
+      resources: [.copy("Resources/ThirdPartyNotices.txt")]
     ),
     .executableTarget(
       name: "DSPTests",
