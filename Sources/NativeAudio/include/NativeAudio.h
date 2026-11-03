@@ -4,3 +4,4 @@
 #include "NativeAudioBiquad.h"
 #include "NativeAudioDynamics.h"
 #include "NativeAudioPipeline.h"
+#include "NativeAudioRuntime.h"
