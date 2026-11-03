@@ -67,8 +67,27 @@ parserのunit、共通Control操作、App event/bundle登録は異なる保証�
 原作由来のtest/fixtureと派生物はGNU GPL version 3です。
 [出自説明](<../Tests/UpstreamCompatibilityTests/README.md>)・[COPYING](<../Tests/UpstreamCompatibilityTests/COPYING>)・
 [元path/SHAと対応表](<../Tests/UpstreamCompatibilityTests/migrationManifest.json>)を保持します。
-製品側の[DeviceIconCatalog](<../App/DeviceIcons/DeviceIconCatalog.swift>)も、固定原作の85項目・category順・keyword dataを引き継ぐため、
-当該ファイル全体を`GPL-3.0-only`とします。機能語彙の著作性を法的に断定した結論ではなく、出自を保守的に明示する区分です。
-他の独立した[MIT License](<../LICENSE>)部分はそのまま区別し、productionすべてをMIT-onlyとは表現しません。
+独立した[MIT License](<../LICENSE>)部分を維持し、下記のwhole-file GPL区分と混同しません。
+GPL対象はテストやdataだけではなく派生codeも含むため、productionすべてをMIT-onlyとは表現しません。
 GPL対象を含む製品binaryの配布時は、組合せ・対応source・通知とlicense提供等の条件を別途確認します。
 テストの隔離だけで製品のGPL条件が消えるとは扱わず、現時点で法的適合性や配布完了を保証しません。
+
+### 製品側の派生codeとdata
+
+以下は現在実在するファイルのSPDX header・固定元path/revisionと実装者確認に基づく区分です。
+各ファイル**全体**を`GPL-3.0-only`とします。固定元はすべて本文冒頭の比較revisionであり、最新mainへ変えません。
+
+| 製品ファイル | 参照した境界 | 固定原作のsource |
+| --- | --- | --- |
+| [DeviceIconCatalog](<../App/DeviceIcons/DeviceIconCatalog.swift>) | 85項目・順序・category/keyword data | [DeviceIconCatalog](<https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Models/DeviceIconCatalog.swift>) |
+| [systemAudioDaemonCatalog](<../Sources/FineTunePlatform/Devices/Observation/systemAudioDaemonCatalog.swift>) | bundle/name prefix語彙 | [AudioProcessMonitor:20–58](<https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Audio/Monitors/AudioProcessMonitor.swift#L20-L58>) |
+| [URLAutomationParser](<../Sources/FineTuneControl/Automation/URLAutomationParser.swift>) | URL grammar・値変換規則 | [URLHandler](<https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Utilities/URLHandler.swift>) |
+| [AutoEQCatalog](<../Sources/FineTunePlatform/Profiles/AutoEQCatalog.swift>) | INDEX解析・検索順位 | [AutoEQFetcher](<https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Audio/AutoEQ/AutoEQFetcher.swift>)・[AutoEQProfileManager](<https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Audio/AutoEQ/AutoEQProfileManager.swift>) |
+| [ParametricEQTextParser](<../Sources/FineTunePlatform/Profiles/ParametricEQTextParser.swift>) | APO grammar・filter規則 | [AutoEQParser](<https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Audio/AutoEQ/AutoEQParser.swift>) |
+| [AutoEQProfileRepository](<../Sources/FineTunePlatform/Profiles/AutoEQProfileRepository.swift>) | 取得/cache/importの振る舞い | [AutoEQFetcher](<https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Audio/AutoEQ/AutoEQFetcher.swift>)・[AutoEQProfileManager](<https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Audio/AutoEQ/AutoEQProfileManager.swift>) |
+| [ProfileFileStore](<../Sources/FineTunePlatform/Profiles/ProfileFileStore.swift>) | cache file/schema/mtime操作 | [AutoEQProfileLoader](<https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Audio/AutoEQ/AutoEQProfileLoader.swift>)・[AutoEQFetcher](<https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Audio/AutoEQ/AutoEQFetcher.swift>) |
+
+これは仕様・algorithm・schemaを再構成した境界も含め、実装者が保守的にwhole-file GPLと指定した事実を記録するものです。
+新規DTO/diagnostics/port等を含む全行が原作者のliteral copyだとは主張せず、機能語彙・規則自体の権利性も法的に断定しません。
+別ファイルの独立HTTP transport・App consumer等のMIT部分は維持します。
+外部AutoEqのINDEX/profile corpus自体は同梱しておらず、その取得dataをこの表のsource codeと同一licenseだと再分類もしません。

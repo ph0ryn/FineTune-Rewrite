@@ -318,30 +318,54 @@ struct Sample {
                 errors, _ = audit.audit_cpp_reports([changed], expected)
                 self.assertTrue(errors)
 
+    def test_multiple_cpp_suites_form_one_unique_complete_runtime_set(self):
+        expected = {"Tools/DSPTests/main.cpp::scalar": 1, "Tests/NativeStageTests/main.cpp::matrix": 3}
+        reports = [{"schema_version": 1, "complete": True, "cases": [
+            {"id": identifier, "status": "passed", "invocations": count, "checks": count * 10}]
+        } for identifier, count in expected.items()]
+        errors, summary = audit.audit_cpp_reports(reports, expected)
+        self.assertEqual(errors, [])
+        self.assertEqual(summary["completed_units"], 2)
+        self.assertEqual(summary["completed_invocations"], 4)
+        self.assertTrue(audit.audit_cpp_reports(reports[:1], expected)[0])
+        self.assertTrue(audit.audit_cpp_reports(reports + [copy.deepcopy(reports[0])], expected)[0])
+        incomplete = copy.deepcopy(reports)
+        incomplete[1]["complete"] = False
+        self.assertTrue(audit.audit_cpp_reports(incomplete, expected)[0])
+
     def test_cpp_report_is_freshly_prepared_and_uses_the_same_native_source_snapshot(self):
         artifacts = self.root / "artifacts"
         artifacts.mkdir()
         events = artifacts / "events.jsonl"
         report_file = artifacts / "cpp.json"
+        second_report_file = artifacts / "cpp-stages.json"
         report_file.write_text('{"complete": true, "old": true}')
+        second_report_file.write_text('{"complete": true, "old": true}')
         native = self.root / "Tools/DSPTests/main.cpp"
         native.parent.mkdir(parents=True)
         native.write_text("int scalarKernel() { return 1; }\n")
         snapshot_file = artifacts / "source.json"
         with contextlib.redirect_stdout(io.StringIO()):
             result = audit.main(["--root", str(self.root), "--capture-snapshot", str(snapshot_file),
-                                 "--events", str(events), "--cpp-events", str(report_file)])
+                                 "--events", str(events), "--cpp-events", str(report_file),
+                                 "--cpp-events", str(second_report_file)])
         self.assertEqual(result, 0)
         self.assertEqual(report_file.read_text(), "")
+        self.assertEqual(second_report_file.read_text(), "")
         snapshot = json.loads(snapshot_file.read_text())
+        cpp_paths = [report_file, second_report_file]
+        self.assertEqual(snapshot["prepared_cpp_events"], sorted(str(path.resolve()) for path in cpp_paths))
         events.write_text("{}\n")
         report_file.write_text('{"schema_version": 1, "complete": true, "cases": []}\n')
-        self.assertEqual(audit.snapshot_errors(self.root, snapshot, [events], [report_file]), [])
+        self.assertTrue(audit.snapshot_errors(self.root, snapshot, [events], cpp_paths))
+        second_report_file.write_text('{"schema_version": 1, "complete": true, "cases": []}\n')
+        self.assertEqual(audit.snapshot_errors(self.root, snapshot, [events], cpp_paths), [])
+        self.assertTrue(audit.snapshot_errors(self.root, snapshot, [events], [report_file]))
         (self.root / "README.md").write_text("Review documentation may change after execution.\n")
         (self.root / "Tests/UpstreamCompatibilityTests/migrationManifest.json").write_text("{}\n")
-        self.assertEqual(audit.snapshot_errors(self.root, snapshot, [events], [report_file]), [])
+        self.assertEqual(audit.snapshot_errors(self.root, snapshot, [events], cpp_paths), [])
         native.write_text("int scalarKernel() { return 2; }\n")
-        self.assertTrue(audit.snapshot_errors(self.root, snapshot, [events], [report_file]))
+        self.assertTrue(audit.snapshot_errors(self.root, snapshot, [events], cpp_paths))
 
     def event_records(self):
         runtime_id = "UpstreamCompatibilityTests.Sample/values(_:) /Sample.swift:5:4"

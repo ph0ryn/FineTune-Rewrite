@@ -1,11 +1,14 @@
 FineTune Rewrite — license notices
 
 This development application contains components with different licenses.
-The application must not be described as MIT-only: its device icon catalog,
-URL automation grammar and system audio daemon vocabulary are GPL-3.0-only,
-derived from FineTune by Ronit Singh. Other independently written source files
-retain their stated licenses. These notices do not certify that a
-particular binary distribution has met every applicable license condition.
+The application must not be described as MIT-only. The seven source files
+listed below are GPL-3.0-only derived components: device catalog and daemon data,
+URL grammar, profile parsing/search, acquisition/cache and file-store behavior.
+Their whole-file declarations cover derived code as well as data; they do not
+mean every newly written line was copied from or authored by Ronit Singh.
+Other independently written source files retain their stated licenses.
+These notices do not certify that a particular binary distribution has met
+every applicable license condition.
 
 FineTune device icon catalog
   Source: FineTune/Models/DeviceIconCatalog.swift
@@ -30,6 +33,34 @@ FineTune system audio daemon vocabulary
   Upstream: https://github.com/ronitsingh10/FineTune
   Fixed revision: 2285279d36d3f8115c1c2d4aecd904f1bdf96a51
   Local file: Sources/FineTunePlatform/Devices/Observation/systemAudioDaemonCatalog.swift
+  License: GPL-3.0-only, complete text and attribution below.
+
+FineTune AutoEQ catalog and search
+  Sources: FineTune/Audio/AutoEQ/AutoEQFetcher.swift and AutoEQProfileManager.swift
+  Upstream: https://github.com/ronitsingh10/FineTune
+  Fixed revision: 2285279d36d3f8115c1c2d4aecd904f1bdf96a51
+  Local file: Sources/FineTunePlatform/Profiles/AutoEQCatalog.swift
+  License: GPL-3.0-only, complete text and attribution below.
+
+FineTune parametric EQ text grammar and filter rules
+  Source: FineTune/Audio/AutoEQ/AutoEQParser.swift
+  Upstream: https://github.com/ronitsingh10/FineTune
+  Fixed revision: 2285279d36d3f8115c1c2d4aecd904f1bdf96a51
+  Local file: Sources/FineTunePlatform/Profiles/ParametricEQTextParser.swift
+  License: GPL-3.0-only, complete text and attribution below.
+
+FineTune AutoEQ acquisition, cache and import behavior
+  Sources: FineTune/Audio/AutoEQ/AutoEQFetcher.swift and AutoEQProfileManager.swift
+  Upstream: https://github.com/ronitsingh10/FineTune
+  Fixed revision: 2285279d36d3f8115c1c2d4aecd904f1bdf96a51
+  Local file: Sources/FineTunePlatform/Profiles/AutoEQProfileRepository.swift
+  License: GPL-3.0-only, complete text and attribution below.
+
+FineTune profile file schema, cache and modification-time behavior
+  Sources: FineTune/Audio/AutoEQ/AutoEQProfileLoader.swift and AutoEQFetcher.swift
+  Upstream: https://github.com/ronitsingh10/FineTune
+  Fixed revision: 2285279d36d3f8115c1c2d4aecd904f1bdf96a51
+  Local file: Sources/FineTunePlatform/Profiles/ProfileFileStore.swift
   License: GPL-3.0-only, complete text and attribution below.
 
 Independent FineTune Rewrite source
@@ -77,7 +108,7 @@ The above copyright notice and this permission notice shall be included in all c
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
---- FineTune-derived catalog: GPL-3.0-only ---
+--- FineTune-derived components: GPL-3.0-only ---
 
 Copyright (C) 2026 Ronit Singh
 

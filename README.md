@@ -125,10 +125,11 @@ open FineTune.xcodeproj
 
 ## ライセンス
 
-独立して作成した実装・テストは[MIT License](<LICENSE>)ですが、production全体や生成AppをMIT-onlyとは扱いません。
+本repositoryは複数licenseを含みます。独立MIT部分の[MIT License](<LICENSE>)を維持しますが、production全体や生成AppをMIT-onlyとは扱いません。
 原作由来のテスト・fixtureと派生C++ unitはGNU GPL version 3の対象で、MITへ再ライセンスしません。
-製品側の[DeviceIconCatalog](<App/DeviceIcons/DeviceIconCatalog.swift>)も、固定原作から85項目のdata・順序・keywordを移植したため、
-当該ファイル全体を`GPL-3.0-only`として出自を記録しています。他の独立MITファイルまで再分類するものではありません。
+製品側にも、icon/daemon語彙のdataだけでなく、URL grammarやAutoEQ catalog/parser/repository/storeの派生codeを含みます。
+これらは各ファイル全体を`GPL-3.0-only`とし、[製品側の正確な区分と固定元](<docs/compatibility.md#製品側の派生codeとdata>)を記録しています。
+これは新規行すべてを原作者のliteral copyと主張するものでも、他の独立MITファイルを再分類するものでもありません。
 
 [テストの由来](<Tests/UpstreamCompatibilityTests/README.md>)、[原作copyrightとGPL本文](<Tests/UpstreamCompatibilityTests/COPYING>)、
 [ファイル・シナリオ対応台帳](<Tests/UpstreamCompatibilityTests/migrationManifest.json>)を同梱します。

@@ -115,6 +115,13 @@ C++へ移したunitがあるconfigurationでは、同じrunでnative named repor
 Swift JSONLの件数へC++の成功を混ぜず、元保証→C++ ID/入力/許容差→実行結果を別に対応付けます。
 report schema 1は`complete: true`と、全required caseの`id`・`status: passed`・正の`invocations`を要求します。
 途中終了、失敗、欠落、重複、未知case、未知schemaを成功にせず、失敗の実測値等は追加診断fieldとして保持できます。
+`invocations`は実際に実行した入力case数で、assertion/check数とは区別します。後者は`checks`等の追加診断fieldへ保持できます。
+
+`--cpp-events`は既存のrepeatable引数です。同じconfigurationで生成した全native suiteのreportを、
+captureとauditの**両方**へ同じ集合で渡します。たとえば`--cpp-events DSP.json --cpp-events STAGES.json --cpp-events SLOTS.json`です。
+全reportを開始時にresetし、freshness・`complete`・全caseの一意性を横断確認するため、別reportへの二重登録も失敗にします。
+上の低level例はDSP reportの形を示すもので、追加required suiteを省略した完全gateではありません。
+実際のproduct/report pathsは[Justfile](<../Justfile>)を管理元とし、stage/slot/level等のrequired reportも漏れなく収集します。
 source snapshotにはTools内のSwift/native sourceやresourceも含め、review用の適応metadataだけを除きます。
 
 ### JSONL・XMLの読み方
@@ -157,6 +164,6 @@ unit/component passは、App consumer全接続・実HAL音声・権限・最小O
 
 原作由来test/fixtureと派生C++ unitもGNU GPL version 3を維持します。
 [出自説明](<../Tests/UpstreamCompatibilityTests/README.md>)と[原作copyright/GPL本文](<../Tests/UpstreamCompatibilityTests/COPYING>)を同梱し、
-独立実装や独自試験の[MIT License](<../LICENSE>)と区別します。
-また製品側の[DeviceIconCatalog](<../App/DeviceIcons/DeviceIconCatalog.swift>)全体も、原作由来dataを含む`GPL-3.0-only`の対象です。
+独立MIT部分の[MIT License](<../LICENSE>)と区別します。
+製品側にも原作由来data・派生codeのwhole-file GPL区分があり、[正確なファイル範囲と固定元](<compatibility.md#製品側の派生codeとdata>)を記録しています。
 テストの隔離を理由に、GPL対象を含む製品binaryの配布条件まで不要とは扱いません。
