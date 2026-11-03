@@ -72,10 +72,13 @@ struct CoreAudioObservationInventory: AudioDeviceInventoryReading, AudioProcessI
       }
       records.append(
         AudioDeviceRecord(
-          device: AudioDevice(id: id, uid: uid, name: name, icon: nil, supportsAutoEQ: autoEQ),
+          device: AudioDevice(
+            id: id, uid: uid, name: name, icon: nil, supportsAutoEQ: autoEQ,
+            transportType: transport),
           outputStreams: output, inputStreams: input, sampleRate: rate))
       let deviceTargets: [AudioObservationTarget] = [
         .init(object: id, selector: kAudioObjectPropertyName),
+        .init(object: id, selector: kAudioDevicePropertyTransportType),
         .init(object: id, selector: kAudioDevicePropertyNominalSampleRate),
         .init(
           object: id, selector: kAudioDevicePropertyStreams, scope: kAudioObjectPropertyScopeOutput),

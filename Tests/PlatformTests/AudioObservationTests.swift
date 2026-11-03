@@ -1,5 +1,6 @@
 import AppKit
 import AudioToolbox
+import FineTuneDomain
 import Testing
 
 @testable import FineTunePlatform
@@ -26,12 +27,73 @@ struct AudioObservationTests {
       id: 11, uid: "device", name: "Device", icon: nil, supportsAutoEQ: true)
     #expect(fixture.bindingRevision == 0)
     #expect(fixture.formatRevision == 0)
+    #expect(fixture.transportType == .unknown)
     let observed = AudioDevice(
       id: 12, uid: "device", name: "Renamed", icon: nil, supportsAutoEQ: true, bindingRevision: 3,
       formatRevision: 4)
     #expect(observed.bindingRevision == 3)
     #expect(observed.formatRevision == 4)
     #expect(fixture == observed)
+  }
+
+  @Test(
+    "Both stream roles retain actual transport, never inferred from Bluetooth or Built-in names",
+    arguments: [false, true],
+    [TransportType.builtIn, .usb, .bluetooth, .bluetoothLE, .unknown])
+  func inventoryTransportIsPreserved(input: Bool, transport: TransportType) throws {
+    let source = DeviceObservationFixture()
+    source.reader.inventory = observationDevices([
+      observationDevice(name: "Bluetooth Built-in", transport: transport, input: input)
+    ])
+    #expect(source.reader.reads == 0)
+    source.monitor.refresh()
+    let devices = input ? source.monitor.inputDevices : source.monitor.outputDevices
+    let device = try #require(devices.first)
+    #expect(device.transportType == transport)
+    #expect(source.monitor.observation.health == .healthy)
+    #expect(source.reader.reads == 1)
+  }
+
+  @Test(
+    "Same UID transport metadata is visible before notification without a false native rebinding",
+    arguments: [false, true])
+  func transportMetadataPublishesBeforeCallback(input: Bool) throws {
+    let source = DeviceObservationFixture()
+    source.reader.inventory = observationDevices([
+      observationDevice(transport: .bluetoothLE, input: input)
+    ])
+    source.monitor.refresh()
+    let first = try #require(
+      (input ? source.monitor.inputDevices : source.monitor.outputDevices).first)
+    let revision = source.monitor.observation.revision
+    var notifications = 0
+    source.monitor.onObservationChanged = {
+      let current = input ? source.monitor.inputDevices : source.monitor.outputDevices
+      #expect(current.first?.transportType == .usb)
+      #expect(source.monitor.observation.revision > revision)
+      notifications += 1
+    }
+    source.reader.inventory = observationDevices([
+      observationDevice(transport: .usb, input: input)
+    ])
+    source.monitor.refresh()
+    let changed = try #require(
+      (input ? source.monitor.inputDevices : source.monitor.outputDevices).first)
+    #expect(changed == first)
+    #expect(changed.transportType == .usb)
+    #expect(changed.bindingRevision == first.bindingRevision)
+    #expect(changed.formatRevision == first.formatRevision)
+    #expect(notifications == 1)
+    source.monitor.onObservationChanged = nil
+    source.reader.failure = ObservationTestError.reader
+    source.monitor.refresh()
+    #expect(
+      (input ? source.monitor.inputDevices : source.monitor.outputDevices).first?.transportType
+        == .usb)
+    if case .failed = source.monitor.observation.health {
+    } else {
+      Issue.record("Transport inventory failure was healthy")
+    }
   }
 
   @Test("Complete new inventory is visible in every connection, rate and observation callback")
@@ -207,7 +269,7 @@ struct AudioObservationTests {
 @MainActor
 func observationDevice(
   id: AudioDeviceID = 11, name: String = "Device", autoEQ: Bool = true, rate: Double = 48_000,
-  channels: UInt32 = 2
+  channels: UInt32 = 2, transport: TransportType = .unknown, input: Bool = false
 ) -> AudioDeviceRecord {
   var format = AudioStreamBasicDescription()
   format.mSampleRate = rate
@@ -218,9 +280,12 @@ func observationDevice(
   format.mBytesPerFrame = channels * 4
   format.mFramesPerPacket = 1
   format.mBytesPerPacket = channels * 4
+  let streams = [AudioStreamRecord(id: 21, format: format)]
   return AudioDeviceRecord(
-    device: AudioDevice(id: id, uid: "device", name: name, icon: nil, supportsAutoEQ: autoEQ),
-    outputStreams: [AudioStreamRecord(id: 21, format: format)], inputStreams: [], sampleRate: rate)
+    device: AudioDevice(
+      id: id, uid: "device", name: name, icon: nil, supportsAutoEQ: autoEQ,
+      transportType: transport),
+    outputStreams: input ? [] : streams, inputStreams: input ? streams : [], sampleRate: rate)
 }
 
 func observationDevices(_ devices: [AudioDeviceRecord]) -> AudioDeviceInventory {

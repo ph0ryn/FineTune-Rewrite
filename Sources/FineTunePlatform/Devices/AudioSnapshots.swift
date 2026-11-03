@@ -9,6 +9,8 @@ public struct AudioDevice: Identifiable, Hashable {
   public let name: String
   public let icon: NSImage?
   public let supportsAutoEQ: Bool
+  /// Acquired inventory metadata, never inferred from the device name or icon.
+  public let transportType: TransportType
   /// Nonzero for a production observation; includes changes that require native preparation.
   public let bindingRevision: UInt64
   /// The rate/physical-format subset of binding changes, not display metadata.
@@ -16,13 +18,14 @@ public struct AudioDevice: Identifiable, Hashable {
 
   public init(
     id: AudioDeviceID, uid: String, name: String, icon: NSImage?, supportsAutoEQ: Bool,
-    bindingRevision: UInt64 = 0, formatRevision: UInt64 = 0
+    bindingRevision: UInt64 = 0, formatRevision: UInt64 = 0, transportType: TransportType = .unknown
   ) {
     self.id = id
     self.uid = uid
     self.name = name
     self.icon = icon
     self.supportsAutoEQ = supportsAutoEQ
+    self.transportType = transportType
     self.bindingRevision = bindingRevision
     self.formatRevision = formatRevision
   }

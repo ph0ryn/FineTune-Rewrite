@@ -93,7 +93,7 @@ struct DeviceObservationProjection {
         let value = AudioDevice(
           id: source.id, uid: source.uid, name: source.name, icon: source.icon,
           supportsAutoEQ: input ? false : source.supportsAutoEQ, bindingRevision: bindingRevision,
-          formatRevision: formatRevision)
+          formatRevision: formatRevision, transportType: source.transportType)
         if input { inputs.append(value) } else { outputs.append(value) }
       }
     }
@@ -132,7 +132,7 @@ func sameDeviceObservation(_ old: [AudioDevice], _ new: [AudioDevice]) -> Bool {
   return zip(old, new).allSatisfy {
     $0.id == $1.id && $0.uid == $1.uid && $0.name == $1.name && $0.icon === $1.icon
       && $0.supportsAutoEQ == $1.supportsAutoEQ && $0.bindingRevision == $1.bindingRevision
-      && $0.formatRevision == $1.formatRevision
+      && $0.formatRevision == $1.formatRevision && $0.transportType == $1.transportType
   }
 }
 
