@@ -1,0 +1,85 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Ronit Singh
+// Derived from ronitsingh10/FineTune, FineTuneTests/MenuBarIconImageSizeTests.swift
+// Upstream revision: 2285279d36d3f8115c1c2d4aecd904f1bdf96a51
+// Adaptation: Imports and test body preserved.
+
+// FineTuneTests/MenuBarIconImageSizeTests.swift
+// Size invariance for menu bar icons — the status item is variable-length,
+// so icons of differing sizes resize it and shift neighboring items.
+
+import AppKit
+import Testing
+
+@testable import FineTune
+
+@Suite("MenuBarIconImage — size invariance")
+@MainActor
+struct MenuBarIconImageSizeTests {
+
+  /// Every image the coordinator can put on the status bar button.
+  private var reachableImages: [MenuBarIconImage] {
+    var images: [MenuBarIconImage] = [MenuBarIconState.speakerMuted.image]
+    images += [VolumeBucket.zero, .low, .mid, .high].map { .systemSymbol($0.symbolName) }
+    images += MenuBarIconStyle.allCases.map {
+      MenuBarIconState.baseline(style: $0, volume: 0.5, muted: false).image
+    }
+    images += DeviceIconCatalog.categories.flatMap(\.entries).map { .systemSymbol($0.symbol) }
+    // Resolver fallbacks not in the catalog (AudioDeviceID.iconSymbol / TransportType.defaultIconSymbol).
+    images += [
+      "macstudio.fill", "macmini.fill", "macbook", "desktopcomputer", "display",
+      "appletv", "homepod", "homepodmini", "airplayaudio", "bolt.horizontal",
+      "tv", "speaker.wave.2", "hifispeaker",
+    ].map { .systemSymbol($0) }
+    return images
+  }
+
+  @Test("every reachable icon renders at one shared size")
+  func allIconsShareOneSize() throws {
+    let canonical = try #require(MenuBarIconState.speakerVolume(.high).image.nsImage()).size
+    for image in reachableImages {
+      let rendered = try #require(image.nsImage(), "\(image) produced no NSImage")
+      #expect(rendered.size == canonical, "\(image) is \(rendered.size), canonical is \(canonical)")
+    }
+  }
+
+  @Test("shared size never downscales the widest speaker symbol")
+  func sharedSizeCoversNaturalSymbolSize() throws {
+    let shared = try #require(MenuBarIconState.speakerVolume(.high).image.nsImage()).size
+    let natural = try #require(
+      NSImage(systemSymbolName: "speaker.wave.3.fill", accessibilityDescription: nil)
+    ).size
+    #expect(shared.width >= natural.width)
+    #expect(shared.height >= natural.height)
+  }
+
+  @Test("template rendering and accessibility description survive")
+  func templateAndAccessibilitySurvive() throws {
+    for image in [MenuBarIconImage.systemSymbol("speaker.fill"), .asset("MenuBarIcon")] {
+      let rendered = try #require(image.nsImage())
+      #expect(rendered.isTemplate, "\(image) lost template rendering")
+      #expect(
+        rendered.accessibilityDescription == "FineTune", "\(image) lost accessibility description")
+    }
+  }
+}
+
+@Suite("MenuBarIconImage — production renderer boundary")
+@MainActor
+struct MenuBarIconRendererBoundaryTests {
+  @Test("Unknown symbols and absent named assets remain explicit missing images")
+  func missingImagesRemainNil() {
+    #expect(MenuBarIconImage.systemSymbol("not.a.real.symbol.zzz").nsImage() == nil)
+    #expect(MenuBarIconImage.asset("FineTuneRewriteMissingAssetFixture").nsImage() == nil)
+  }
+
+  @Test("A caller-provided accessibility description survives normalization")
+  func customAccessibilityDescription() throws {
+    let image = try #require(
+      MenuBarIconImage.systemSymbol("headphones").nsImage(accessibilityDescription: "Output device")
+    )
+    #expect(image.accessibilityDescription == "Output device")
+    #expect(image.size == NSSize(width: 22, height: 18))
+    #expect(image.isTemplate)
+  }
+}
