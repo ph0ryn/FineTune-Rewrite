@@ -1,117 +1,131 @@
 # FineTune-Rewrite
 
-> [!WARNING]
-> 現在は未公開の開発段階です。
-> 実装の変更にあたって、本プロジェクトの過去の実装との後方互換性を維持する必要はありません。
+macOS向け[FineTune](https://github.com/ronitsingh10/FineTune)の基本用途を置き換えることを目指す再実装です。
+UI・操作・保存設定・外部連携の基本互換を保ち、不具合を再現・修正・保守できる責務分離を重視します。
 
-macOS向け[FineTune](https://github.com/ronitsingh10/FineTune)を再設計・再実装するプロジェクトです。
-機能・UI・操作体系・設定・外部連携の基本互換を目指し、不具合を自分たちで再現・修正・保守できる構成にします。
+比較元は[`2285279d36d3f8115c1c2d4aecd904f1bdf96a51`](https://github.com/ronitsingh10/FineTune/commit/2285279d36d3f8115c1c2d4aecd904f1bdf96a51)に固定しています。
+最新mainや将来のissue/PR対応を、現在の移植条件へ混ぜません。
+
+## 現在の範囲
+
+Domainの値・音量モデル、Controlの操作・状態、保存・OS adapter、AppのUI component、
+C ABI越しのoffline DSPを実装し、原作由来のunit/component testと新境界の独自テストで検証しています。
+原作は54 Swiftファイル・758テスト宣言・静的展開966呼出しですが、**同じ件数やテスト構造の再現は目的ではありません**。
+元の保証と新しいunitの対応・独立review・実行証拠を[移植台帳と監査手順](<docs/test-migration.md>)で管理します。
+
+テストの成功は、原作用途をすべて置き換えられる製品、実機音声経路、リアルタイム安全性、署名・公証の完成を意味しません。
+未実装・未接続・未検証を区別し、実機を必要としない保証をE2Eへ膨らませません。
+
+## 構成
+
+| 場所 | 責務 |
+| --- | --- |
+| [App](<App/>) | SwiftUI/AppKit表示・操作受付・依存の組立。同一ソースを製品AppとSwiftPM検証moduleで使う |
+| [Domain](<Sources/FineTuneDomain/>) | OS非依存の値・識別・音量の意味・保存希望 |
+| [Control](<Sources/FineTuneControl/>) | 操作・状態更新・変更計画と外部port |
+| [Platform](<Sources/FineTunePlatform/>) | macOS・保存・機器・nativeへのadapter |
+| [NativeAudio](<Sources/NativeAudio/>) | C ABI・処理資源の所有とnative実行境界 |
+| [AudioDSP](<Sources/AudioDSP/>) | 機器・Foundation・UIに依存しないC++信号処理 |
+| [DSPTests](<Tools/DSPTests/>) | 同じproduction nativeを使うoffline信号・C ABI・所有境界の試験 |
+| [Tests](<Tests/>) | 原作由来unit/componentと独立した新境界テスト |
+
+Swiftとnativeの公開境界はC形式です。C++型や所有権をSwift側へ広げません。
+依存・targetの正本は[Package.swift](<Package.swift>)、設計意図は[アーキテクチャ](<docs/architecture.md>)にあります。
 
 ## 開発環境
 
-macOS上で、次のツールを使用します。
+- macOS、Xcode Command Line Tools、C++20対応Clang
+- Swift 6言語モード。package tools-versionは6.0ですが、互換テストの`-default-isolation MainActor`にはSwift compiler 6.2以降が必要
+- [just](https://just.systems/)、Python 3、`clang-format` **21.1.8**
+- Swift側はXcode付属の`swift format`、native側は[.clang-format](<.clang-format>)を使う
 
-- Swift 6・C++20に対応するXcode（`swift format`を含む）
-- `clang-format` 21.1.8（native書式用）
-- [just](https://github.com/casey/just)（開発コマンド実行用）
-
-ビルド対象はmacOS 15.4以降です。Swift Packageの外部依存はありません。
-OS・言語・依存関係の設定は[Package.swift](<Package.swift>)で管理します。
-
-[CI](<.github/workflows/check.yml>)でも`just toolchain`と`just check`を実行します。
-
-## ビルドとテスト
-
-リポジトリのルートで実行します。コマンドの管理元は[Justfile](<Justfile>)です。
+ローカル検証環境はmacOS 27 / Xcode 27.2 / Swift 6.4.2 / arm64です。
+[CI](<.github/workflows/check.yml>)はmacOS 26 / Xcode 26.6を指定していますが、CIでの実行結果や最小対応OSでの動作確認とは別です。
+製品のdeployment targetはmacOS 15.4です。
 
 ```bash
-# 選択中のXcode・Swift・Clang・macOS SDKを確認
+brew install just llvm@21
+export CLANG_FORMAT="$(brew --prefix llvm@21)/bin/clang-format"
 just toolchain
+```
 
-# Swift・nativeの書式確認 → debugビルド・テスト → releaseビルド・テスト
-just check
+Xcodeを切り替える場合は、選択状態を確認してから実行します。
 
-# 個別にビルド・テスト（省略時はdebug）
-just build
-just test
-just build release
-just test release
+```bash
+export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
+export SDKROOT="$(xcrun --sdk macosx --show-sdk-path)"
+xcodebuild -version
+xcrun swift --version
+```
 
-# Swift・nativeの書式確認／修正
+外部SwiftPM依存は、実ショートカットadapterが使う[KeyboardShortcuts](https://github.com/sindresorhus/KeyboardShortcuts)です。
+比較元と同じrevision `1aef85578fdd4f9eaeeb8d53b7b4fc31bf08fe27`へ固定し、[lockfile](<Package.resolved>)も管理します。
+
+## チェック
+
+```bash
 just lint
+just build
+just audit-tests
+just test
+just test-dsp
+just audit-upstream
+just check
+```
+
+[Justfile](<Justfile>)の`just check`は、format lint・監査器の独自テスト・debug/releaseのpackage build、
+unit/component test、offline DSP、移植監査を実行します。App bundle buildは通常チェックから外した明示opt-inです。
+`just test`のSwift Testing成功だけでは、対応表のreviewや実行欠落の監査まで完了しません。
+
+scratchとXcode出力先を分離する場合:
+
+```bash
+SDKROOT="$(xcrun --sdk macosx --show-sdk-path)" \
+SWIFT_SCRATCH_PATH=.indexion/cache/integrationBuild \
+BUILD_JOBS=2 just check
+```
+
+既定値はSwiftPMが`.build`、Xcodeが`DerivedData`、並列build数が2です。
+source snapshot・JSONL・XML・監査JSONをconfiguration別にscratchへ保存します。
+その形式と失敗条件は[移植監査](<docs/test-migration.md>)、全体の保証境界は[検証方針](<docs/validation.md>)を参照してください。
+
+formatを適用する場合:
+
+```bash
 just format
-
-# 利用できるコマンドの一覧
-just --list
 ```
 
-`just`だけでも`just check`と同じチェックを実行します。
-途中で失敗した場合、それ以降のチェックは実行しません。書式の自動修正は`just format`で明示的に実行します。
+原作由来の期待値や入力をformat変更へ紛れ込ませません。
+機械監査は純粋な整形と意味のあるliteral変更を区別し、review済みの再設計を元の本文へ戻すことは要求しません。
 
-SDKの自動検出が古いCommand Line Toolsを参照する場合は、選択中のXcodeのSDKを明示して実行できます。
-同じ指定は`just test`や`just check`にも使えます。Xcodeの選択自体が誤っている場合は、先に開発環境の設定を確認してください。
+## macOS App
+
+[FineTune.xcodeproj](<FineTune.xcodeproj/project.pbxproj>)のschemeは`FineTuneRewrite`、module名は`FineTune`です。
+同じAppソースとlocal package librariesを使い、bundle IDは原作と異なる`com.ph0ryn.FineTuneRewrite`です。
 
 ```bash
-SDKROOT="$(xcrun --sdk macosx --show-sdk-path)" just build
+just build-app
+just build-app release
+open FineTune.xcodeproj
 ```
 
-言語別に`just lint-swift`・`just lint-native`、`just format-swift`・`just format-native`も実行できます。
-Swiftはpackage・ソース・テスト、nativeはGit管理中および無視設定に該当しない未追跡の`.h`・`.hpp`・`.cpp`・`.mm`を対象にします。
-nativeの書式は[.clang-format](<.clang-format>)で管理します。書式検査は静的解析やリアルタイム安全性の検証ではありません。
-SwiftPMのビルド生成物は`.build/`以下に作成されます。
-SwiftPMやコンパイラはユーザー領域のキャッシュも使うため、sandbox環境ではその書き込み権限が別途必要になる場合があります。
+[bundle build script](<scripts/buildApp.sh>)は署名・公証・起動・権限要求を行いませんが、
+**Xcodeのbundle build自体がLaunchServices/execution-policyへ開発bundleを登録する場合があります。**
+通常の`just check`では実行せず、CIも使い捨てrunnerの別stepへ分離します。
+ビルド成功を、実ユーザー環境での音声取得・再生や機器操作の確認として扱いません。
+保存adapterも明示directoryを必須とし、原作の設定を暗黙に読み書きしません。
 
-### Xcodeから開く
+## 文書
 
-```bash
-open Package.swift
-```
-
-ローカルSwift Packageとして各ライブラリを編集・ビルド・テストできます。
-
-## リポジトリの構成
-
-| 場所 | 内容 |
-| --- | --- |
-| [Package.swift](<Package.swift>) | ライブラリとテストtarget、言語バージョン、依存関係の設定 |
-| [Justfile](<Justfile>) | ローカルの書式確認・ビルド・テストの実行入口 |
-| [Sources](<Sources/>) | 各ライブラリのソースコード |
-| [BuildSmokeTests](<Tests/BuildSmokeTests/BuildSmokeTests.swift>) | Swiftからテスト用C APIを呼ぶスモークテスト |
-| [NativeBuildSupport](<Tests/NativeBuildSupport/>) | スモークテスト用のC++／Objective-C++コード |
-
-ライブラリの依存方向は次のとおりです。矢印はコード上の依存を表します。
-具体的な宣言の管理元は[Package.swift](<Package.swift>)です。
-
-```text
-FineTuneControl  → FineTuneDomain
-FineTunePlatform → FineTuneControl, FineTuneDomain, NativeAudio
-NativeAudio      → AudioDSP
-```
-
-Swift側はC互換の公開ヘッダーだけをimportし、C++ヘッダーはnative実装内で扱います。
-
-## テスト
-
-スモークテストでは、次の項目を確認します。
-
-- Swiftの各moduleとnative targetをコンパイル・リンクできること。
-- C++20でコンパイルされたテスト用関数を、C形式の境界を通してSwiftから呼べること。
-- Foundationを使うObjective-C++のテスト用関数をSwiftから呼べること。
-
-機能・互換性・DSP・音声経路の試験対象と確認条件は[検証方針](<docs/validation.md>)を参照してください。
-
-## 関連ドキュメント
-
-| 文書 | 内容 |
-| --- | --- |
-| [開発ガイド](<AGENTS.md>) | 目的・参照基準・作業時の判断ルール |
-| [アーキテクチャ設計案](<docs/architecture.md>) | 構成・責務・依存・所有権・設計上の検討事項 |
-| [互換性の基準](<docs/compatibility.md>) | 固定revision、基本互換と意図的修正の区別、初期の比較シナリオ |
-| [検証方針](<docs/validation.md>) | 試験対象・検証方法・実機での確認条件 |
+- [開発ガイド](<AGENTS.md>): 作業範囲・参照基準・責務境界
+- [アーキテクチャ](<docs/architecture.md>): 層分離・所有権・リアルタイム境界の設計意図
+- [互換方針](<docs/compatibility.md>): 振る舞い・保存・外部操作と今回の延期事項
+- [テスト移植](<docs/test-migration.md>): 元の保証から新unitへの対応・独立review・監査方法
+- [検証方針](<docs/validation.md>): unit/component・限定実機・配布の保証境界
 
 ## ライセンス
 
-本プロジェクトの独自実装および独立して作成したテストコードは、[MIT License](<LICENSE>)で提供します。
-
-[FineTune](https://github.com/ronitsingh10/FineTune)に由来するテストコードには、その後の変更・リファクタリング・派生物を含め、元の[GNU GPLv3](https://www.gnu.org/licenses/gpl-3.0.html)が引き続き適用されます。
-コードの出自はGit履歴を参照してください。
+独立して作成したproduction実装・テストは[MIT License](<LICENSE>)です。
+原作由来のテスト・fixtureとその派生物はGNU GPL version 3の対象で、MITへ再ライセンスしません。
+[由来と隔離方法](<Tests/UpstreamCompatibilityTests/README.md>)、[原作copyrightとGPL本文](<Tests/UpstreamCompatibilityTests/COPYING>)、
+[ファイル・シナリオ対応台帳](<Tests/UpstreamCompatibilityTests/migrationManifest.json>)を同梱します。

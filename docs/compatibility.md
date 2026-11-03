@@ -1,90 +1,70 @@
-# FineTune-Rewrite 互換性の基準
+# 互換方針
 
-## 位置付け
+## 比較元と今回の出口
 
-元のFineTuneの機能・UI・操作・設定・外部連携を基本互換で置き換えるための比較基準である。
-本プロジェクト自身の過去の実装との後方互換性を求めるものではない。
-この文書は実装完了や試験合格を示さない。今回確認したのは原典の文書・ソース・issueであり、旧版・新実装の動作比較と実機再現は未実施である。
-責務・所有権は[設計案](<architecture.md>)、試験方法・実行条件は[検証方針](<validation.md>)で扱う。
+比較元は[FineTuneの固定revision](https://github.com/ronitsingh10/FineTune/commit/2285279d36d3f8115c1c2d4aecd904f1bdf96a51)
+`2285279d36d3f8115c1c2d4aecd904f1bdf96a51`です。最新mainへ追従しません。
+機能・UI・操作・設定・外部連携の基本用途を比較し、内部class構造・処理順序・旧実装の制約まで複製することは要求しません。
 
-## 固定する比較元
+現在のテスト移植では、原作54ファイル・758宣言・静的966呼出しを元の保証の参照母数として扱います。
+最終test数・元本文の一致そのものではなく、保証シナリオから新しいunit/componentへの対応と独立reviewを出口にします。
+[対応台帳](<../Tests/UpstreamCompatibilityTests/migrationManifest.json>)と[監査手順](<test-migration.md>)で追跡します。
+原作issue/PR由来の改良は、今回の移植へ追加しません。
 
-| 項目 | 基準 |
-| --- | --- |
-| リポジトリ | [ronitsingh10/FineTune](https://github.com/ronitsingh10/FineTune) |
-| revision | [`2285279d36d3f8115c1c2d4aecd904f1bdf96a51`](https://github.com/ronitsingh10/FineTune/commit/2285279d36d3f8115c1c2d4aecd904f1bdf96a51) |
-| commit日時 | 2026-07-09 07:54:55 UTC |
-| 版の目印 | `Update appcast for v1.9.0`。v1.9.0の配信情報を追加したcommitであり、tagそのものではない |
-| 原典確認日 | 2026-11-04 JST |
+## 保持する意味
 
-[commit API](https://api.github.com/repos/ronitsingh10/FineTune/commits/2285279d36d3f8115c1c2d4aecd904f1bdf96a51)でSHA・日時・変更内容を確認した。
-[配信情報](https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/appcast.xml#L26-L33)はv1.9.0／build 38／macOS 15.4を示す。
-固定版の[README](https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/README.md#L116-L119)の15.0表記とは異なり、[ビルド設定](https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune.xcodeproj/project.pbxproj#L364)も15.4である。これは各OSでの動作確認を意味しない。
-比較のたびに最新mainへ追従しない。基準を更新するときは、差分と受け入れ条件への影響を確認してこの文書を更新する。
+- アプリ・機器のvolume/mute/boost、software sliderの意味、経路選択と保存希望
+- 一時的な機器切断や適用失敗で、ユーザーが保存した希望を破壊しないこと
+- 表示設定・ショートカット・HUD・アイコン・EQ presetなどの保存値と選択の意味
+- UI・キー・URLなど入口が異なっても、Controlの共通操作へ合流すること
+- 独立したroute/channelごとのDSP可変状態と、初音・無音区間後の再開を失わないこと
 
-## 基本互換の対象
+fieldやadapterの存在だけで、製品のconsumer接続や実機動作まで完成したとは判断しません。
+構成と所有権の出発点は[設計案](<architecture.md>)、保証レベルは[検証方針](<validation.md>)に分けます。
 
-固定版が公開している[機能一覧](https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/README.md#L53-L94)を出発点とする。
-以下は比較範囲であり、全項目の詳細仕様を確定した一覧ではない。
+## 保存設定
 
-- アプリ別の音量・mute・boost、pin、ignore、未再生中の設定。
-- 単一／複数出力、システム既定への追従、機器の優先順位、切断時の代替と再接続時の復元。
-- アプリ別EQ・プリセット、機器別AutoEQ、loudness、入力・機器音量、hardware／DDC／softwareの使い分け。
-- メニューバー・設定・HUDなどの主要UIと操作、キー・ショートカット、URLからの外部操作。
-- 保存された設定の意味と、アプリ・機器の永続的な識別。
+[保存schema](<../Sources/FineTunePlatform/Persistence/savedSettings.swift>)と
+[保存manager](<../Sources/FineTunePlatform/Persistence/settingsManager.swift>)を、隔離したdirectoryで検証します。
 
-## 初期に比較する意味と差分
+- 新規作成時はversion 12、version欠落/nullのdecodeは原作どおり9。未知の整数versionを勝手に移行拒否しない
+- 欠落/nullと型不一致を区別する。既知keyのdefault・gain正規化・enum decodeを原作由来unitで確認する
+- CRUD・直接binding・debounce・明示flush・reset・preset名検証を保存結果と観測可能なside effectで確認する
+- login serviceは注入可能とし、読み込みだけで実ログイン項目を登録しない
+- 不正JSONは原作方針に従いbackupして再開する。backup自体に失敗した場合は、そのmanagerの書込を抑止し、load/save errorを観測可能にする
 
-### 音量と保存値：意味を維持する
+新実装のdirectoryは必須の明示引数です。原作のApplication Support名前空間を暗黙に開きません。
+原作設定のimportを実装するときも、ユーザーが明示的に選ぶ操作として設計し、今回のテスト実行で本物の設定を移行・変更しません。
 
-[音量変換](https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Models/VolumeMapping.swift#L30-L64)では、アプリのslider位置を`s`（0〜1）としてPCM倍率は`s²`、逆変換は平方根である。
-従ってUIの50%に対応するgainは0.25であり、保存値0.25をUIの25%と読み替えない。
-hardware／DDCの機器音量には同じ平方変換を追加せず、アプリのgainやboostとは区別する。
-これは変換実装の静的確認であり、機器の実測特性まで確認したものではない。
+## 新設計への適応
 
-[保存model](https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Settings/SettingsManager.swift#L94-L139)はversion 12を初期値とし、volume・mute・boost・出力選択・機器別AutoEQなどを別に保存する。
-[音量の保存経路](https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Models/VolumeState.swift#L37-L57)はgainをそのまま渡す。
-[保存用のアプリ識別](https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Models/AudioApp.swift#L29-L31)はbundle ID、なければ`name:<name>`であり、PIDとは別である。
-旧設定の具体的な欠落値・破損・旧versionの扱いまで、この初期値から推測して確定しない。
+純粋な入力・出力契約は直接保持できます。一方、旧private API、未使用engineを抱えるfixture、
+旧vDSP setupの所有、mock自身のdefault値、実OSへの無assert投稿などは、新しい境界へ置き換えます。
+元の保証を弱めずにunitへ分割・統合できるなら、旧classを復元した巨大な互換facadeは追加しません。
 
-### URLの音量：不一致を意図的に修正する
+具体例:
 
-固定版の[set-volumes](https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Utilities/URLHandler.swift#L69-L119)は整数0〜100を受け付け、`volume / 100`をgainとして渡す。
-この式とUIの逆変換から、URLの10%はgain 0.1、表示は約32%になる。[issue #434](https://github.com/ronitsingh10/FineTune/issues/434)にも表示の不一致が報告されている。
-式の帰結とissue報告を確認したもので、こちらでUIを起動して再現した結果ではない。
-新実装ではUI・URLの百分率を共通の意味にそろえ、10%ならgain 0.01とする。現行URLの変換結果そのものは互換対象にしない。
+- aggregate/tapの初期設定は新planner・注入可能なroute portで確認し、legacyの呼出名や設定時刻を固定しない
+- media keyのhandler/watchdogはactual monitorとControlを使い、OS tap・clock・HUD表示だけを隔離する
+- メニュー操作のevent構築・dispatchはposter seamで確認し、test runnerの実event pumpへ投げるだけのsmoke testにしない
+- signal helperはnative-owned係数copyへ適応する。旧検出位置・poisoned vDSP stateだけを要求する3件は、理由と有限出力・明示error・state resetの代替保証を個別記録する
 
-### 切断・復元：保存した希望を失わない
+DSPの数式・出典・3件の対応・offline検証限界は[数値互換記録](<../Tools/DSPTests/Compatibility.md>)にあります。
+数学関数のIEEE境界と、実行可能なDSP設定・信号処理のerror契約は分けます。
 
-[公開されている復元の意図](https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/README.md#L67-L71)と[設計案](<architecture.md#L71-L76>)を期待結果とし、一時的な代替で保存した希望を消さない。
-ただし、固定版で常に成立していると扱わない。
-[multi切断時の呼び出し](https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Audio/Engine/AudioEngine.swift#L1373-L1393)は「保存しない」としてidentifierを省略するが、[下位setter](https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Models/VolumeState.swift#L162-L175)では既存stateの識別子で保存に進む。
-これはsource上の要再現箇所であり、実際の切断・再接続結果は未確認である。
+## URL・外部操作と延期事項
 
-### 機器別の補正：独立して適用する
+原作の`finetune://` actions・query順序・validation・保存対象は、固定版の
+[URLHandler](https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Utilities/URLHandler.swift)を基準にします。
+parserのunit、共通Control操作、App event/bundle登録は異なる保証であり、parserだけで製品連携完成とはしません。
 
-[AutoEQの説明](https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/guide/autoeq.md#L7-L11)は機器ごとの補正を契約としている。
-一方、[初期profileの選択](https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Audio/Engine/AudioEngine.swift#L812-L835)はprimary機器に基づき、[issue #439](https://github.com/ronitsingh10/FineTune/issues/439)では複数出力へ同じ補正が掛かると報告されている。
-新実装は[経路別の処理状態](<architecture.md#L91-L104>)に従い、アプリ×出力機器ごとの補正・可変状態を分離する。全出力に同じ補正が掛かる症状は再現すべき互換挙動に含めない。
-音声経路の方式や、報告環境での原因・解決を確認済みとするものではない。
+原作guideの百分率表現と実装が異なる箇所について、URL値を新たに`s²`へ変更する案やboost拡張は**今回保留**です。
+原作の現行処理・既知の問題・将来採用する変更を台帳で分け、無断で「互換修正」に含めません。
+同様に、idle・初音・切替・再接続・長時間稼働などのissue/PR案は、将来の再現条件と別の受入条件を定めて扱います。
 
-## 最初の比較シナリオ
+## ライセンス
 
-全項目が未実施である。実装時に、この入力・期待結果を対応する試験へ落とし込む。旧設定は隔離したfixtureで扱い、実ユーザーの設定を書き換えない。
-
-| ID | 分類 | 入力・イベント | 期待結果 |
-| --- | --- | --- | --- |
-| C1 | 意味の維持 | アプリ音量0／10／50／100%、保存gain 0.25の再読込 | gainは0／0.01／0.25／1。再読込後は50%で、mute・boostは別に保持する |
-| C2 | 意図的な修正 | active／inactiveアプリへURLで10／20／30%を指定 | UI直接操作と同じ表示・保存結果となり、gainは0.01／0.04／0.09 |
-| C3 | 復元の意図の維持・要再現 | 明示出力Aとdefault追従を区別し、A切断後に再接続。multiの集合{A,B}でも実施 | 代替中も保存した希望を保ち、再接続で復元する。旧版との差と実機結果を別に記録する |
-| C4 | 意図的な修正 | 1アプリからA・Bへ別の補正を設定し、Bだけを変更 | 各出力に対応する補正だけが掛かり、Aの処理履歴をBと共有しない。DSP試験と実機試験を分ける |
-| C5 | 不具合の再現候補 | Lのみ／Rのみの入力、短い信号、無音からの復帰 | 非無音の信号を片側の無音で誤って消さない。[issue #429](https://github.com/ronitsingh10/FineTune/issues/429)の原因と実機再現は未確認 |
-
-## 実装前に確認する保留事項
-
-- URLの[guide](https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/guide/url-schemes.md#L7-L14)にある400%と、上記handlerの0〜100の不一致。boostの外部指定、異常な引数・部分適用、inactiveアプリに対する他actionの扱いも未確定。
-- 旧schemaの欠落key・破損・未知versionへの対応、複数出力時の機器音量の詳細な意味。
-- DSPの数値許容差、aggregate・チャンネル対応・切り替え方式、初音とidle・スリープ、長時間・Bluetooth・機器ごとの成立条件。
-
-issue本文・状態は確認日時点の報告であり、固定版の再現成功や修正済みの証拠にはしない。
-保留事項は互換性の名目で暗黙に決めず、原典・意図・確認条件をそろえてから受け入れ条件を更新する。
+原作由来のtest/fixtureと派生物はGNU GPL version 3です。
+[出自説明](<../Tests/UpstreamCompatibilityTests/README.md>)・[COPYING](<../Tests/UpstreamCompatibilityTests/COPYING>)・
+[元path/SHAと対応表](<../Tests/UpstreamCompatibilityTests/migrationManifest.json>)を保持します。
+独立production実装の[MIT License](<../LICENSE>)と混同しません。
