@@ -11,6 +11,7 @@ let package = Package(
     .library(name: "FineTunePlatform", targets: ["FineTunePlatform"]),
     .library(name: "NativeAudio", targets: ["NativeAudio"]),
     .library(name: "AudioDSP", targets: ["AudioDSP"]),
+    .executable(name: "FineTune", targets: ["FineTune"]),
   ],
   targets: [
     .target(name: "FineTuneDomain"),
@@ -25,6 +26,17 @@ let package = Package(
       linkerSettings: [.linkedFramework("Foundation")]
     ),
     .target(name: "AudioDSP"),
+    .executableTarget(
+      name: "FineTune",
+      dependencies: ["FineTuneDomain", "FineTuneControl", "FineTunePlatform"],
+      path: "App"
+    ),
+    .testTarget(
+      name: "UpstreamCompatibilityTests",
+      dependencies: ["FineTune"],
+      exclude: ["COPYING", "README.md"],
+      resources: [.copy("Fixtures")]
+    ),
     .target(
       name: "NativeBuildSupport",
       dependencies: ["NativeAudio", "AudioDSP"],

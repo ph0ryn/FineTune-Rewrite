@@ -1,6 +1,7 @@
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
-swift_paths := "Package.swift Sources Tests"
+swift_paths := "Package.swift Sources App Tests"
+swift_scratch_path := env("SWIFT_SCRATCH_PATH", ".build")
 native_patterns := "'*.h' '*.hpp' '*.cpp' '*.mm'"
 clang_format := env("CLANG_FORMAT", "clang-format")
 clang_format_version := "21.1.8"
@@ -40,11 +41,11 @@ format-native: _check-clang-format
 
 # Build the package in debug or release configuration.
 build configuration="debug":
-  xcrun swift build --configuration {{ quote(configuration) }}
+  xcrun swift build --scratch-path {{ quote(swift_scratch_path) }} --configuration {{ quote(configuration) }}
 
-# Run smoke tests in debug or release configuration.
+# Run all tests and record declaration-level XML and parameter-level JSON events.
 test configuration="debug":
-  xcrun swift test --configuration {{ quote(configuration) }}
+  xcrun swift test --scratch-path {{ quote(swift_scratch_path) }} --configuration {{ quote(configuration) }} --xunit-output {{ quote(swift_scratch_path + "/test-results-" + configuration + ".xml") }} --event-stream-output-path {{ quote(swift_scratch_path + "/test-events-" + configuration + ".jsonl") }} --event-stream-version 0
 
 _check-clang-format:
   #!/usr/bin/env bash
