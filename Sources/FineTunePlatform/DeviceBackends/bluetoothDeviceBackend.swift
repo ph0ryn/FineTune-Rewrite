@@ -128,11 +128,17 @@ public final class BluetoothDeviceBackend {
 
   public func connect(id: String) async throws {
     try Task.checkCancellation()
-    guard isRunning, isPoweredOn == true else {
-      throw DeviceBackendError.operationFailed("Turn on Bluetooth before connecting a device.")
+    guard isRunning else { throw CancellationError() }
+    guard isPoweredOn == true else {
+      let error = DeviceBackendError.operationFailed(
+        "Turn on Bluetooth before connecting a device.")
+      publishConnectionError(error, id: id, token: UUID())
+      throw error
     }
     guard let peer = knownPeers[id], peer.isAudioDevice else {
-      throw DeviceBackendError.unavailableDevice(id)
+      let error = DeviceBackendError.unavailableDevice(id)
+      publishConnectionError(error, id: id, token: UUID())
+      throw error
     }
     if peer.isConnected { return }
     let token = attempts[id]?.token ?? UUID()
@@ -205,13 +211,17 @@ public final class BluetoothDeviceBackend {
     case .failure(let error) where error is CancellationError:
       connectionPhases[id] = .idle
     case .failure(let error):
-      connectionPhases[id] = .failed
-      connectionErrors[id] = error.localizedDescription
-      lastError = error
-      lastErrorDeviceID = id
-      scheduleErrorClear(for: id, token: token)
+      publishConnectionError(error, id: id, token: token)
     }
     for waiter in attempt.waiters { waiter.resume(with: result) }
+  }
+
+  private func publishConnectionError(_ error: any Error, id: String, token: UUID) {
+    connectionPhases[id] = .failed
+    connectionErrors[id] = error.localizedDescription
+    lastError = error
+    lastErrorDeviceID = id
+    scheduleErrorClear(for: id, token: token)
   }
 
   private func clearError(for id: String) {

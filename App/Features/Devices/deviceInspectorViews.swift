@@ -228,7 +228,7 @@ struct DeviceInspectorInfoGrid: View {
 struct DeviceDetailSheet: View {
   let device: AudioDevice
   let transportType: TransportType
-  let autoDetectedTier: VolumeControlTier
+  let autoDetectedTier: VolumeControlTier?
   let currentOverride: VolumeControlTier?
   let isInput: Bool
   let allowsVolumeOverride: Bool
@@ -237,7 +237,7 @@ struct DeviceDetailSheet: View {
   @State private var inspector: DeviceInspectorModel
 
   init(
-    device: AudioDevice, transportType: TransportType, autoDetectedTier: VolumeControlTier,
+    device: AudioDevice, transportType: TransportType, autoDetectedTier: VolumeControlTier?,
     currentOverride: VolumeControlTier?, isInput: Bool = false, allowsVolumeOverride: Bool = true,
     onOverrideChange: ((VolumeControlTier?) -> Void)?, onDismiss: @escaping () -> Void
   ) {
@@ -255,10 +255,11 @@ struct DeviceDetailSheet: View {
   }
 
   static func shouldShowToggle(
-    autoTier: VolumeControlTier, isInput: Bool = false, allowsVolumeOverride: Bool = true,
+    autoTier: VolumeControlTier?, isInput: Bool = false, allowsVolumeOverride: Bool = true,
     hasOverrideAction: Bool = true
   ) -> Bool {
-    !isInput && allowsVolumeOverride && hasOverrideAction && autoTier != .software
+    guard let autoTier else { return false }
+    return !isInput && allowsVolumeOverride && hasOverrideAction && autoTier != .software
   }
 
   /// This is the actual SwiftUI binding, also exercised by rewrite boundary tests.
@@ -286,6 +287,11 @@ struct DeviceDetailSheet: View {
       if let error = inspector.error {
         Label(error, systemImage: "exclamationmark.triangle.fill")
           .font(DesignTokens.Typography.caption)
+      }
+      if !isInput, autoDetectedTier == nil {
+        Text("Automatic volume control is unavailable.")
+          .font(DesignTokens.Typography.caption)
+          .foregroundStyle(DesignTokens.Colors.textSecondary)
       }
       if Self.shouldShowToggle(
         autoTier: autoDetectedTier, isInput: isInput, allowsVolumeOverride: allowsVolumeOverride,
