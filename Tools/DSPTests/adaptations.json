@@ -1,0 +1,92 @@
+{
+  "schema_version": 1,
+  "source_revision": "2285279d36d3f8115c1c2d4aecd904f1bdf96a51",
+  "classification_meanings": {
+    "A": "Portable upstream numerical tests copied byte-identically",
+    "B": "Portable signal guarantees retained with coefficient-copy helper adaptation",
+    "C": "Upstream detection-position/private-state limitation not portable to the new processor contract",
+    "D": "New or replacement offline unit/boundary coverage, not an unchanged-upstream pass"
+  },
+  "source_accounting": {
+    "files": 7,
+    "declarations": 152,
+    "statically_expanded_invocations": 242,
+    "portable_upstream_declarations": 149,
+    "explicit_nonportable_substitutions": 3,
+    "runtime_evidence": "Central integration JSON/XML is authoritative; local compile/sanitizer evidence is separate"
+  },
+  "A_files": [
+    "Tests/UpstreamCompatibilityTests/BiquadMathTests.swift",
+    "Tests/UpstreamCompatibilityTests/BiquadMathAdversarialTests.swift",
+    "Tests/UpstreamCompatibilityTests/LoudnessEqualizerTests.swift",
+    "Tests/UpstreamCompatibilityTests/ISO226ContoursTests.swift",
+    "Tests/UpstreamCompatibilityTests/SoftLimiterAdversarialTests.swift"
+  ],
+  "B_files": [
+    {
+      "source": "FineTuneTests/BiquadProcessorSignalTests.swift",
+      "destination": "Tests/UpstreamCompatibilityTests/BiquadProcessorSignalTests.swift",
+      "adaptation": "Three setup helpers replace vDSP_biquad_CreateSetup/swapSetup with production replaceCoefficients; all signal assertions, input values and tolerances retained"
+    },
+    {
+      "source": "FineTuneTests/BiquadProcessorSignalAdversarialTests.swift",
+      "destination": "Tests/UpstreamCompatibilityTests/BiquadProcessorSignalAdversarialTests.swift",
+      "adaptation": "Three setup helpers use coefficient-copy; all remaining original methods retain assertions except individually classified C methods below; NativeAudio import names explicit C status codes"
+    }
+  ],
+  "C_to_D": [
+    {
+      "source_id": "FineTuneTests/BiquadProcessorSignalAdversarialTests.swift::NaNMidBufferTests.nanMidBufferNotCaughtBySafetyNet",
+      "source_classification": "C",
+      "reason": "Requires mid-buffer NaN to escape an old first-frame-only vDSP output detector, an implementation limitation rather than the new finite-signal contract",
+      "destination_id": "Tests/UpstreamCompatibilityTests/BiquadProcessorSignalAdversarialTests.swift::NaNMidBufferTests.nonFiniteMidBufferReportsErrorAndMutesBlock",
+      "destination_classification": "D",
+      "replacement_guarantee": "Same frame-500 NaN injection reports NONFINITE_SIGNAL, mutes the entire block and does not leak non-finite output"
+    },
+    {
+      "source_id": "FineTuneTests/BiquadProcessorSignalAdversarialTests.swift::NaNMidBufferTests.nanPropagatesViaDelayStateToNextCall",
+      "source_classification": "C",
+      "reason": "Requires poisoned vDSP delays to survive one call and mute the next clean call; the new owner resets state in the failing call",
+      "destination_id": "Tests/UpstreamCompatibilityTests/BiquadProcessorSignalAdversarialTests.swift::NaNMidBufferTests.nonFiniteBlockResetsHistoryBeforeNextCleanBlock",
+      "destination_classification": "D",
+      "replacement_guarantee": "Next clean block immediately succeeds and matches a fresh independently configured processor sample-for-sample"
+    },
+    {
+      "source_id": "FineTuneTests/BiquadProcessorSignalAdversarialTests.swift::ExtremeAmplitudeTests.infinityInputBypassesSafetyNet",
+      "source_classification": "C",
+      "reason": "Requires an isNaN-only old detector to miss infinity and contaminate later output",
+      "destination_id": "Tests/UpstreamCompatibilityTests/BiquadProcessorSignalAdversarialTests.swift::ExtremeAmplitudeTests.infinityInputReportsErrorAndMutesBlock",
+      "destination_classification": "D",
+      "replacement_guarantee": "Same frame-zero infinity reports NONFINITE_SIGNAL and bounded whole-block mute; scalar limiter IEEE expectations remain unchanged in A"
+    }
+  ],
+  "D_independent_executable": {
+    "path": "Tools/DSPTests/main.cpp",
+    "cases": [
+      "mathBoundaries",
+      "firstFrameAndTail",
+      "partitionAndPathIsolation",
+      "validationAndRecovery",
+      "cBoundaryAndRealtime",
+      "copiedConfigurationOwnsFreshHistory",
+      "planarChannelsAndInvalidViews",
+      "dynamicsNumericalBoundaries"
+    ],
+    "guarantees": [
+      "First sample and one-sided short sound survive without startup fade/gate",
+      "Silence advances real filter tails and short sound resumes after silence",
+      "Per-route EQ/history and per-channel delays are independent",
+      "Arbitrary buffer partitions are bit-exact",
+      "Invalid executable configuration returns explicit errors without partial mutation",
+      "Native configuration copies own values and survive source destruction with fresh history",
+      "RT processing performs no C++ heap allocation; full executable passes ASan and UBSan",
+      "Offline mutation replacing per-channel delays with shared channel-0 state is detected"
+    ]
+  },
+  "approval": "Lead explicitly approved coefficient-boundary helper adaptation, the three C-to-D substitutions, finite detection inside the ordinary loop, and frozen history during disabled bypass on 2026-11-04 JST",
+  "limitations": [
+    "No hardware audio, OS permission, concurrent handoff or long-duration performance verification",
+    "ISO official edition/range checked; paid standard full-table independent verification not claimed",
+    "Passing unit tests is not a claim that upstream issues or product-wide compatibility are solved"
+  ]
+}

@@ -35,7 +35,9 @@ let package = Package(
       name: "UpstreamCompatibilityTests",
       dependencies: ["FineTune"],
       exclude: ["COPYING", "README.md"],
-      resources: [.copy("Fixtures")]
+      resources: [.copy("Fixtures")],
+      // Match the fixed upstream Xcode test target without changing test bodies.
+      swiftSettings: [.unsafeFlags(["-default-isolation", "MainActor"])]
     ),
     .target(
       name: "NativeBuildSupport",

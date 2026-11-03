@@ -1,3 +1,6 @@
 #pragma once
 
-// Keep this public header C-compatible. No audio API is defined yet.
+// Public umbrella: keep every exported boundary C-compatible.
+#include "NativeAudioBiquad.h"
+#include "NativeAudioDynamics.h"
+#include "NativeAudioPipeline.h"
