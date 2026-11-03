@@ -5,8 +5,8 @@ macOS向け[FineTune](https://github.com/ronitsingh10/FineTune)を再設計・�
 
 ## 開発環境
 
-Swift 6とC++20に対応するXcode、およびXcode付属の`swift format`を使用します。
-追加のパッケージマネージャーや外部ライブラリは不要です。
+Swift 6とC++20に対応するXcode、Xcode付属の`swift format`、開発コマンド実行用の[just](https://github.com/casey/just)を使用します。
+Swift Packageの外部依存はありません。
 
 開発に使用するツールチェーンは次のとおりです。
 
@@ -22,33 +22,37 @@ Swift 6とC++20に対応するXcode、およびXcode付属の`swift format`を�
 
 ## ビルドとテスト
 
-リポジトリのルートで実行します。
+リポジトリのルートで実行します。コマンドの管理元は[Justfile](<Justfile>)です。
 
 ```bash
 # 選択中のXcode・Swift・Clang・macOS SDKを確認
-xcodebuild -version
-xcrun swift --version
-xcrun clang++ --version
-xcrun --sdk macosx --show-sdk-path
+just toolchain
 
-# Swiftの書式確認 → debugビルド → スモークテスト
-xcrun swift format lint --strict --recursive Package.swift Sources Tests/BuildSmokeTests
-xcrun swift build
-xcrun swift test
+# Swiftの書式確認 → debugビルド・テスト → releaseビルド・テスト
+just check
 
-# release構成でビルド・テスト
-xcrun swift build -c release
-xcrun swift test -c release
+# 個別にビルド・テスト（省略時はdebug）
+just build
+just test
+just build release
+just test release
 
-# Swiftの書式を修正
-xcrun swift format format --in-place --recursive Package.swift Sources Tests/BuildSmokeTests
+# Swiftの書式確認／修正
+just lint
+just format
+
+# 利用できるコマンドの一覧
+just --list
 ```
 
+`just`だけでも`just check`と同じチェックを実行します。
+途中で失敗した場合、それ以降のチェックは実行しません。書式の自動修正は`just format`で明示的に実行します。
+
 SDKの自動検出が古いCommand Line Toolsを参照する場合は、選択中のXcodeのSDKを明示して実行できます。
-`test`も同様です。Xcodeの選択自体が誤っている場合は、先に開発環境の設定を確認してください。
+同じ指定は`just test`や`just check`にも使えます。Xcodeの選択自体が誤っている場合は、先に開発環境の設定を確認してください。
 
 ```bash
-SDKROOT="$(xcrun --sdk macosx --show-sdk-path)" xcrun swift build
+SDKROOT="$(xcrun --sdk macosx --show-sdk-path)" just build
 ```
 
 書式確認対象はSwiftです。
@@ -68,6 +72,7 @@ open Package.swift
 | 場所 | 内容 |
 | --- | --- |
 | [Package.swift](<Package.swift>) | ライブラリとテストtarget、言語バージョン、依存関係の設定 |
+| [Justfile](<Justfile>) | ローカルの書式確認・ビルド・テストの実行入口 |
 | [Sources](<Sources/>) | 各ライブラリのソースコード |
 | [BuildSmokeTests](<Tests/BuildSmokeTests/BuildSmokeTests.swift>) | Swiftからテスト用C APIを呼ぶスモークテスト |
 | [NativeBuildSupport](<Tests/NativeBuildSupport/>) | スモークテスト用のC++／Objective-C++コード |
