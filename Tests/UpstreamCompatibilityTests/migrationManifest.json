@@ -23,7 +23,7 @@
       "author": "dsp-engineer",
       "reviewer": "native-engineer",
       "status": "approved",
-      "evidence": "Independent task-22 review at ff7800b: pinned math tests preserved; portable signal guarantees retained through six coefficient-copy seams; three legacy NaN/Inf detection-position/private-state expectations individually C with finite/error/reset D replacements approved. Central 152 declarations/242 invocations, issue0/skip0; source hash and sanitizer/shared-channel negative-control evidence verified. Detailed local evidence .indexion/cache/dspIndependentReview.md; hardware/deadline/paid ISO full-table verification excluded."
+      "evidence": "Independent task-22 review at ff7800b: pinned math tests preserved; portable signal guarantees retained through six coefficient-copy seams; three legacy NaN/Inf detection-position/private-state expectations individually C with finite/error/reset D replacements approved. Baseline central execution at ff7800b: 152 declarations/242 invocations, issue0/skip0; this is not the post-task31 current Swift count or proof. Source hash and sanitizer/shared-channel negative-control evidence verified. Detailed local evidence .indexion/cache/dspIndependentReview.md; hardware/deadline/paid ISO full-table verification excluded."
     },
     "task-10": {
       "author": "compatibility-scout",
@@ -35,19 +35,19 @@
       "author": "ui-style-engineer",
       "reviewer": "domain-engineer",
       "status": "approved",
-      "evidence": "Independent task-24 review approves the combined A241/B1 original guarantees and D12, exact 242 source IDs/301 original cases and 45 source/test hashes recorded. All A inputs/assertions retained after narrow namespace, isolated environment and semantics-preserving formatter equivalences; B original no-assert event-post smoke replaced by actual event construction/discovery plus injected delivery. Actual SwiftUI Binding, panel visibility/deadline/fullscreen and style catalog data independently inspected; central preliminary Debug contains all 254 UI destination methods with zero fail/error/skip. Live external Inspector observation remains a separate task-29 product gap; final current-root execution still required. Detailed local evidence .indexion/cache/uiIndependentReview.md."
+      "evidence": "Independent task-24 review approves the combined A241/B1 original guarantees and D12, exact 242 source IDs/301 original cases and 45 source/test hashes recorded. All A inputs/assertions retained after narrow namespace, isolated environment and semantics-preserving formatter equivalences; B original no-assert event-post smoke replaced by actual event construction/discovery plus injected delivery. Actual SwiftUI Binding, panel visibility/deadline/fullscreen and style catalog data independently inspected; central preliminary Debug contains all 254 UI destination methods with zero fail/error/skip. The later task-29-inspector supplemental review closes the external Inspector observation gap, with the optional-binding helper and comment-only GPL catalog delta independently approved; final current-root execution still required. Detailed local evidence .indexion/cache/uiIndependentReview.md."
     },
     "task-12": {
       "author": "requirements-architect",
       "reviewer": "domain-engineer",
       "status": "approved",
-      "evidence": "Independent task-24 review approves the combined A241/B1 original guarantees and D12, exact 242 source IDs/301 original cases and 45 source/test hashes recorded. All A inputs/assertions retained after narrow namespace, isolated environment and semantics-preserving formatter equivalences; B original no-assert event-post smoke replaced by actual event construction/discovery plus injected delivery. Actual SwiftUI Binding, panel visibility/deadline/fullscreen and style catalog data independently inspected; central preliminary Debug contains all 254 UI destination methods with zero fail/error/skip. Live external Inspector observation remains a separate task-29 product gap; final current-root execution still required. Detailed local evidence .indexion/cache/uiIndependentReview.md."
+      "evidence": "Independent task-24 review approves the combined A241/B1 original guarantees and D12, exact 242 source IDs/301 original cases and 45 source/test hashes recorded. All A inputs/assertions retained after narrow namespace, isolated environment and semantics-preserving formatter equivalences; B original no-assert event-post smoke replaced by actual event construction/discovery plus injected delivery. Actual SwiftUI Binding, panel visibility/deadline/fullscreen and style catalog data independently inspected; central preliminary Debug contains all 254 UI destination methods with zero fail/error/skip. The later task-29-inspector supplemental review closes the external Inspector observation gap, with the optional-binding helper and comment-only GPL catalog delta independently approved; final current-root execution still required. Detailed local evidence .indexion/cache/uiIndependentReview.md."
     },
     "task-13": {
       "author": "repository-scout",
-      "reviewer": null,
-      "status": "pending",
-      "evidence": null
+      "reviewer": "compatibility-scout",
+      "status": "approved",
+      "evidence": "Independent task-32 review approves all 95 original shortcut guarantees (A53/B42) and D8. Exact pinned original source SHA/IDs checked; all arguments, attributes and 130 assertion sequences retained, 93 bodies unchanged and two registration preference/cleanup bodies adapted only to injected transport. Read actual Control plans/resolver, Platform decoder/OS transport and App Monitor/Registry consumers; fixtures invoke production logic without real taps, preference singleton, login registration or device writes. Central preliminary Debug contains all selected cases with complete starts/ends, no missing/duplicate/skip/issue; 50 scope hashes and exact source/destination matrix recorded in .indexion/cache/domainShortcutIndependentReview.md and task32-review-evidence.json. Task14 two-scenario consolidation, task27/28 changes and final fresh-root execution remain separate; this is not live hardware or full product approval."
     },
     "task-14": {
       "author": "domain-engineer",
@@ -59,7 +59,7 @@
       "author": "dsp-engineer",
       "reviewer": "native-engineer",
       "status": "approved",
-      "evidence": "Independent task-22 review approves portable loudness/ISO/scalar-limiter scenarios at ff7800b, including scalar IEEE expectations, thin native ownership, prepare-only allocation and corrected LC status documentation. Central exact source-ID/case correspondence verified. Forthcoming task-31 C++ unit relocation requires its own updated source/mapping review; this is not blanket approval of future changes. Detailed local evidence .indexion/cache/dspIndependentReview.md."
+      "evidence": "Independent task-22 review approves portable loudness/ISO/scalar-limiter scenarios at ff7800b, including scalar IEEE expectations, thin native ownership, prepare-only allocation and corrected LC status documentation. Central exact source-ID/case correspondence verified. The later eleven-scenario C++ relocation has its separate current-source task-31 approval; this original baseline approval is not reused for changed helpers or future task33/task26 work. Detailed local evidence .indexion/cache/dspIndependentReview.md."
     },
     "task-16": {
       "author": "native-engineer",
@@ -81,9 +81,9 @@
     },
     "task-31": {
       "author": "dsp-engineer",
-      "reviewer": null,
-      "status": "pending",
-      "evidence": null
+      "reviewer": "native-engineer",
+      "status": "approved",
+      "evidence": "Independent current-source task-31 supplement approves exact eleven original scenarios moved to fifteen named C++ rows plus unchanged D8, all seven candidate SHA256 verified. Original Float32/Double arithmetic, frequencies/frame counts/reset/hop/limits/tolerances retained; real C++ kernels used. Strict C11 confirms twenty public signatures/POD/bodies unchanged and seventeen unused helper APIs removed with no consumer. GPL translation unit and MIT runner/metadata kept distinct. Fresh ASan/UBSan23 unique/pass/N1/complete and central Debug/Release CPP23 pass; independent reporter finite/nonfinite/null/incomplete/IO-error controls and isolated shelf4-to0 mutant detect exact four failed rows/exit1. Retained four actual Swift test bodies are inverse-import byte identical and fresh Debug/Release each4 pass with nineteen input hashes stable, actual production sources/no App copy. Detailed .indexion/cache/dsp31IndependentReview.md and Tools/DSPTests/.build/task31-retained-swift/proof.json. Old152-Swift/242 evidence stays baseline only, not current. Future task33 preparation/task26 runtime changes require scoped review and fresh root source snapshot/Swift/C++ gate."
     },
     "task-29": {
       "author": "requirements-architect",
@@ -96,6 +96,12 @@
       "reviewer": null,
       "status": "pending",
       "evidence": null
+    },
+    "task-29-inspector": {
+      "author": "requirements-architect",
+      "reviewer": "domain-engineer",
+      "status": "approved",
+      "evidence": "Independent task24/task29 UI supplement: exact D6 IDs and five new/changed source SHA256 approved; actual Row preserves unavailable input/mute and linear mapping, actual Inspector owns live UID-resolved rate/hog observations with start/stop/generation rejection and write-time UID resolution. All241 original A declarations and B1 unchanged; helper adapts optional binding only. Debug/Release phase XML119 each, zero failure/error/skip, three completed products each,31 before/after/current hashes match. Catalog GPL header is byte-only prefix with original7015-byte source suffix unchanged. Original Inspector observation gap closed; not approval of all Platform backends, BT/DDC, live hardware or future Root/native composition. Detailed .indexion/cache/uiIndependentReview.md supplemental section."
     }
   },
   "license_notice": {
@@ -324,8 +330,8 @@
   "files": [
     {
       "destination": "Tests/AppCompositionTests/DeviceControlTests.swift",
-      "review": "task-29",
-      "tokens_sha256": "743b18271b8c15e57647ad1d18bfe21af7f51868a179cccb4a7537414b12b073",
+      "review": "task-29-inspector",
+      "tokens_sha256": "e298ae8bb70a6f5ff7116e87dd98ad522efae75b78ad9727b994f59820dd609a",
       "derived_from": []
     },
     {
@@ -510,7 +516,7 @@
         "FineTuneTests/DeviceDetailSheetToggleTests.swift"
       ],
       "tokens_sha256": "26aeab1aa41e274cdbb57215e18a44b084487fb8060759b162f6d22bfd5d563e",
-      "review": "task-12"
+      "review": "task-29-inspector"
     },
     {
       "destination": "Tests/UpstreamCompatibilityTests/DeviceIconCatalogTests.swift",
@@ -16379,19 +16385,55 @@
   ],
   "additional_tests": [
     {
-      "id": "Tests/AppCompositionTests/DeviceControlTests.swift::DeviceControlTests.unknownInputRow",
+      "id": "Tests/AppCompositionTests/DeviceControlTests.swift::DeviceControlTests.inputInspectorAvailability",
       "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: DeviceControlTests.unknownInputRow",
-      "review": "task-29",
+      "adaptation": "Actual Row/Inspector boundary: unavailable reads, linear input binding, override availability, live observation lifetime and current UID/write failures; individually approved by task29 UI supplement.",
+      "review": "task-29-inspector",
       "destinations": [
         {
-          "id": "Tests/AppCompositionTests/DeviceControlTests.swift::DeviceControlTests.unknownInputRow",
+          "id": "Tests/AppCompositionTests/DeviceControlTests.swift::DeviceControlTests.inputInspectorAvailability",
           "invocations": 1,
           "fingerprints": {
-            "body": "38758fb891d7093fbb24a4ffcf7270831d2847d4598da29d44665cc7871d693d",
+            "body": "6efd3459a1e7f7aab25c8aba46f28aa566dff6b97977f7483cd0db453d46b110",
             "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "4388f89d584020f9bc9ef63b0e79e015df9dda15cb6c489421afde0e9135a6c8",
-            "attribute": "a99fe6f35cafa5d676c514b5c8e8b7a03d1532371e515a541edc9ed3af1d4cc8"
+            "assertions": "17244def50446852d7d8514d492f5b7d017984db803833e72e774a5f5b572fc2",
+            "attribute": "d38d0d6cffecca881ff6f4472a5a9387d7fc34ae9da28377d83b3799e13a22d7"
+          }
+        }
+      ]
+    },
+    {
+      "id": "Tests/AppCompositionTests/DeviceControlTests.swift::DeviceControlTests.inspectorLiveObservations",
+      "classification": "D",
+      "review": "task-29-inspector",
+      "adaptation": "Actual Row/Inspector boundary: unavailable reads, linear input binding, override availability, live observation lifetime and current UID/write failures; individually approved by task29 UI supplement.",
+      "destinations": [
+        {
+          "id": "Tests/AppCompositionTests/DeviceControlTests.swift::DeviceControlTests.inspectorLiveObservations",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "eec720050976776e4d1e839f80c99e7980d203a766a5c126cef36b4cd5fa8d77",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "351a4678044002955aa4a09073e858a555a7a5c3e6932cdb01c5e9e6646625bf",
+            "attribute": "0804120d6f68382257ef3b7b15f2529bb88db40b872ae8d9ee234b483b849c1d"
+          }
+        }
+      ]
+    },
+    {
+      "id": "Tests/AppCompositionTests/DeviceControlTests.swift::DeviceControlTests.inspectorUIDAndWriteFailure",
+      "classification": "D",
+      "review": "task-29-inspector",
+      "adaptation": "Actual Row/Inspector boundary: unavailable reads, linear input binding, override availability, live observation lifetime and current UID/write failures; individually approved by task29 UI supplement.",
+      "destinations": [
+        {
+          "id": "Tests/AppCompositionTests/DeviceControlTests.swift::DeviceControlTests.inspectorUIDAndWriteFailure",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "4d3ad76322697dc3a70e35dd54b283e87b8270fbb9fa2a0036be5567e62f57be",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "2efd590f726ac66954bbb13f2656194664467ff257c94e981126010342516b1e",
+            "attribute": "3feb942f8115331bc183acbf0899f2b619149a87579ef6eef61f3cf2bbd9769f"
           }
         }
       ]
@@ -16399,8 +16441,8 @@
     {
       "id": "Tests/AppCompositionTests/DeviceControlTests.swift::DeviceControlTests.partialInputRowBinding",
       "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: DeviceControlTests.partialInputRowBinding",
-      "review": "task-29",
+      "adaptation": "Actual Row/Inspector boundary: unavailable reads, linear input binding, override availability, live observation lifetime and current UID/write failures; individually approved by task29 UI supplement.",
+      "review": "task-29-inspector",
       "destinations": [
         {
           "id": "Tests/AppCompositionTests/DeviceControlTests.swift::DeviceControlTests.partialInputRowBinding",
@@ -16417,8 +16459,8 @@
     {
       "id": "Tests/AppCompositionTests/DeviceControlTests.swift::DeviceControlTests.readOnlyOutputRow",
       "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: DeviceControlTests.readOnlyOutputRow",
-      "review": "task-29",
+      "adaptation": "Actual Row/Inspector boundary: unavailable reads, linear input binding, override availability, live observation lifetime and current UID/write failures; individually approved by task29 UI supplement.",
+      "review": "task-29-inspector",
       "destinations": [
         {
           "id": "Tests/AppCompositionTests/DeviceControlTests.swift::DeviceControlTests.readOnlyOutputRow",
@@ -16433,55 +16475,19 @@
       ]
     },
     {
-      "id": "Tests/AppCompositionTests/DeviceControlTests.swift::DeviceControlTests.inputInspectorAvailability",
+      "id": "Tests/AppCompositionTests/DeviceControlTests.swift::DeviceControlTests.unknownInputRow",
       "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: DeviceControlTests.inputInspectorAvailability",
-      "review": "task-29",
+      "adaptation": "Actual Row/Inspector boundary: unavailable reads, linear input binding, override availability, live observation lifetime and current UID/write failures; individually approved by task29 UI supplement.",
+      "review": "task-29-inspector",
       "destinations": [
         {
-          "id": "Tests/AppCompositionTests/DeviceControlTests.swift::DeviceControlTests.inputInspectorAvailability",
+          "id": "Tests/AppCompositionTests/DeviceControlTests.swift::DeviceControlTests.unknownInputRow",
           "invocations": 1,
           "fingerprints": {
-            "body": "6efd3459a1e7f7aab25c8aba46f28aa566dff6b97977f7483cd0db453d46b110",
+            "body": "38758fb891d7093fbb24a4ffcf7270831d2847d4598da29d44665cc7871d693d",
             "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "17244def50446852d7d8514d492f5b7d017984db803833e72e774a5f5b572fc2",
-            "attribute": "d38d0d6cffecca881ff6f4472a5a9387d7fc34ae9da28377d83b3799e13a22d7"
-          }
-        }
-      ]
-    },
-    {
-      "id": "Tests/AppCompositionTests/MixerTests.swift::MixerTests.liveAppVolumeBinding",
-      "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: MixerTests.liveAppVolumeBinding",
-      "review": "task-25",
-      "destinations": [
-        {
-          "id": "Tests/AppCompositionTests/MixerTests.swift::MixerTests.liveAppVolumeBinding",
-          "invocations": 1,
-          "fingerprints": {
-            "body": "4e33c7570be80c427515254ed7a462e8d61ef08dcdc2d3a80bba71be9396d207",
-            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "95e27bef987b50e781fdf3e74571b78e1994f28362ca220b9d45d8cc46581314",
-            "attribute": "2bcf4d7bf2f99fbe9e1652bba6fd1bbbd5749d90e004784cd36da02710061324"
-          }
-        }
-      ]
-    },
-    {
-      "id": "Tests/AppCompositionTests/MixerTests.swift::MixerTests.inactiveActionsRetainIdentity",
-      "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: MixerTests.inactiveActionsRetainIdentity",
-      "review": "task-25",
-      "destinations": [
-        {
-          "id": "Tests/AppCompositionTests/MixerTests.swift::MixerTests.inactiveActionsRetainIdentity",
-          "invocations": 1,
-          "fingerprints": {
-            "body": "035489bf36b0c41406bbfb04711e11389277b0b628dfd20ec900f5eb0b1f7954",
-            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "c37fa3d40c7498f8428ed4d0e4d78085b48f5bf4857e3c839450532e7631280f",
-            "attribute": "ca4563869ec0f3e9c128f64155527108075fc8f979d9fe1c017625b640735590"
+            "assertions": "4388f89d584020f9bc9ef63b0e79e015df9dda15cb6c489421afde0e9135a6c8",
+            "attribute": "a99fe6f35cafa5d676c514b5c8e8b7a03d1532371e515a541edc9ed3af1d4cc8"
           }
         }
       ]
@@ -16505,19 +16511,37 @@
       ]
     },
     {
-      "id": "Tests/AppCompositionTests/MixerTests.swift::MixerTests.deviceVisibilityKeepsDefaultAndFallback",
+      "id": "Tests/AppCompositionTests/MixerTests.swift::MixerTests.bluetoothAvailabilityRendersWithoutEffects",
       "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: MixerTests.deviceVisibilityKeepsDefaultAndFallback",
+      "adaptation": "Independent/new-boundary unit guarantee: MixerTests.bluetoothAvailabilityRendersWithoutEffects",
       "review": "task-25",
       "destinations": [
         {
-          "id": "Tests/AppCompositionTests/MixerTests.swift::MixerTests.deviceVisibilityKeepsDefaultAndFallback",
+          "id": "Tests/AppCompositionTests/MixerTests.swift::MixerTests.bluetoothAvailabilityRendersWithoutEffects",
           "invocations": 1,
           "fingerprints": {
-            "body": "e12ec37aafa2e375570dd8cc060202a9dbdefc803fcc4d01b9348d681f1be368",
+            "body": "83448336c771c5990f246668d6ea487c123a23c0fa0efe1ca0590cfbfc2d78a0",
             "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "c6198dfac7af26a8bd542c7a5ebdb05ad803e51622198a7ef5602685584a1d92",
-            "attribute": "e5ad9c97c6b33fd9f75c777c21f98caaee5985fcdbae358b243f829d90797508"
+            "assertions": "0396fed21294f2665674bf417588e40f9c26a2a93569d5ab048634e36b6e4d00",
+            "attribute": "c5671f2000ca3654330c399aa5119f67d22d74866fa9b36e5271dc95ecbab508"
+          }
+        }
+      ]
+    },
+    {
+      "id": "Tests/AppCompositionTests/MixerTests.swift::MixerTests.captureNoticeDoesNotRequestPermission",
+      "classification": "D",
+      "adaptation": "Independent/new-boundary unit guarantee: MixerTests.captureNoticeDoesNotRequestPermission",
+      "review": "task-25",
+      "destinations": [
+        {
+          "id": "Tests/AppCompositionTests/MixerTests.swift::MixerTests.captureNoticeDoesNotRequestPermission",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "eaca7d58adca3c1093dcda9354e92da1e22272b5ae293a7ef53c31d38f1a9eed",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "19cb44825532a551b761814fd0bd43e728274e44de6758350f45a1684da605f5",
+            "attribute": "c948c5121261c0624704fbde81071d86b501362a5cf27c8f0293b4cf5adfe32a"
           }
         }
       ]
@@ -16541,73 +16565,19 @@
       ]
     },
     {
-      "id": "Tests/AppCompositionTests/MixerTests.swift::MixerTests.eqBandBindingUsesLatestCurve",
+      "id": "Tests/AppCompositionTests/MixerTests.swift::MixerTests.deviceVisibilityKeepsDefaultAndFallback",
       "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: MixerTests.eqBandBindingUsesLatestCurve",
+      "adaptation": "Independent/new-boundary unit guarantee: MixerTests.deviceVisibilityKeepsDefaultAndFallback",
       "review": "task-25",
       "destinations": [
         {
-          "id": "Tests/AppCompositionTests/MixerTests.swift::MixerTests.eqBandBindingUsesLatestCurve",
+          "id": "Tests/AppCompositionTests/MixerTests.swift::MixerTests.deviceVisibilityKeepsDefaultAndFallback",
           "invocations": 1,
           "fingerprints": {
-            "body": "4d49e9c3ff67b2ad2085575af18a3c860a9cd542dde66b34c9fdb62079674db8",
+            "body": "e12ec37aafa2e375570dd8cc060202a9dbdefc803fcc4d01b9348d681f1be368",
             "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "7bbe4ea15b88d8d11ec0fd356bbfb4e8104a24199209c67ee43981c241d3e0a6",
-            "attribute": "b3c650dfc95016b0f90c9cf9e74b337429b7cac88ad3f2befeee50c30721d99c"
-          }
-        }
-      ]
-    },
-    {
-      "id": "Tests/AppCompositionTests/MixerTests.swift::MixerTests.presetPreservesEnableState",
-      "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: MixerTests.presetPreservesEnableState",
-      "review": "task-25",
-      "destinations": [
-        {
-          "id": "Tests/AppCompositionTests/MixerTests.swift::MixerTests.presetPreservesEnableState",
-          "invocations": 1,
-          "fingerprints": {
-            "body": "4edc591830c589ec35b0e4fe2e05cd443fae189c20b8b9ac432c8e608f917623",
-            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "89ab00f95d28d933115f959ed116aa2da3e6d9b86c9613459953543c3e1dc988",
-            "attribute": "8b6b4b9f4d38989904adce51c0be846da85af6a89a2a57b868b4964690318759"
-          }
-        }
-      ]
-    },
-    {
-      "id": "Tests/AppCompositionTests/MixerTests.swift::MixerTests.routeRequestsAreExplicit",
-      "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: MixerTests.routeRequestsAreExplicit",
-      "review": "task-25",
-      "destinations": [
-        {
-          "id": "Tests/AppCompositionTests/MixerTests.swift::MixerTests.routeRequestsAreExplicit",
-          "invocations": 1,
-          "fingerprints": {
-            "body": "08d31f8a2f3b6ed643014ce68af9550e9ccd892e44af2168dd032e55cb6bac4b",
-            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "457266d9d0542e2f0ba486a33d9f0e88d0bd6f5948cbd7bfc81b095db0f6e669",
-            "attribute": "34c04c1d1278c62cab490573c3c47ff9f6dd6332e5cffff8d17a5609a1bcad22"
-          }
-        }
-      ]
-    },
-    {
-      "id": "Tests/AppCompositionTests/MixerTests.swift::MixerTests.missingDesiredOutputIsVisible",
-      "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: MixerTests.missingDesiredOutputIsVisible",
-      "review": "task-25",
-      "destinations": [
-        {
-          "id": "Tests/AppCompositionTests/MixerTests.swift::MixerTests.missingDesiredOutputIsVisible",
-          "invocations": 1,
-          "fingerprints": {
-            "body": "3faf8db4a4e807be259b594e65a0865c6f92ef66277a37a3267b0b9999664470",
-            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "47867b3ede1c20d0988f9b8501a8130016710d55de7f82e48dfb18c890954dd5",
-            "attribute": "73213b3ce1656c3569fb696b7855d31d02e72f2d409dc99ef68d492467beac69"
+            "assertions": "c6198dfac7af26a8bd542c7a5ebdb05ad803e51622198a7ef5602685584a1d92",
+            "attribute": "e5ad9c97c6b33fd9f75c777c21f98caaee5985fcdbae358b243f829d90797508"
           }
         }
       ]
@@ -16626,6 +16596,96 @@
             "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
             "assertions": "430133e0435e83371c427a13fb92f737a5e95b11c92452548e25d7231e1f6254",
             "attribute": "cb5466442815beab36eacc4e47191901fe6bc65aeb238a0d4b3622b8bb2ea7f0"
+          }
+        }
+      ]
+    },
+    {
+      "id": "Tests/AppCompositionTests/MixerTests.swift::MixerTests.editableAppPercentage",
+      "classification": "D",
+      "adaptation": "Independent/new-boundary unit guarantee: MixerTests.editableAppPercentage",
+      "review": "task-25",
+      "destinations": [
+        {
+          "id": "Tests/AppCompositionTests/MixerTests.swift::MixerTests.editableAppPercentage",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "1fe1b67d70a20298f1b1767d768d7e2f7cd33c71f47395ffac4ac5f05af35251",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "51781b6f58c8c050988fba1d0187bdac5f0af19fb8385a9d87c32e2caab071f8",
+            "attribute": "18b689bc6bdc2beee41e53b58feb4e6d6a6c84facc9dbdbdb8095e23250759b1"
+          }
+        }
+      ]
+    },
+    {
+      "id": "Tests/AppCompositionTests/MixerTests.swift::MixerTests.eqBandBindingUsesLatestCurve",
+      "classification": "D",
+      "adaptation": "Independent/new-boundary unit guarantee: MixerTests.eqBandBindingUsesLatestCurve",
+      "review": "task-25",
+      "destinations": [
+        {
+          "id": "Tests/AppCompositionTests/MixerTests.swift::MixerTests.eqBandBindingUsesLatestCurve",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "4d49e9c3ff67b2ad2085575af18a3c860a9cd542dde66b34c9fdb62079674db8",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "7bbe4ea15b88d8d11ec0fd356bbfb4e8104a24199209c67ee43981c241d3e0a6",
+            "attribute": "b3c650dfc95016b0f90c9cf9e74b337429b7cac88ad3f2befeee50c30721d99c"
+          }
+        }
+      ]
+    },
+    {
+      "id": "Tests/AppCompositionTests/MixerTests.swift::MixerTests.inactiveActionsRetainIdentity",
+      "classification": "D",
+      "adaptation": "Independent/new-boundary unit guarantee: MixerTests.inactiveActionsRetainIdentity",
+      "review": "task-25",
+      "destinations": [
+        {
+          "id": "Tests/AppCompositionTests/MixerTests.swift::MixerTests.inactiveActionsRetainIdentity",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "035489bf36b0c41406bbfb04711e11389277b0b628dfd20ec900f5eb0b1f7954",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "c37fa3d40c7498f8428ed4d0e4d78085b48f5bf4857e3c839450532e7631280f",
+            "attribute": "ca4563869ec0f3e9c128f64155527108075fc8f979d9fe1c017625b640735590"
+          }
+        }
+      ]
+    },
+    {
+      "id": "Tests/AppCompositionTests/MixerTests.swift::MixerTests.keyboardPercentageCancel",
+      "classification": "D",
+      "adaptation": "Independent/new-boundary unit guarantee: MixerTests.keyboardPercentageCancel",
+      "review": "task-25",
+      "destinations": [
+        {
+          "id": "Tests/AppCompositionTests/MixerTests.swift::MixerTests.keyboardPercentageCancel",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "416cc84882aebde823eb68209ef77f5ac62bcfe3b3042646e59c9e44d949ded9",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "c7f96ecd68a73e1f40d4514a918ddf4a618ef57eb2f29f00afa25157e14b8e52",
+            "attribute": "ab0a62036ff988cf454986dafac90cc90551b61883d52053b8b5fdd13059aaaa"
+          }
+        }
+      ]
+    },
+    {
+      "id": "Tests/AppCompositionTests/MixerTests.swift::MixerTests.keyboardPercentageDraft",
+      "classification": "D",
+      "adaptation": "Independent/new-boundary unit guarantee: MixerTests.keyboardPercentageDraft",
+      "review": "task-25",
+      "destinations": [
+        {
+          "id": "Tests/AppCompositionTests/MixerTests.swift::MixerTests.keyboardPercentageDraft",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "9ccfa1452dfc1cc96ed1958b0d2275970d7543a47b3b752adfc7ad3724ce95ba",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "195e62dcf7995ed212543dc1e0b398dd0621c4d43aed009d17cdf00b8d5e0366",
+            "attribute": "903ac211a5f415b389006cf555f5b9eb5ae836a744fcbd7689c79a0afe5645d9"
           }
         }
       ]
@@ -16667,109 +16727,37 @@
       ]
     },
     {
-      "id": "Tests/AppCompositionTests/MixerTests.swift::MixerTests.keyboardPercentageDraft",
+      "id": "Tests/AppCompositionTests/MixerTests.swift::MixerTests.liveAppVolumeBinding",
       "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: MixerTests.keyboardPercentageDraft",
+      "adaptation": "Independent/new-boundary unit guarantee: MixerTests.liveAppVolumeBinding",
       "review": "task-25",
       "destinations": [
         {
-          "id": "Tests/AppCompositionTests/MixerTests.swift::MixerTests.keyboardPercentageDraft",
+          "id": "Tests/AppCompositionTests/MixerTests.swift::MixerTests.liveAppVolumeBinding",
           "invocations": 1,
           "fingerprints": {
-            "body": "9ccfa1452dfc1cc96ed1958b0d2275970d7543a47b3b752adfc7ad3724ce95ba",
+            "body": "4e33c7570be80c427515254ed7a462e8d61ef08dcdc2d3a80bba71be9396d207",
             "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "195e62dcf7995ed212543dc1e0b398dd0621c4d43aed009d17cdf00b8d5e0366",
-            "attribute": "903ac211a5f415b389006cf555f5b9eb5ae836a744fcbd7689c79a0afe5645d9"
+            "assertions": "95e27bef987b50e781fdf3e74571b78e1994f28362ca220b9d45d8cc46581314",
+            "attribute": "2bcf4d7bf2f99fbe9e1652bba6fd1bbbd5749d90e004784cd36da02710061324"
           }
         }
       ]
     },
     {
-      "id": "Tests/AppCompositionTests/MixerTests.swift::MixerTests.keyboardPercentageCancel",
+      "id": "Tests/AppCompositionTests/MixerTests.swift::MixerTests.missingDesiredOutputIsVisible",
       "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: MixerTests.keyboardPercentageCancel",
+      "adaptation": "Independent/new-boundary unit guarantee: MixerTests.missingDesiredOutputIsVisible",
       "review": "task-25",
       "destinations": [
         {
-          "id": "Tests/AppCompositionTests/MixerTests.swift::MixerTests.keyboardPercentageCancel",
+          "id": "Tests/AppCompositionTests/MixerTests.swift::MixerTests.missingDesiredOutputIsVisible",
           "invocations": 1,
           "fingerprints": {
-            "body": "416cc84882aebde823eb68209ef77f5ac62bcfe3b3042646e59c9e44d949ded9",
+            "body": "3faf8db4a4e807be259b594e65a0865c6f92ef66277a37a3267b0b9999664470",
             "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "c7f96ecd68a73e1f40d4514a918ddf4a618ef57eb2f29f00afa25157e14b8e52",
-            "attribute": "ab0a62036ff988cf454986dafac90cc90551b61883d52053b8b5fdd13059aaaa"
-          }
-        }
-      ]
-    },
-    {
-      "id": "Tests/AppCompositionTests/MixerTests.swift::MixerTests.spaceDoesNotCommitPercentage",
-      "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: MixerTests.spaceDoesNotCommitPercentage",
-      "review": "task-25",
-      "destinations": [
-        {
-          "id": "Tests/AppCompositionTests/MixerTests.swift::MixerTests.spaceDoesNotCommitPercentage",
-          "invocations": 1,
-          "fingerprints": {
-            "body": "b8818589d820d727a791e36f1220ef0af9a5352b8463752a04e9ae9e9874404a",
-            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "89290616f1e66d663db7808306e0bd70334967d4443addbececffc8376c0651b",
-            "attribute": "3b7cfcd2906549d27a6228d5e2861fe6e2f5d0fd3e70ddcfe148bdc34fa2d55a"
-          }
-        }
-      ]
-    },
-    {
-      "id": "Tests/AppCompositionTests/MixerTests.swift::MixerTests.editableAppPercentage",
-      "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: MixerTests.editableAppPercentage",
-      "review": "task-25",
-      "destinations": [
-        {
-          "id": "Tests/AppCompositionTests/MixerTests.swift::MixerTests.editableAppPercentage",
-          "invocations": 1,
-          "fingerprints": {
-            "body": "1fe1b67d70a20298f1b1767d768d7e2f7cd33c71f47395ffac4ac5f05af35251",
-            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "51781b6f58c8c050988fba1d0187bdac5f0af19fb8385a9d87c32e2caab071f8",
-            "attribute": "18b689bc6bdc2beee41e53b58feb4e6d6a6c84facc9dbdbdb8095e23250759b1"
-          }
-        }
-      ]
-    },
-    {
-      "id": "Tests/AppCompositionTests/MixerTests.swift::MixerTests.bluetoothAvailabilityRendersWithoutEffects",
-      "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: MixerTests.bluetoothAvailabilityRendersWithoutEffects",
-      "review": "task-25",
-      "destinations": [
-        {
-          "id": "Tests/AppCompositionTests/MixerTests.swift::MixerTests.bluetoothAvailabilityRendersWithoutEffects",
-          "invocations": 1,
-          "fingerprints": {
-            "body": "83448336c771c5990f246668d6ea487c123a23c0fa0efe1ca0590cfbfc2d78a0",
-            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "0396fed21294f2665674bf417588e40f9c26a2a93569d5ab048634e36b6e4d00",
-            "attribute": "c5671f2000ca3654330c399aa5119f67d22d74866fa9b36e5271dc95ecbab508"
-          }
-        }
-      ]
-    },
-    {
-      "id": "Tests/AppCompositionTests/MixerTests.swift::MixerTests.profileSelectionKeepsDeviceIdentity",
-      "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: MixerTests.profileSelectionKeepsDeviceIdentity",
-      "review": "task-25",
-      "destinations": [
-        {
-          "id": "Tests/AppCompositionTests/MixerTests.swift::MixerTests.profileSelectionKeepsDeviceIdentity",
-          "invocations": 1,
-          "fingerprints": {
-            "body": "fe3064da0658547d38260e1169721643f89fe8422c17259bf5fbe7050310196d",
-            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "d394fa1ee198580e50d2df1d807702adc0fab1d2269b350a6ec308749a70a6cb",
-            "attribute": "662410babb1be3425cac721def0b612429a4e7a1fdcfc39fff8bbf5d9da75885"
+            "assertions": "47867b3ede1c20d0988f9b8501a8130016710d55de7f82e48dfb18c890954dd5",
+            "attribute": "73213b3ce1656c3569fb696b7855d31d02e72f2d409dc99ef68d492467beac69"
           }
         }
       ]
@@ -16793,19 +16781,37 @@
       ]
     },
     {
-      "id": "Tests/AppCompositionTests/MixerTests.swift::MixerTests.profileQueryForwardsFavoriteConstraint",
+      "id": "Tests/AppCompositionTests/MixerTests.swift::MixerTests.mixerRendersWithoutEffects",
       "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: MixerTests.profileQueryForwardsFavoriteConstraint",
+      "adaptation": "Independent/new-boundary unit guarantee: MixerTests.mixerRendersWithoutEffects",
       "review": "task-25",
       "destinations": [
         {
-          "id": "Tests/AppCompositionTests/MixerTests.swift::MixerTests.profileQueryForwardsFavoriteConstraint",
+          "id": "Tests/AppCompositionTests/MixerTests.swift::MixerTests.mixerRendersWithoutEffects",
           "invocations": 1,
           "fingerprints": {
-            "body": "001d5cbc6c3d502f2628ff833d964f5edf471a1394f08bb873ccbb39520923b7",
+            "body": "4094bc86ec8bb0514c98944150485670538c61c2482ef1102edcf863879e64d1",
             "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "7a3718af1302e3bffaefdac5cbbd31e0c03dc320cb172466ff1c0e21962676f2",
-            "attribute": "2a248fff0f4ebbcd9a8f27c05c93e7eb61d1e73fbc1d7c920b069a2ca87bda09"
+            "assertions": "351579063946c0b321b723a7f5d74edd5d3272a106e3de95c10fd687b26eb0d0",
+            "attribute": "f96f01b34ae0913c125b018062ce83f2469d44a0f72505224952843d9e95a75d"
+          }
+        }
+      ]
+    },
+    {
+      "id": "Tests/AppCompositionTests/MixerTests.swift::MixerTests.presetPreservesEnableState",
+      "classification": "D",
+      "adaptation": "Independent/new-boundary unit guarantee: MixerTests.presetPreservesEnableState",
+      "review": "task-25",
+      "destinations": [
+        {
+          "id": "Tests/AppCompositionTests/MixerTests.swift::MixerTests.presetPreservesEnableState",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "4edc591830c589ec35b0e4fe2e05cd443fae189c20b8b9ac432c8e608f917623",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "89ab00f95d28d933115f959ed116aa2da3e6d9b86c9613459953543c3e1dc988",
+            "attribute": "8b6b4b9f4d38989904adce51c0be846da85af6a89a2a57b868b4964690318759"
           }
         }
       ]
@@ -16847,91 +16853,91 @@
       ]
     },
     {
-      "id": "Tests/AppCompositionTests/MixerTests.swift::MixerTests.captureNoticeDoesNotRequestPermission",
+      "id": "Tests/AppCompositionTests/MixerTests.swift::MixerTests.profileQueryForwardsFavoriteConstraint",
       "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: MixerTests.captureNoticeDoesNotRequestPermission",
+      "adaptation": "Independent/new-boundary unit guarantee: MixerTests.profileQueryForwardsFavoriteConstraint",
       "review": "task-25",
       "destinations": [
         {
-          "id": "Tests/AppCompositionTests/MixerTests.swift::MixerTests.captureNoticeDoesNotRequestPermission",
+          "id": "Tests/AppCompositionTests/MixerTests.swift::MixerTests.profileQueryForwardsFavoriteConstraint",
           "invocations": 1,
           "fingerprints": {
-            "body": "eaca7d58adca3c1093dcda9354e92da1e22272b5ae293a7ef53c31d38f1a9eed",
+            "body": "001d5cbc6c3d502f2628ff833d964f5edf471a1394f08bb873ccbb39520923b7",
             "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "19cb44825532a551b761814fd0bd43e728274e44de6758350f45a1684da605f5",
-            "attribute": "c948c5121261c0624704fbde81071d86b501362a5cf27c8f0293b4cf5adfe32a"
+            "assertions": "7a3718af1302e3bffaefdac5cbbd31e0c03dc320cb172466ff1c0e21962676f2",
+            "attribute": "2a248fff0f4ebbcd9a8f27c05c93e7eb61d1e73fbc1d7c920b069a2ca87bda09"
           }
         }
       ]
     },
     {
-      "id": "Tests/AppCompositionTests/MixerTests.swift::MixerTests.mixerRendersWithoutEffects",
+      "id": "Tests/AppCompositionTests/MixerTests.swift::MixerTests.profileSelectionKeepsDeviceIdentity",
       "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: MixerTests.mixerRendersWithoutEffects",
+      "adaptation": "Independent/new-boundary unit guarantee: MixerTests.profileSelectionKeepsDeviceIdentity",
       "review": "task-25",
       "destinations": [
         {
-          "id": "Tests/AppCompositionTests/MixerTests.swift::MixerTests.mixerRendersWithoutEffects",
+          "id": "Tests/AppCompositionTests/MixerTests.swift::MixerTests.profileSelectionKeepsDeviceIdentity",
           "invocations": 1,
           "fingerprints": {
-            "body": "4094bc86ec8bb0514c98944150485670538c61c2482ef1102edcf863879e64d1",
+            "body": "fe3064da0658547d38260e1169721643f89fe8422c17259bf5fbe7050310196d",
             "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "351579063946c0b321b723a7f5d74edd5d3272a106e3de95c10fd687b26eb0d0",
-            "attribute": "f96f01b34ae0913c125b018062ce83f2469d44a0f72505224952843d9e95a75d"
+            "assertions": "d394fa1ee198580e50d2df1d807702adc0fab1d2269b350a6ec308749a70a6cb",
+            "attribute": "662410babb1be3425cac721def0b612429a4e7a1fdcfc39fff8bbf5d9da75885"
           }
         }
       ]
     },
     {
-      "id": "Tests/AppCompositionTests/SettingsViewTests.swift::SettingsViewTests.fieldBindingUsesLatestSettings",
+      "id": "Tests/AppCompositionTests/MixerTests.swift::MixerTests.routeRequestsAreExplicit",
       "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: SettingsViewTests.fieldBindingUsesLatestSettings",
+      "adaptation": "Independent/new-boundary unit guarantee: MixerTests.routeRequestsAreExplicit",
       "review": "task-25",
       "destinations": [
         {
-          "id": "Tests/AppCompositionTests/SettingsViewTests.swift::SettingsViewTests.fieldBindingUsesLatestSettings",
+          "id": "Tests/AppCompositionTests/MixerTests.swift::MixerTests.routeRequestsAreExplicit",
           "invocations": 1,
           "fingerprints": {
-            "body": "6f36bf4fe5e953c8d1727161d87ccc2435a8e55abbcc3d5a22a9e8eb12e44660",
+            "body": "08d31f8a2f3b6ed643014ce68af9550e9ccd892e44af2168dd032e55cb6bac4b",
             "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "5e2d50a4d403900fbaaead19c2a169eaad873c9876a269be1b9a6ae5027cd89c",
-            "attribute": "655ce4c85f9b0ed005f20b42cbd4b7dcd8c530cb86078b4df6ced0d4c69640d8"
+            "assertions": "457266d9d0542e2f0ba486a33d9f0e88d0bd6f5948cbd7bfc81b095db0f6e669",
+            "attribute": "34c04c1d1278c62cab490573c3c47ff9f6dd6332e5cffff8d17a5609a1bcad22"
           }
         }
       ]
     },
     {
-      "id": "Tests/AppCompositionTests/SettingsViewTests.swift::SettingsViewTests.fieldGetterRemainsLive",
+      "id": "Tests/AppCompositionTests/MixerTests.swift::MixerTests.spaceDoesNotCommitPercentage",
       "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: SettingsViewTests.fieldGetterRemainsLive",
+      "adaptation": "Independent/new-boundary unit guarantee: MixerTests.spaceDoesNotCommitPercentage",
       "review": "task-25",
       "destinations": [
         {
-          "id": "Tests/AppCompositionTests/SettingsViewTests.swift::SettingsViewTests.fieldGetterRemainsLive",
+          "id": "Tests/AppCompositionTests/MixerTests.swift::MixerTests.spaceDoesNotCommitPercentage",
           "invocations": 1,
           "fingerprints": {
-            "body": "2ff040c3aed61f250c54893b94ab90760857787a87096406e66114bf01b404a7",
+            "body": "b8818589d820d727a791e36f1220ef0af9a5352b8463752a04e9ae9e9874404a",
             "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "e32d5a40dcd82cadad05ac0a21fb96c6619d80989f9b7fbfafff981deeadcda0",
-            "attribute": "c7a4afeca14bf110491f31a9a6dbab9f73aa12e625aefd3c98e8c3166eec4be5"
+            "assertions": "89290616f1e66d663db7808306e0bd70334967d4443addbececffc8376c0651b",
+            "attribute": "3b7cfcd2906549d27a6228d5e2861fe6e2f5d0fd3e70ddcfe148bdc34fa2d55a"
           }
         }
       ]
     },
     {
-      "id": "Tests/AppCompositionTests/SettingsViewTests.swift::SettingsViewTests.unifiedLoudnessBinding",
+      "id": "Tests/AppCompositionTests/SettingsViewTests.swift::SettingsViewTests.alertAvailabilityIsExplicit",
       "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: SettingsViewTests.unifiedLoudnessBinding",
+      "adaptation": "Independent/new-boundary unit guarantee: SettingsViewTests.alertAvailabilityIsExplicit",
       "review": "task-25",
       "destinations": [
         {
-          "id": "Tests/AppCompositionTests/SettingsViewTests.swift::SettingsViewTests.unifiedLoudnessBinding",
+          "id": "Tests/AppCompositionTests/SettingsViewTests.swift::SettingsViewTests.alertAvailabilityIsExplicit",
           "invocations": 1,
           "fingerprints": {
-            "body": "bba96d7eadd8c0f6a2cff5d22a59016b1c0006c881486db57998caefae4d1ed6",
+            "body": "04b88d525a5c4ed38677c153afd6f206b2f77ca0f08335b29ee73d29d8469702",
             "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "61ca23dcf4e8103cb610b3e432a76eb0525cd5f369ee8e7ea8f2b29e2e3b24e8",
-            "attribute": "5ffbbbb584233e8f3b2a4533d1a866a8c867963d3931e7e4057d74f3430244b6"
+            "assertions": "ad2b82b6f222aab504cee83771e1f745831dd2970f7fac3c649fce546d125c9f",
+            "attribute": "b29cc3946edb623859a47481fe3714d20173dca305d533ab5a1feebd4dad9778"
           }
         }
       ]
@@ -16973,6 +16979,60 @@
       ]
     },
     {
+      "id": "Tests/AppCompositionTests/SettingsViewTests.swift::SettingsViewTests.fieldBindingUsesLatestSettings",
+      "classification": "D",
+      "adaptation": "Independent/new-boundary unit guarantee: SettingsViewTests.fieldBindingUsesLatestSettings",
+      "review": "task-25",
+      "destinations": [
+        {
+          "id": "Tests/AppCompositionTests/SettingsViewTests.swift::SettingsViewTests.fieldBindingUsesLatestSettings",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "6f36bf4fe5e953c8d1727161d87ccc2435a8e55abbcc3d5a22a9e8eb12e44660",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "5e2d50a4d403900fbaaead19c2a169eaad873c9876a269be1b9a6ae5027cd89c",
+            "attribute": "655ce4c85f9b0ed005f20b42cbd4b7dcd8c530cb86078b4df6ced0d4c69640d8"
+          }
+        }
+      ]
+    },
+    {
+      "id": "Tests/AppCompositionTests/SettingsViewTests.swift::SettingsViewTests.fieldGetterRemainsLive",
+      "classification": "D",
+      "adaptation": "Independent/new-boundary unit guarantee: SettingsViewTests.fieldGetterRemainsLive",
+      "review": "task-25",
+      "destinations": [
+        {
+          "id": "Tests/AppCompositionTests/SettingsViewTests.swift::SettingsViewTests.fieldGetterRemainsLive",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "2ff040c3aed61f250c54893b94ab90760857787a87096406e66114bf01b404a7",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "e32d5a40dcd82cadad05ac0a21fb96c6619d80989f9b7fbfafff981deeadcda0",
+            "attribute": "c7a4afeca14bf110491f31a9a6dbab9f73aa12e625aefd3c98e8c3166eec4be5"
+          }
+        }
+      ]
+    },
+    {
+      "id": "Tests/AppCompositionTests/SettingsViewTests.swift::SettingsViewTests.settingsRenderWithoutEffects",
+      "classification": "D",
+      "adaptation": "Independent/new-boundary unit guarantee: SettingsViewTests.settingsRenderWithoutEffects",
+      "review": "task-25",
+      "destinations": [
+        {
+          "id": "Tests/AppCompositionTests/SettingsViewTests.swift::SettingsViewTests.settingsRenderWithoutEffects",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "b1ef774c8930f256c3841b91fc4b878d652649f629450331d3cfd25ee735b8e1",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "a3bf7a247c07b23ee5421574dd3e670b20878d7d32298383a6206cf6cf6226f2",
+            "attribute": "457158a1ad9e6f8d550fd6a95248a67bb2796a12384ac15c5ab4cd30cc0ee60c"
+          }
+        }
+      ]
+    },
+    {
       "id": "Tests/AppCompositionTests/SettingsViewTests.swift::SettingsViewTests.shortcutActionsAreExplicit",
       "classification": "D",
       "adaptation": "Independent/new-boundary unit guarantee: SettingsViewTests.shortcutActionsAreExplicit",
@@ -16986,24 +17046,6 @@
             "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
             "assertions": "8327e3d65264c44a401b075f4093059312b2d427da93d6c2764374929d9afcd6",
             "attribute": "9d7585d8ea80c76b506714b2649b9dde9deff68928955f7f0fcfb248ca7b37da"
-          }
-        }
-      ]
-    },
-    {
-      "id": "Tests/AppCompositionTests/SettingsViewTests.swift::SettingsViewTests.alertAvailabilityIsExplicit",
-      "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: SettingsViewTests.alertAvailabilityIsExplicit",
-      "review": "task-25",
-      "destinations": [
-        {
-          "id": "Tests/AppCompositionTests/SettingsViewTests.swift::SettingsViewTests.alertAvailabilityIsExplicit",
-          "invocations": 1,
-          "fingerprints": {
-            "body": "04b88d525a5c4ed38677c153afd6f206b2f77ca0f08335b29ee73d29d8469702",
-            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "ad2b82b6f222aab504cee83771e1f745831dd2970f7fac3c649fce546d125c9f",
-            "attribute": "b29cc3946edb623859a47481fe3714d20173dca305d533ab5a1feebd4dad9778"
           }
         }
       ]
@@ -17027,24 +17069,6 @@
       ]
     },
     {
-      "id": "Tests/AppCompositionTests/SettingsViewTests.swift::SettingsViewTests.updatesUseLiveBindings",
-      "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: SettingsViewTests.updatesUseLiveBindings",
-      "review": "task-25",
-      "destinations": [
-        {
-          "id": "Tests/AppCompositionTests/SettingsViewTests.swift::SettingsViewTests.updatesUseLiveBindings",
-          "invocations": 1,
-          "fingerprints": {
-            "body": "9843be6d2b235cfee4e7096051be3cd3ebe597383712e009a82b99f0ecc4ab45",
-            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "4443365a83f9fc5a43f5031b524da0648f9e9b163f11c97b98e5a25cd42db14f",
-            "attribute": "7d77ff55daa14b48dd48022e6f0864ba32d5967b82a58d1e79dadcd95d4708bb"
-          }
-        }
-      ]
-    },
-    {
       "id": "Tests/AppCompositionTests/SettingsViewTests.swift::SettingsViewTests.unavailableUpdatesRender",
       "classification": "D",
       "adaptation": "Independent/new-boundary unit guarantee: SettingsViewTests.unavailableUpdatesRender",
@@ -17063,19 +17087,37 @@
       ]
     },
     {
-      "id": "Tests/AppCompositionTests/SettingsViewTests.swift::SettingsViewTests.settingsRenderWithoutEffects",
+      "id": "Tests/AppCompositionTests/SettingsViewTests.swift::SettingsViewTests.unifiedLoudnessBinding",
       "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: SettingsViewTests.settingsRenderWithoutEffects",
+      "adaptation": "Independent/new-boundary unit guarantee: SettingsViewTests.unifiedLoudnessBinding",
       "review": "task-25",
       "destinations": [
         {
-          "id": "Tests/AppCompositionTests/SettingsViewTests.swift::SettingsViewTests.settingsRenderWithoutEffects",
+          "id": "Tests/AppCompositionTests/SettingsViewTests.swift::SettingsViewTests.unifiedLoudnessBinding",
           "invocations": 1,
           "fingerprints": {
-            "body": "b1ef774c8930f256c3841b91fc4b878d652649f629450331d3cfd25ee735b8e1",
+            "body": "bba96d7eadd8c0f6a2cff5d22a59016b1c0006c881486db57998caefae4d1ed6",
             "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "a3bf7a247c07b23ee5421574dd3e670b20878d7d32298383a6206cf6cf6226f2",
-            "attribute": "457158a1ad9e6f8d550fd6a95248a67bb2796a12384ac15c5ab4cd30cc0ee60c"
+            "assertions": "61ca23dcf4e8103cb610b3e432a76eb0525cd5f369ee8e7ea8f2b29e2e3b24e8",
+            "attribute": "5ffbbbb584233e8f3b2a4533d1a866a8c867963d3931e7e4057d74f3430244b6"
+          }
+        }
+      ]
+    },
+    {
+      "id": "Tests/AppCompositionTests/SettingsViewTests.swift::SettingsViewTests.updatesUseLiveBindings",
+      "classification": "D",
+      "adaptation": "Independent/new-boundary unit guarantee: SettingsViewTests.updatesUseLiveBindings",
+      "review": "task-25",
+      "destinations": [
+        {
+          "id": "Tests/AppCompositionTests/SettingsViewTests.swift::SettingsViewTests.updatesUseLiveBindings",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "9843be6d2b235cfee4e7096051be3cd3ebe597383712e009a82b99f0ecc4ab45",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "4443365a83f9fc5a43f5031b524da0648f9e9b163f11c97b98e5a25cd42db14f",
+            "attribute": "7d77ff55daa14b48dd48022e6f0864ba32d5967b82a58d1e79dadcd95d4708bb"
           }
         }
       ]
@@ -17117,6 +17159,24 @@
       "review": "integration-tests"
     },
     {
+      "id": "Tests/ControlTests/AutomationTests.swift::URLAutomationValidationTests.emptyWriteTargetIsInert",
+      "classification": "D",
+      "adaptation": "Independent/new-boundary unit guarantee: URLAutomationValidationTests.emptyWriteTargetIsInert",
+      "review": "task-28",
+      "destinations": [
+        {
+          "id": "Tests/ControlTests/AutomationTests.swift::URLAutomationValidationTests.emptyWriteTargetIsInert",
+          "invocations": 7,
+          "fingerprints": {
+            "body": "fd3f25ee9944ba9b8ea7757d52773f37d65af5dfcf1869907c9b9a12ca9cc2fe",
+            "arguments": "0c35030a27467d3f5b996e0169a06317be955793ca97b178afba444169ca9c1b",
+            "assertions": "94af58893592808a05247ddc8032b06634e744ba50ce176f74ed79cef31d9b59",
+            "attribute": "04f6a768e886a827106027b379db024594f0cbb87682e890c948b7ef04653728"
+          }
+        }
+      ]
+    },
+    {
       "id": "Tests/ControlTests/AutomationTests.swift::URLAutomationValidationTests.nilOnlyResetIsInert",
       "classification": "D",
       "adaptation": "Independent/new-boundary unit guarantee: URLAutomationValidationTests.nilOnlyResetIsInert",
@@ -17153,24 +17213,6 @@
       ]
     },
     {
-      "id": "Tests/ControlTests/AutomationTests.swift::URLAutomationValidationTests.emptyWriteTargetIsInert",
-      "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: URLAutomationValidationTests.emptyWriteTargetIsInert",
-      "review": "task-28",
-      "destinations": [
-        {
-          "id": "Tests/ControlTests/AutomationTests.swift::URLAutomationValidationTests.emptyWriteTargetIsInert",
-          "invocations": 7,
-          "fingerprints": {
-            "body": "fd3f25ee9944ba9b8ea7757d52773f37d65af5dfcf1869907c9b9a12ca9cc2fe",
-            "arguments": "0c35030a27467d3f5b996e0169a06317be955793ca97b178afba444169ca9c1b",
-            "assertions": "94af58893592808a05247ddc8032b06634e744ba50ce176f74ed79cef31d9b59",
-            "attribute": "04f6a768e886a827106027b379db024594f0cbb87682e890c948b7ef04653728"
-          }
-        }
-      ]
-    },
-    {
       "id": "Tests/ControlTests/AutomationTests.swift::URLAutomationValidationTests.unsupportedIsInert",
       "classification": "D",
       "adaptation": "Independent/new-boundary unit guarantee: URLAutomationValidationTests.unsupportedIsInert",
@@ -17189,132 +17231,6 @@
       ]
     },
     {
-      "id": "Tests/NativeContractTests/PipelineContractTests.swift::PipelineContractTests.initialGainAndIndependentRoutes",
-      "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: PipelineContractTests.initialGainAndIndependentRoutes",
-      "destinations": [
-        {
-          "id": "Tests/NativeContractTests/PipelineContractTests.swift::PipelineContractTests.initialGainAndIndependentRoutes",
-          "invocations": 1,
-          "fingerprints": {
-            "body": "bdda7841ef7360ccb0cef6ddcdb6fc3874093121a2a48bcde36fdf90ed668823",
-            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "a0872c5fc91872fa566b6128d45204a915876550e95c7c0783f1c8901025ad5e",
-            "attribute": "0453290e43b5c261b0d2ad1b066de83d5c1bf3d1eccfb99716bbdb086d1f5019"
-          }
-        }
-      ],
-      "review": "task-16"
-    },
-    {
-      "id": "Tests/NativeContractTests/PipelineContractTests.swift::PipelineContractTests.invalidInputDoesNotMutate",
-      "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: PipelineContractTests.invalidInputDoesNotMutate",
-      "destinations": [
-        {
-          "id": "Tests/NativeContractTests/PipelineContractTests.swift::PipelineContractTests.invalidInputDoesNotMutate",
-          "invocations": 1,
-          "fingerprints": {
-            "body": "99bd250525c2e55fc30650717c108845176be507da550e49a95e6971ffc527ee",
-            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "b29bc0ad97a4e56be656df095fc366f3a10dbed4b4f66babab3f1318ff699b8b",
-            "attribute": "40eea910fc41b88cdb79c7508b70a654c042d4fefac8578b6c33af2a6ce5bf95"
-          }
-        }
-      ],
-      "review": "task-16"
-    },
-    {
-      "id": "Tests/NativeContractTests/PipelineContractTests.swift::PipelineContractTests.invalidConfigurationAndNullDestruction",
-      "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: PipelineContractTests.invalidConfigurationAndNullDestruction",
-      "destinations": [
-        {
-          "id": "Tests/NativeContractTests/PipelineContractTests.swift::PipelineContractTests.invalidConfigurationAndNullDestruction",
-          "invocations": 1,
-          "fingerprints": {
-            "body": "0fe57941be53f6567eb08f06a9ee44d8fa36bfe9d965feb1cec159bb037d63eb",
-            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "b9a157d435cb2c8c9d2edfdf98dfb15e7e7012891adca752909564c6c094c6dd",
-            "attribute": "194aa7f5a68b2fa6ccb6fae5c58135f219991622c0399fb77b8951cf2a98bd6b"
-          }
-        }
-      ],
-      "review": "task-16"
-    },
-    {
-      "id": "Tests/NativeContractTests/PipelineContractTests.swift::PipelineContractTests.sharedReadOnlyInputHasIndependentEQ",
-      "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: PipelineContractTests.sharedReadOnlyInputHasIndependentEQ",
-      "destinations": [
-        {
-          "id": "Tests/NativeContractTests/PipelineContractTests.swift::PipelineContractTests.sharedReadOnlyInputHasIndependentEQ",
-          "invocations": 1,
-          "fingerprints": {
-            "body": "1d837ce5adf688eede19dd85e8b1ad3f5451baf5c2b4db5bb2e4e41d3a85a47b",
-            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "bc99322d33fbf2907d37626a45c04384fdca0b7c79a5178b53c1d8ca171d8b91",
-            "attribute": "5861fcbba796670e2ee670428dce1b31401e346f7801e1aa8e634b44ac97adff"
-          }
-        }
-      ],
-      "review": "task-16"
-    },
-    {
-      "id": "Tests/NativeContractTests/PipelineContractTests.swift::PipelineContractTests.routeReconfigurationPreservesOtherHistory",
-      "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: PipelineContractTests.routeReconfigurationPreservesOtherHistory",
-      "destinations": [
-        {
-          "id": "Tests/NativeContractTests/PipelineContractTests.swift::PipelineContractTests.routeReconfigurationPreservesOtherHistory",
-          "invocations": 1,
-          "fingerprints": {
-            "body": "49c2bd44d9e7f072e16bceef8ac5117dcdf7fb1de99e6e7670111f03a99fbda6",
-            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "770009b5d2bbadc6e4ea6489c02462827c071d5892537de56a679ff1b74f6abe",
-            "attribute": "452091ecd2a8f65d00a1a28f681fecdc708bcbae0276730e87d810bdb7e8cfa8"
-          }
-        }
-      ],
-      "review": "task-16"
-    },
-    {
-      "id": "Tests/NativeContractTests/PipelineContractTests.swift::PipelineContractTests.validationIsTransactional",
-      "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: PipelineContractTests.validationIsTransactional",
-      "destinations": [
-        {
-          "id": "Tests/NativeContractTests/PipelineContractTests.swift::PipelineContractTests.validationIsTransactional",
-          "invocations": 1,
-          "fingerprints": {
-            "body": "88dc272f6cb3200a2bc44c60766b5d415feec468a15e8920e787932194e82f98",
-            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "bf6d1a7f5351bcc7978bdfc223728cfc1e915f288c66d33f8a56b2457b2741db",
-            "attribute": "c52a0df5accbadc5efa1dd201c10178a87ba9958d333eb6362f356e6a66bb96a"
-          }
-        }
-      ],
-      "review": "task-16"
-    },
-    {
-      "id": "Tests/NativeContractTests/PipelineContractTests.swift::PipelineContractTests.partialOverlapIsRejected",
-      "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: PipelineContractTests.partialOverlapIsRejected",
-      "destinations": [
-        {
-          "id": "Tests/NativeContractTests/PipelineContractTests.swift::PipelineContractTests.partialOverlapIsRejected",
-          "invocations": 1,
-          "fingerprints": {
-            "body": "19b305d4643d797e509c681297d3fd13e90c46ad0f8d2ac424e807f5c5dd991d",
-            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "c578257f0db11ade150bd6925bfdf0010c6bf2404e8c5f80de66ba847121bd1e",
-            "attribute": "50e9f33d967af846450b46b7f115a4b31827a0ab4103ec3db91c823516ffed8e"
-          }
-        }
-      ],
-      "review": "task-16"
-    },
-    {
       "id": "Tests/NativeContractTests/PipelineContractTests.swift::PipelineContractTests.emptyInputSilencesCapacity",
       "classification": "D",
       "adaptation": "Independent/new-boundary unit guarantee: PipelineContractTests.emptyInputSilencesCapacity",
@@ -17327,24 +17243,6 @@
             "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
             "assertions": "a4ba5a2f7888d4fbec45ac1b0c311cc925071ce319d976aee541561017978830",
             "attribute": "5a916721ac343c828445bf2fb7ad5551fbbbb906dba83e238b0108681b16bd03"
-          }
-        }
-      ],
-      "review": "task-16"
-    },
-    {
-      "id": "Tests/NativeContractTests/PipelineContractTests.swift::PipelineContractTests.nonfiniteSignalAndRecovery",
-      "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: PipelineContractTests.nonfiniteSignalAndRecovery",
-      "destinations": [
-        {
-          "id": "Tests/NativeContractTests/PipelineContractTests.swift::PipelineContractTests.nonfiniteSignalAndRecovery",
-          "invocations": 1,
-          "fingerprints": {
-            "body": "9bd67b97991ae584594fbbe6e681f108cc968453c2a1f719ad3907c857b72b29",
-            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "120d3a20cdfcea8f727a2e9759440556061e04660a5492a31f6f48e09411ba9a",
-            "attribute": "7e8ab0b6de3e68d7bc5ed6060eaced796af0db40614f0205a5e7f8be38374f08"
           }
         }
       ],
@@ -17369,6 +17267,132 @@
       "review": "task-16"
     },
     {
+      "id": "Tests/NativeContractTests/PipelineContractTests.swift::PipelineContractTests.initialGainAndIndependentRoutes",
+      "classification": "D",
+      "adaptation": "Independent/new-boundary unit guarantee: PipelineContractTests.initialGainAndIndependentRoutes",
+      "destinations": [
+        {
+          "id": "Tests/NativeContractTests/PipelineContractTests.swift::PipelineContractTests.initialGainAndIndependentRoutes",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "bdda7841ef7360ccb0cef6ddcdb6fc3874093121a2a48bcde36fdf90ed668823",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "a0872c5fc91872fa566b6128d45204a915876550e95c7c0783f1c8901025ad5e",
+            "attribute": "0453290e43b5c261b0d2ad1b066de83d5c1bf3d1eccfb99716bbdb086d1f5019"
+          }
+        }
+      ],
+      "review": "task-16"
+    },
+    {
+      "id": "Tests/NativeContractTests/PipelineContractTests.swift::PipelineContractTests.invalidConfigurationAndNullDestruction",
+      "classification": "D",
+      "adaptation": "Independent/new-boundary unit guarantee: PipelineContractTests.invalidConfigurationAndNullDestruction",
+      "destinations": [
+        {
+          "id": "Tests/NativeContractTests/PipelineContractTests.swift::PipelineContractTests.invalidConfigurationAndNullDestruction",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "0fe57941be53f6567eb08f06a9ee44d8fa36bfe9d965feb1cec159bb037d63eb",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "b9a157d435cb2c8c9d2edfdf98dfb15e7e7012891adca752909564c6c094c6dd",
+            "attribute": "194aa7f5a68b2fa6ccb6fae5c58135f219991622c0399fb77b8951cf2a98bd6b"
+          }
+        }
+      ],
+      "review": "task-16"
+    },
+    {
+      "id": "Tests/NativeContractTests/PipelineContractTests.swift::PipelineContractTests.invalidInputDoesNotMutate",
+      "classification": "D",
+      "adaptation": "Independent/new-boundary unit guarantee: PipelineContractTests.invalidInputDoesNotMutate",
+      "destinations": [
+        {
+          "id": "Tests/NativeContractTests/PipelineContractTests.swift::PipelineContractTests.invalidInputDoesNotMutate",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "99bd250525c2e55fc30650717c108845176be507da550e49a95e6971ffc527ee",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "b29bc0ad97a4e56be656df095fc366f3a10dbed4b4f66babab3f1318ff699b8b",
+            "attribute": "40eea910fc41b88cdb79c7508b70a654c042d4fefac8578b6c33af2a6ce5bf95"
+          }
+        }
+      ],
+      "review": "task-16"
+    },
+    {
+      "id": "Tests/NativeContractTests/PipelineContractTests.swift::PipelineContractTests.nonfiniteSignalAndRecovery",
+      "classification": "D",
+      "adaptation": "Independent/new-boundary unit guarantee: PipelineContractTests.nonfiniteSignalAndRecovery",
+      "destinations": [
+        {
+          "id": "Tests/NativeContractTests/PipelineContractTests.swift::PipelineContractTests.nonfiniteSignalAndRecovery",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "9bd67b97991ae584594fbbe6e681f108cc968453c2a1f719ad3907c857b72b29",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "120d3a20cdfcea8f727a2e9759440556061e04660a5492a31f6f48e09411ba9a",
+            "attribute": "7e8ab0b6de3e68d7bc5ed6060eaced796af0db40614f0205a5e7f8be38374f08"
+          }
+        }
+      ],
+      "review": "task-16"
+    },
+    {
+      "id": "Tests/NativeContractTests/PipelineContractTests.swift::PipelineContractTests.partialOverlapIsRejected",
+      "classification": "D",
+      "adaptation": "Independent/new-boundary unit guarantee: PipelineContractTests.partialOverlapIsRejected",
+      "destinations": [
+        {
+          "id": "Tests/NativeContractTests/PipelineContractTests.swift::PipelineContractTests.partialOverlapIsRejected",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "19b305d4643d797e509c681297d3fd13e90c46ad0f8d2ac424e807f5c5dd991d",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "c578257f0db11ade150bd6925bfdf0010c6bf2404e8c5f80de66ba847121bd1e",
+            "attribute": "50e9f33d967af846450b46b7f115a4b31827a0ab4103ec3db91c823516ffed8e"
+          }
+        }
+      ],
+      "review": "task-16"
+    },
+    {
+      "id": "Tests/NativeContractTests/PipelineContractTests.swift::PipelineContractTests.routeReconfigurationPreservesOtherHistory",
+      "classification": "D",
+      "adaptation": "Independent/new-boundary unit guarantee: PipelineContractTests.routeReconfigurationPreservesOtherHistory",
+      "destinations": [
+        {
+          "id": "Tests/NativeContractTests/PipelineContractTests.swift::PipelineContractTests.routeReconfigurationPreservesOtherHistory",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "49c2bd44d9e7f072e16bceef8ac5117dcdf7fb1de99e6e7670111f03a99fbda6",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "770009b5d2bbadc6e4ea6489c02462827c071d5892537de56a679ff1b74f6abe",
+            "attribute": "452091ecd2a8f65d00a1a28f681fecdc708bcbae0276730e87d810bdb7e8cfa8"
+          }
+        }
+      ],
+      "review": "task-16"
+    },
+    {
+      "id": "Tests/NativeContractTests/PipelineContractTests.swift::PipelineContractTests.sharedReadOnlyInputHasIndependentEQ",
+      "classification": "D",
+      "adaptation": "Independent/new-boundary unit guarantee: PipelineContractTests.sharedReadOnlyInputHasIndependentEQ",
+      "destinations": [
+        {
+          "id": "Tests/NativeContractTests/PipelineContractTests.swift::PipelineContractTests.sharedReadOnlyInputHasIndependentEQ",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "1d837ce5adf688eede19dd85e8b1ad3f5451baf5c2b4db5bb2e4e41d3a85a47b",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "bc99322d33fbf2907d37626a45c04384fdca0b7c79a5178b53c1d8ca171d8b91",
+            "attribute": "5861fcbba796670e2ee670428dce1b31401e346f7801e1aa8e634b44ac97adff"
+          }
+        }
+      ],
+      "review": "task-16"
+    },
+    {
       "id": "Tests/NativeContractTests/PipelineContractTests.swift::PipelineContractTests.transitionValidation",
       "classification": "D",
       "adaptation": "Independent/new-boundary unit guarantee: PipelineContractTests.transitionValidation",
@@ -17385,6 +17409,132 @@
         }
       ],
       "review": "task-16"
+    },
+    {
+      "id": "Tests/NativeContractTests/PipelineContractTests.swift::PipelineContractTests.validationIsTransactional",
+      "classification": "D",
+      "adaptation": "Independent/new-boundary unit guarantee: PipelineContractTests.validationIsTransactional",
+      "destinations": [
+        {
+          "id": "Tests/NativeContractTests/PipelineContractTests.swift::PipelineContractTests.validationIsTransactional",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "88dc272f6cb3200a2bc44c60766b5d415feec468a15e8920e787932194e82f98",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "bf6d1a7f5351bcc7978bdfc223728cfc1e915f288c66d33f8a56b2457b2741db",
+            "attribute": "c52a0df5accbadc5efa1dd201c10178a87ba9958d333eb6362f356e6a66bb96a"
+          }
+        }
+      ],
+      "review": "task-16"
+    },
+    {
+      "id": "Tests/PlatformTests/DeviceBackendTests.swift::DeviceBackendTests.alertDebounceAndReadback",
+      "classification": "D",
+      "adaptation": "Independent/new-boundary unit guarantee: DeviceBackendTests.alertDebounceAndReadback",
+      "review": "task-29",
+      "destinations": [
+        {
+          "id": "Tests/PlatformTests/DeviceBackendTests.swift::DeviceBackendTests.alertDebounceAndReadback",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "0b7ebab566f64a688015c18b0206d5d3d4f48a592d0a30452a0ac1af4cb7d835",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "0cf4388fb6d16f8b28fee2a56a1c993926725b12f23336813860bd29677eea96",
+            "attribute": "8f616210d9f5ec123ae71e80778b1bb84a80e56118981f064e84451532497bfd"
+          }
+        }
+      ]
+    },
+    {
+      "id": "Tests/PlatformTests/DeviceBackendTests.swift::DeviceBackendTests.alertStopAndValidation",
+      "classification": "D",
+      "adaptation": "Independent/new-boundary unit guarantee: DeviceBackendTests.alertStopAndValidation",
+      "review": "task-29",
+      "destinations": [
+        {
+          "id": "Tests/PlatformTests/DeviceBackendTests.swift::DeviceBackendTests.alertStopAndValidation",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "1fab07138717fd5792522f1bdbfc5ebc61bfd04a6dc05a073f02922eee976257",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "2885ec4eaa27b5f98924f0bcbb1fe881b5148953fe8b05a1951b623de6722f01",
+            "attribute": "ab24f6a67b3dcada2e36cd2226cb626ca4fa1145fd79167349f8a5a592c055c0"
+          }
+        }
+      ]
+    },
+    {
+      "id": "Tests/PlatformTests/DeviceBackendTests.swift::DeviceBackendTests.alertUnconfirmedWrite",
+      "classification": "D",
+      "adaptation": "Independent/new-boundary unit guarantee: DeviceBackendTests.alertUnconfirmedWrite",
+      "review": "task-29",
+      "destinations": [
+        {
+          "id": "Tests/PlatformTests/DeviceBackendTests.swift::DeviceBackendTests.alertUnconfirmedWrite",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "ef6bf3c67d37f64492401e80551e4af280db9f91d6dd1bcf466346eea6341a8a",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "778190dad3c8e6956a2454f5a83a236ee4ca2ba4f138523cef1094ca075055aa",
+            "attribute": "e0f8f5f519efb8636675f8f0869bcb48ff7a5e6d043d71300e24d5ee326473c9"
+          }
+        }
+      ]
+    },
+    {
+      "id": "Tests/PlatformTests/DeviceBackendTests.swift::DeviceBackendTests.independentInputFailures",
+      "classification": "D",
+      "adaptation": "Independent/new-boundary unit guarantee: DeviceBackendTests.independentInputFailures",
+      "review": "task-29",
+      "destinations": [
+        {
+          "id": "Tests/PlatformTests/DeviceBackendTests.swift::DeviceBackendTests.independentInputFailures",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "985ca0d75f91ab527e7540f7beb45ad7b84f11ca362b9589513026f7665275bb",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "3e44ca3992690b4148f81e19b6d885454363559aec021aa1a6cfa0876faab75a",
+            "attribute": "de0e307a843e3bae9c217ba10737fd2390dec57be4688eb663285953613ac283"
+          }
+        }
+      ]
+    },
+    {
+      "id": "Tests/PlatformTests/DeviceBackendTests.swift::DeviceBackendTests.inputFailures",
+      "classification": "D",
+      "adaptation": "Independent/new-boundary unit guarantee: DeviceBackendTests.inputFailures",
+      "review": "task-29",
+      "destinations": [
+        {
+          "id": "Tests/PlatformTests/DeviceBackendTests.swift::DeviceBackendTests.inputFailures",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "0729844b52a7b92187c8503596782871a5c03460f22f5ef5937ff02b441a55e5",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "d01dc32e87d5721ecd48914919288869003b6768178875e05f025602bd6e9c43",
+            "attribute": "0166af8f44764a538850789224b08db49b376ca12539973e9313fc98d49bd08d"
+          }
+        }
+      ]
+    },
+    {
+      "id": "Tests/PlatformTests/DeviceBackendTests.swift::DeviceBackendTests.inputLifecycle",
+      "classification": "D",
+      "adaptation": "Independent/new-boundary unit guarantee: DeviceBackendTests.inputLifecycle",
+      "review": "task-29",
+      "destinations": [
+        {
+          "id": "Tests/PlatformTests/DeviceBackendTests.swift::DeviceBackendTests.inputLifecycle",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "e8555428adb67ef64cdc7cf18bc064cca75ab55d824cef93ad74b89ab690e1b7",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "e1e26de0f5eaa0ec609caabb72af1dc1b35777eef7eaebabb0e8d7531a5d0eed",
+            "attribute": "33d725d1a9d2b4983c730aad1b47862a75199e8f8e40896196def4c11294b5f7"
+          }
+        }
+      ]
     },
     {
       "id": "Tests/PlatformTests/DeviceBackendTests.swift::DeviceBackendTests.inputScalarAndReadback",
@@ -17423,37 +17573,19 @@
       ]
     },
     {
-      "id": "Tests/PlatformTests/DeviceBackendTests.swift::DeviceBackendTests.inputFailures",
+      "id": "Tests/PlatformTests/DeviceBackendTests.swift::DeviceBackendTests.systemSoundFailure",
       "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: DeviceBackendTests.inputFailures",
+      "adaptation": "Independent/new-boundary unit guarantee: DeviceBackendTests.systemSoundFailure",
       "review": "task-29",
       "destinations": [
         {
-          "id": "Tests/PlatformTests/DeviceBackendTests.swift::DeviceBackendTests.inputFailures",
+          "id": "Tests/PlatformTests/DeviceBackendTests.swift::DeviceBackendTests.systemSoundFailure",
           "invocations": 1,
           "fingerprints": {
-            "body": "0729844b52a7b92187c8503596782871a5c03460f22f5ef5937ff02b441a55e5",
+            "body": "5f1a24a0f354fefc07f9b34948ceba3f918d25795d3427aaed6e6876249a6f45",
             "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "d01dc32e87d5721ecd48914919288869003b6768178875e05f025602bd6e9c43",
-            "attribute": "0166af8f44764a538850789224b08db49b376ca12539973e9313fc98d49bd08d"
-          }
-        }
-      ]
-    },
-    {
-      "id": "Tests/PlatformTests/DeviceBackendTests.swift::DeviceBackendTests.independentInputFailures",
-      "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: DeviceBackendTests.independentInputFailures",
-      "review": "task-29",
-      "destinations": [
-        {
-          "id": "Tests/PlatformTests/DeviceBackendTests.swift::DeviceBackendTests.independentInputFailures",
-          "invocations": 1,
-          "fingerprints": {
-            "body": "985ca0d75f91ab527e7540f7beb45ad7b84f11ca362b9589513026f7665275bb",
-            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "3e44ca3992690b4148f81e19b6d885454363559aec021aa1a6cfa0876faab75a",
-            "attribute": "de0e307a843e3bae9c217ba10737fd2390dec57be4688eb663285953613ac283"
+            "assertions": "d42b92eebc86cba08623f9171d38ade65f38c45e0e9a5dacbe9a474674153823",
+            "attribute": "8a863adf24e7d24f6fe6540be2bbec4f51f732d7fc2721e472680bc1b9481728"
           }
         }
       ]
@@ -17477,96 +17609,6 @@
       ]
     },
     {
-      "id": "Tests/PlatformTests/DeviceBackendTests.swift::DeviceBackendTests.systemSoundFailure",
-      "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: DeviceBackendTests.systemSoundFailure",
-      "review": "task-29",
-      "destinations": [
-        {
-          "id": "Tests/PlatformTests/DeviceBackendTests.swift::DeviceBackendTests.systemSoundFailure",
-          "invocations": 1,
-          "fingerprints": {
-            "body": "5f1a24a0f354fefc07f9b34948ceba3f918d25795d3427aaed6e6876249a6f45",
-            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "d42b92eebc86cba08623f9171d38ade65f38c45e0e9a5dacbe9a474674153823",
-            "attribute": "8a863adf24e7d24f6fe6540be2bbec4f51f732d7fc2721e472680bc1b9481728"
-          }
-        }
-      ]
-    },
-    {
-      "id": "Tests/PlatformTests/DeviceBackendTests.swift::DeviceBackendTests.alertDebounceAndReadback",
-      "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: DeviceBackendTests.alertDebounceAndReadback",
-      "review": "task-29",
-      "destinations": [
-        {
-          "id": "Tests/PlatformTests/DeviceBackendTests.swift::DeviceBackendTests.alertDebounceAndReadback",
-          "invocations": 1,
-          "fingerprints": {
-            "body": "0b7ebab566f64a688015c18b0206d5d3d4f48a592d0a30452a0ac1af4cb7d835",
-            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "0cf4388fb6d16f8b28fee2a56a1c993926725b12f23336813860bd29677eea96",
-            "attribute": "8f616210d9f5ec123ae71e80778b1bb84a80e56118981f064e84451532497bfd"
-          }
-        }
-      ]
-    },
-    {
-      "id": "Tests/PlatformTests/DeviceBackendTests.swift::DeviceBackendTests.alertUnconfirmedWrite",
-      "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: DeviceBackendTests.alertUnconfirmedWrite",
-      "review": "task-29",
-      "destinations": [
-        {
-          "id": "Tests/PlatformTests/DeviceBackendTests.swift::DeviceBackendTests.alertUnconfirmedWrite",
-          "invocations": 1,
-          "fingerprints": {
-            "body": "ef6bf3c67d37f64492401e80551e4af280db9f91d6dd1bcf466346eea6341a8a",
-            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "778190dad3c8e6956a2454f5a83a236ee4ca2ba4f138523cef1094ca075055aa",
-            "attribute": "e0f8f5f519efb8636675f8f0869bcb48ff7a5e6d043d71300e24d5ee326473c9"
-          }
-        }
-      ]
-    },
-    {
-      "id": "Tests/PlatformTests/DeviceBackendTests.swift::DeviceBackendTests.alertStopAndValidation",
-      "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: DeviceBackendTests.alertStopAndValidation",
-      "review": "task-29",
-      "destinations": [
-        {
-          "id": "Tests/PlatformTests/DeviceBackendTests.swift::DeviceBackendTests.alertStopAndValidation",
-          "invocations": 1,
-          "fingerprints": {
-            "body": "1fab07138717fd5792522f1bdbfc5ebc61bfd04a6dc05a073f02922eee976257",
-            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "2885ec4eaa27b5f98924f0bcbb1fe881b5148953fe8b05a1951b623de6722f01",
-            "attribute": "ab24f6a67b3dcada2e36cd2226cb626ca4fa1145fd79167349f8a5a592c055c0"
-          }
-        }
-      ]
-    },
-    {
-      "id": "Tests/PlatformTests/DeviceBackendTests.swift::DeviceBackendTests.inputLifecycle",
-      "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: DeviceBackendTests.inputLifecycle",
-      "review": "task-29",
-      "destinations": [
-        {
-          "id": "Tests/PlatformTests/DeviceBackendTests.swift::DeviceBackendTests.inputLifecycle",
-          "invocations": 1,
-          "fingerprints": {
-            "body": "e8555428adb67ef64cdc7cf18bc064cca75ab55d824cef93ad74b89ab690e1b7",
-            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "e1e26de0f5eaa0ec609caabb72af1dc1b35777eef7eaebabb0e8d7531a5d0eed",
-            "attribute": "33d725d1a9d2b4983c730aad1b47862a75199e8f8e40896196def4c11294b5f7"
-          }
-        }
-      ]
-    },
-    {
       "id": "Tests/PlatformTests/PersistenceTests.swift::PersistenceTests.bindingForwardsExactlyOnce",
       "classification": "D",
       "adaptation": "Independent/new-boundary unit guarantee: PersistenceTests.bindingForwardsExactlyOnce",
@@ -17579,6 +17621,60 @@
             "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
             "assertions": "6a894f0e35dc61e7fe2227f7ae0af0608a23220119542d283ae3d6ead4cef41a",
             "attribute": "5ac8f7223eb6e352dd2e8a7ace5611d874b39d311cc9602d7d02d4cfc3bcfd2c"
+          }
+        }
+      ],
+      "review": "task-10"
+    },
+    {
+      "id": "Tests/PlatformTests/PersistenceTests.swift::PersistenceTests.debounceReadback",
+      "classification": "D",
+      "adaptation": "Independent/new-boundary unit guarantee: PersistenceTests.debounceReadback",
+      "destinations": [
+        {
+          "id": "Tests/PlatformTests/PersistenceTests.swift::PersistenceTests.debounceReadback",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "dfbffa8dcd2f1f4c05e2d5d4449cc9b36c8c47bb2b0e768b136d202dd3091320",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "413087879e00d631cdea74a960ef653e14f6ff711071a6cbcc9de3301b66460a",
+            "attribute": "92fbda2e41ef1682d1fe299823f8d8259e3f56863a31162601d05183d6b6db84"
+          }
+        }
+      ],
+      "review": "task-10"
+    },
+    {
+      "id": "Tests/PlatformTests/PersistenceTests.swift::PersistenceTests.failedBackupPreservesOriginalFile",
+      "classification": "D",
+      "adaptation": "Independent/new-boundary unit guarantee: PersistenceTests.failedBackupPreservesOriginalFile",
+      "destinations": [
+        {
+          "id": "Tests/PlatformTests/PersistenceTests.swift::PersistenceTests.failedBackupPreservesOriginalFile",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "5903f906e2827a8b4b532475adcbabe72711a28351a0a933c22adef20311eccf",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "5fd78d73dd7336cbe03deb8ebec44db6504cd7ce147bf91929b7aa18263bdb0b",
+            "attribute": "b2ba7003a8a5cf62d4bf8288996b2bbf3e10ad682ad3ddea43f87892b863b92e"
+          }
+        }
+      ],
+      "review": "task-10"
+    },
+    {
+      "id": "Tests/PlatformTests/PersistenceTests.swift::PersistenceTests.flushReadback",
+      "classification": "D",
+      "adaptation": "Independent/new-boundary unit guarantee: PersistenceTests.flushReadback",
+      "destinations": [
+        {
+          "id": "Tests/PlatformTests/PersistenceTests.swift::PersistenceTests.flushReadback",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "0b8ffd7c6a7ef068969bdad8af7e8830af865de0e7ea1173f856de9d16a84c6e",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "062cb9810e6d0c66cd59dd9a9714ce158bbea4f6ead0b20e6e1e91e22136101d",
+            "attribute": "c00de47f8c2dee2a5c8f7c3cff3850604c4117fce6eac20eff83fdc8fd1f0bc6"
           }
         }
       ],
@@ -17621,42 +17717,6 @@
       "review": "task-10"
     },
     {
-      "id": "Tests/PlatformTests/PersistenceTests.swift::PersistenceTests.flushReadback",
-      "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: PersistenceTests.flushReadback",
-      "destinations": [
-        {
-          "id": "Tests/PlatformTests/PersistenceTests.swift::PersistenceTests.flushReadback",
-          "invocations": 1,
-          "fingerprints": {
-            "body": "0b8ffd7c6a7ef068969bdad8af7e8830af865de0e7ea1173f856de9d16a84c6e",
-            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "062cb9810e6d0c66cd59dd9a9714ce158bbea4f6ead0b20e6e1e91e22136101d",
-            "attribute": "c00de47f8c2dee2a5c8f7c3cff3850604c4117fce6eac20eff83fdc8fd1f0bc6"
-          }
-        }
-      ],
-      "review": "task-10"
-    },
-    {
-      "id": "Tests/PlatformTests/PersistenceTests.swift::PersistenceTests.debounceReadback",
-      "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: PersistenceTests.debounceReadback",
-      "destinations": [
-        {
-          "id": "Tests/PlatformTests/PersistenceTests.swift::PersistenceTests.debounceReadback",
-          "invocations": 1,
-          "fingerprints": {
-            "body": "dfbffa8dcd2f1f4c05e2d5d4449cc9b36c8c47bb2b0e768b136d202dd3091320",
-            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "413087879e00d631cdea74a960ef653e14f6ff711071a6cbcc9de3301b66460a",
-            "attribute": "92fbda2e41ef1682d1fe299823f8d8259e3f56863a31162601d05183d6b6db84"
-          }
-        }
-      ],
-      "review": "task-10"
-    },
-    {
       "id": "Tests/PlatformTests/PersistenceTests.swift::PersistenceTests.malformedBackup",
       "classification": "D",
       "adaptation": "Independent/new-boundary unit guarantee: PersistenceTests.malformedBackup",
@@ -17669,78 +17729,6 @@
             "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
             "assertions": "7aef3cd253a2121a7f436546bffead88415e8485bef1c443771eca2c06f789de",
             "attribute": "8149a4dcdc0f1fae6b41900e12b52a69efcce8f531243f99e197ae17b481a502"
-          }
-        }
-      ],
-      "review": "task-10"
-    },
-    {
-      "id": "Tests/PlatformTests/PersistenceTests.swift::PersistenceTests.wrongTypeIsObservable",
-      "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: PersistenceTests.wrongTypeIsObservable",
-      "destinations": [
-        {
-          "id": "Tests/PlatformTests/PersistenceTests.swift::PersistenceTests.wrongTypeIsObservable",
-          "invocations": 1,
-          "fingerprints": {
-            "body": "147a2fc7b1753ba37d6b67ef1d2b498c853b91a1e2f517dc69e2541606b8b906",
-            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "58d662cd58a18ac67c7b9622823d3b7dc34dc9253ae533141dc85c06d1122338",
-            "attribute": "62e5a78e5127f61bea4330c519585e1baf8461d7e705c5426f71775e30d4be90"
-          }
-        }
-      ],
-      "review": "task-10"
-    },
-    {
-      "id": "Tests/PlatformTests/PersistenceTests.swift::PersistenceTests.unknownVersionPreserved",
-      "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: PersistenceTests.unknownVersionPreserved",
-      "destinations": [
-        {
-          "id": "Tests/PlatformTests/PersistenceTests.swift::PersistenceTests.unknownVersionPreserved",
-          "invocations": 1,
-          "fingerprints": {
-            "body": "de47b5d93790160b05081df171e8a873e7431418a7db1110c72616c559c4d5c8",
-            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "278ea39ed73a8c755b48888b682774705ae9ed9041445eb13559c173828ccee2",
-            "attribute": "7bf179a4795a04014f504a1ad24815c32ef0eb34c953c8a0c32cb2f8b2e3f80f"
-          }
-        }
-      ],
-      "review": "task-10"
-    },
-    {
-      "id": "Tests/PlatformTests/PersistenceTests.swift::PersistenceTests.saveFailureIsObservable",
-      "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: PersistenceTests.saveFailureIsObservable",
-      "destinations": [
-        {
-          "id": "Tests/PlatformTests/PersistenceTests.swift::PersistenceTests.saveFailureIsObservable",
-          "invocations": 1,
-          "fingerprints": {
-            "body": "f227d0e367b05804c140585fc7220f4fcb0219449692b05ce7714b411d631b24",
-            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "d35ec0a418286d08e9fe1411ec854532b8ce48fc38eb664f0c1917aabccd5ce4",
-            "attribute": "e70793ac3d6e056c51722e1f88603c42450f911f64788b753618bf0a1fc54498"
-          }
-        }
-      ],
-      "review": "task-10"
-    },
-    {
-      "id": "Tests/PlatformTests/PersistenceTests.swift::PersistenceTests.failedBackupPreservesOriginalFile",
-      "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: PersistenceTests.failedBackupPreservesOriginalFile",
-      "destinations": [
-        {
-          "id": "Tests/PlatformTests/PersistenceTests.swift::PersistenceTests.failedBackupPreservesOriginalFile",
-          "invocations": 1,
-          "fingerprints": {
-            "body": "5903f906e2827a8b4b532475adcbabe72711a28351a0a933c22adef20311eccf",
-            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "5fd78d73dd7336cbe03deb8ebec44db6504cd7ce147bf91929b7aa18263bdb0b",
-            "attribute": "b2ba7003a8a5cf62d4bf8288996b2bbf3e10ad682ad3ddea43f87892b863b92e"
           }
         }
       ],
@@ -17783,76 +17771,58 @@
       "review": "task-10"
     },
     {
-      "id": "Tests/PlatformTests/ProfileRepositoryTests.swift::ProfileParsingTests.aliases",
+      "id": "Tests/PlatformTests/PersistenceTests.swift::PersistenceTests.saveFailureIsObservable",
       "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: ProfileParsingTests.aliases",
-      "review": "task-28",
+      "adaptation": "Independent/new-boundary unit guarantee: PersistenceTests.saveFailureIsObservable",
       "destinations": [
         {
-          "id": "Tests/PlatformTests/ProfileRepositoryTests.swift::ProfileParsingTests.aliases",
-          "invocations": 6,
-          "fingerprints": {
-            "body": "0877b30e026548f23a6e66f8ff9a673baaa674f616e6d0a21fcd116d4e1b49b6",
-            "arguments": "b9d84a326205d1f48b57ef6a6bb59b62324c70b686b44d692499c615d0ea6bb2",
-            "assertions": "d106a849512f94867f13126d88743d74b583bd2cf289897a8bf448d978d465f6",
-            "attribute": "e502250afd31ed63897e7f687e7bf58a270f1eea8678d4fb75646af2d2e59fd6"
-          }
-        }
-      ]
-    },
-    {
-      "id": "Tests/PlatformTests/ProfileRepositoryTests.swift::ProfileParsingTests.emptyProfileFails",
-      "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: ProfileParsingTests.emptyProfileFails",
-      "review": "task-28",
-      "destinations": [
-        {
-          "id": "Tests/PlatformTests/ProfileRepositoryTests.swift::ProfileParsingTests.emptyProfileFails",
+          "id": "Tests/PlatformTests/PersistenceTests.swift::PersistenceTests.saveFailureIsObservable",
           "invocations": 1,
           "fingerprints": {
-            "body": "3e846a48ca5c62424895d935dec64e0611f194fa7ac219eccd7e03db11863115",
+            "body": "f227d0e367b05804c140585fc7220f4fcb0219449692b05ce7714b411d631b24",
             "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "422a5992a83bab2284da5c4963fde0f42b8a434384cb8a3e428065f35e782214",
-            "attribute": "5aca6a9d81ccd8aab039742b9d492723f3282ba1fcea9d4ce2896b8a402cc9e0"
+            "assertions": "d35ec0a418286d08e9fe1411ec854532b8ce48fc38eb664f0c1917aabccd5ce4",
+            "attribute": "e70793ac3d6e056c51722e1f88603c42450f911f64788b753618bf0a1fc54498"
           }
         }
-      ]
+      ],
+      "review": "task-10"
     },
     {
-      "id": "Tests/PlatformTests/ProfileRepositoryTests.swift::ProfileParsingTests.diagnosticsAndLimit",
+      "id": "Tests/PlatformTests/PersistenceTests.swift::PersistenceTests.unknownVersionPreserved",
       "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: ProfileParsingTests.diagnosticsAndLimit",
-      "review": "task-28",
+      "adaptation": "Independent/new-boundary unit guarantee: PersistenceTests.unknownVersionPreserved",
       "destinations": [
         {
-          "id": "Tests/PlatformTests/ProfileRepositoryTests.swift::ProfileParsingTests.diagnosticsAndLimit",
+          "id": "Tests/PlatformTests/PersistenceTests.swift::PersistenceTests.unknownVersionPreserved",
           "invocations": 1,
           "fingerprints": {
-            "body": "0fe111f0a6b11c69611f56248a5ad97f4e25db8efeb4c59e6f4d67d619f25263",
+            "body": "de47b5d93790160b05081df171e8a873e7431418a7db1110c72616c559c4d5c8",
             "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "f2a5bc56edfb11852b6ec98112ef44e3e6b84a1410a9c6cfb6818dc19acc5b04",
-            "attribute": "3601f18824fb8cd3a5784042bc3ba80c7b02887789b5361488b555330e6898c0"
+            "assertions": "278ea39ed73a8c755b48888b682774705ae9ed9041445eb13559c173828ccee2",
+            "attribute": "7bf179a4795a04014f504a1ad24815c32ef0eb34c953c8a0c32cb2f8b2e3f80f"
           }
         }
-      ]
+      ],
+      "review": "task-10"
     },
     {
-      "id": "Tests/PlatformTests/ProfileRepositoryTests.swift::ProfileParsingTests.catalogContracts",
+      "id": "Tests/PlatformTests/PersistenceTests.swift::PersistenceTests.wrongTypeIsObservable",
       "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: ProfileParsingTests.catalogContracts",
-      "review": "task-28",
+      "adaptation": "Independent/new-boundary unit guarantee: PersistenceTests.wrongTypeIsObservable",
       "destinations": [
         {
-          "id": "Tests/PlatformTests/ProfileRepositoryTests.swift::ProfileParsingTests.catalogContracts",
+          "id": "Tests/PlatformTests/PersistenceTests.swift::PersistenceTests.wrongTypeIsObservable",
           "invocations": 1,
           "fingerprints": {
-            "body": "ef6f419ec333ba000a70cca0c2ceb8eb66a56cb1d1fa1191e7850ccb060fb092",
+            "body": "147a2fc7b1753ba37d6b67ef1d2b498c853b91a1e2f517dc69e2541606b8b906",
             "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "b98dfa7734aba4e2c4289c57aae95070181cf718618a191c94a47dd6f5d7ba10",
-            "attribute": "2b55ea2e5457f1284a0d3bbee4411d83e97a67d4440ea684cc7d0c8ba6d3c25d"
+            "assertions": "58d662cd58a18ac67c7b9622823d3b7dc34dc9253ae533141dc85c06d1122338",
+            "attribute": "62e5a78e5127f61bea4330c519585e1baf8461d7e705c5426f71775e30d4be90"
           }
         }
-      ]
+      ],
+      "review": "task-10"
     },
     {
       "id": "Tests/PlatformTests/ProfileRepositoryTests.swift::ProfileFileStoreTests.constructionDoesNotCreateStorage",
@@ -17868,24 +17838,6 @@
             "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
             "assertions": "0fa673a2c0a7871770c83d6d6838f56090a3d242e67d5294cc3290dd06f624c7",
             "attribute": "a4d991468f0f43c405cb93bae4f34f094995cf70007b40029f80feb39175e3fc"
-          }
-        }
-      ]
-    },
-    {
-      "id": "Tests/PlatformTests/ProfileRepositoryTests.swift::ProfileFileStoreTests.importReadback",
-      "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: ProfileFileStoreTests.importReadback",
-      "review": "task-28",
-      "destinations": [
-        {
-          "id": "Tests/PlatformTests/ProfileRepositoryTests.swift::ProfileFileStoreTests.importReadback",
-          "invocations": 1,
-          "fingerprints": {
-            "body": "bbc58726d51f188e0ba81571ac140e7223440fc9b064abd451828f8c822eecdd",
-            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "192c8e5f740591701b9d492bb78b0e4c8af0950bad1fc66e738dc6bec30a9cc9",
-            "attribute": "1c923e5f92052c2f9c1860fcae2039eba12c72624119ae7e285e5971b138f1d3"
           }
         }
       ]
@@ -17909,6 +17861,96 @@
       ]
     },
     {
+      "id": "Tests/PlatformTests/ProfileRepositoryTests.swift::ProfileFileStoreTests.importReadback",
+      "classification": "D",
+      "adaptation": "Independent/new-boundary unit guarantee: ProfileFileStoreTests.importReadback",
+      "review": "task-28",
+      "destinations": [
+        {
+          "id": "Tests/PlatformTests/ProfileRepositoryTests.swift::ProfileFileStoreTests.importReadback",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "bbc58726d51f188e0ba81571ac140e7223440fc9b064abd451828f8c822eecdd",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "192c8e5f740591701b9d492bb78b0e4c8af0950bad1fc66e738dc6bec30a9cc9",
+            "attribute": "1c923e5f92052c2f9c1860fcae2039eba12c72624119ae7e285e5971b138f1d3"
+          }
+        }
+      ]
+    },
+    {
+      "id": "Tests/PlatformTests/ProfileRepositoryTests.swift::ProfileParsingTests.aliases",
+      "classification": "D",
+      "adaptation": "Independent/new-boundary unit guarantee: ProfileParsingTests.aliases",
+      "review": "task-28",
+      "destinations": [
+        {
+          "id": "Tests/PlatformTests/ProfileRepositoryTests.swift::ProfileParsingTests.aliases",
+          "invocations": 6,
+          "fingerprints": {
+            "body": "0877b30e026548f23a6e66f8ff9a673baaa674f616e6d0a21fcd116d4e1b49b6",
+            "arguments": "b9d84a326205d1f48b57ef6a6bb59b62324c70b686b44d692499c615d0ea6bb2",
+            "assertions": "d106a849512f94867f13126d88743d74b583bd2cf289897a8bf448d978d465f6",
+            "attribute": "e502250afd31ed63897e7f687e7bf58a270f1eea8678d4fb75646af2d2e59fd6"
+          }
+        }
+      ]
+    },
+    {
+      "id": "Tests/PlatformTests/ProfileRepositoryTests.swift::ProfileParsingTests.catalogContracts",
+      "classification": "D",
+      "adaptation": "Independent/new-boundary unit guarantee: ProfileParsingTests.catalogContracts",
+      "review": "task-28",
+      "destinations": [
+        {
+          "id": "Tests/PlatformTests/ProfileRepositoryTests.swift::ProfileParsingTests.catalogContracts",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "ef6f419ec333ba000a70cca0c2ceb8eb66a56cb1d1fa1191e7850ccb060fb092",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "b98dfa7734aba4e2c4289c57aae95070181cf718618a191c94a47dd6f5d7ba10",
+            "attribute": "2b55ea2e5457f1284a0d3bbee4411d83e97a67d4440ea684cc7d0c8ba6d3c25d"
+          }
+        }
+      ]
+    },
+    {
+      "id": "Tests/PlatformTests/ProfileRepositoryTests.swift::ProfileParsingTests.diagnosticsAndLimit",
+      "classification": "D",
+      "adaptation": "Independent/new-boundary unit guarantee: ProfileParsingTests.diagnosticsAndLimit",
+      "review": "task-28",
+      "destinations": [
+        {
+          "id": "Tests/PlatformTests/ProfileRepositoryTests.swift::ProfileParsingTests.diagnosticsAndLimit",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "0fe111f0a6b11c69611f56248a5ad97f4e25db8efeb4c59e6f4d67d619f25263",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "f2a5bc56edfb11852b6ec98112ef44e3e6b84a1410a9c6cfb6818dc19acc5b04",
+            "attribute": "3601f18824fb8cd3a5784042bc3ba80c7b02887789b5361488b555330e6898c0"
+          }
+        }
+      ]
+    },
+    {
+      "id": "Tests/PlatformTests/ProfileRepositoryTests.swift::ProfileParsingTests.emptyProfileFails",
+      "classification": "D",
+      "adaptation": "Independent/new-boundary unit guarantee: ProfileParsingTests.emptyProfileFails",
+      "review": "task-28",
+      "destinations": [
+        {
+          "id": "Tests/PlatformTests/ProfileRepositoryTests.swift::ProfileParsingTests.emptyProfileFails",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "3e846a48ca5c62424895d935dec64e0611f194fa7ac219eccd7e03db11863115",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "422a5992a83bab2284da5c4963fde0f42b8a434384cb8a3e428065f35e782214",
+            "attribute": "5aca6a9d81ccd8aab039742b9d492723f3282ba1fcea9d4ce2896b8a402cc9e0"
+          }
+        }
+      ]
+    },
+    {
       "id": "Tests/PlatformTests/ProfileRepositoryTests.swift::ProfileRepositoryTests.constructionIsInert",
       "classification": "D",
       "adaptation": "Independent/new-boundary unit guarantee: ProfileRepositoryTests.constructionIsInert",
@@ -17927,55 +17969,19 @@
       ]
     },
     {
-      "id": "Tests/PlatformTests/ProfileRepositoryTests.swift::ProfileRepositoryTests.memoryIsTheSingleLoadedProfileStore",
+      "id": "Tests/PlatformTests/ProfileRepositoryTests.swift::ProfileRepositoryTests.favoritesBeforeSearchLimit",
       "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: ProfileRepositoryTests.memoryIsTheSingleLoadedProfileStore",
+      "adaptation": "Independent/new-boundary unit guarantee: ProfileRepositoryTests.favoritesBeforeSearchLimit",
       "review": "task-28",
       "destinations": [
         {
-          "id": "Tests/PlatformTests/ProfileRepositoryTests.swift::ProfileRepositoryTests.memoryIsTheSingleLoadedProfileStore",
+          "id": "Tests/PlatformTests/ProfileRepositoryTests.swift::ProfileRepositoryTests.favoritesBeforeSearchLimit",
           "invocations": 1,
           "fingerprints": {
-            "body": "12b45c25d96349872e4fae0200d8ef879a3b68ea920cc0027319c513e02e0dab",
+            "body": "7a8ef9cc4d98747d3492dcb0e1a69e5c8d150a1096e6b4c807d3b38d9cdfeb28",
             "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "9ad59098cf7f976cf6b391ab303ac2440019c14c0aa4aded630670bae341303d",
-            "attribute": "6fc2dc1e3b8228bcafc6dd9564b9fc5a23e8004fe6b162aea15fecc2121202e7"
-          }
-        }
-      ]
-    },
-    {
-      "id": "Tests/PlatformTests/ProfileRepositoryTests.swift::ProfileRepositoryTests.ttlBoundaryIsFresh",
-      "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: ProfileRepositoryTests.ttlBoundaryIsFresh",
-      "review": "task-28",
-      "destinations": [
-        {
-          "id": "Tests/PlatformTests/ProfileRepositoryTests.swift::ProfileRepositoryTests.ttlBoundaryIsFresh",
-          "invocations": 1,
-          "fingerprints": {
-            "body": "9663aa238a142272960c845d3a1bb165e39876725dc3889f556430df7fbde328",
-            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "f28be4187d9bb2d7fa41cdf62d92a10cb19bac6ca3473700233655c21f1efe2d",
-            "attribute": "946cf40cb9251bc6501c14893f6eba9725b179b6c7a48774f0446217fd3a2f50"
-          }
-        }
-      ]
-    },
-    {
-      "id": "Tests/PlatformTests/ProfileRepositoryTests.swift::ProfileRepositoryTests.staleFailureRetainsCatalog",
-      "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: ProfileRepositoryTests.staleFailureRetainsCatalog",
-      "review": "task-28",
-      "destinations": [
-        {
-          "id": "Tests/PlatformTests/ProfileRepositoryTests.swift::ProfileRepositoryTests.staleFailureRetainsCatalog",
-          "invocations": 1,
-          "fingerprints": {
-            "body": "2462b4c4432731253db2c3c077ea9fe84eb6571908dd9247e35c9205d6f2a169",
-            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "21d67d2dcde1615a9c599916e7b04950ef5aebc1968d8fe57a69bc493e2ef863",
-            "attribute": "876178fbd408fdeb915c8bd9d70de69e7fcdf4224a6181b4af84c00dcc2f8d70"
+            "assertions": "5c2f2b1f88b23c151dc210fe13af25739082099b361cb3aa2b29d5bd2b27f442",
+            "attribute": "9e30f1565d8e5bb6249da064baf549e094fdeb9989340bbc26dec332c2fa1048"
           }
         }
       ]
@@ -17999,42 +18005,6 @@
       ]
     },
     {
-      "id": "Tests/PlatformTests/ProfileRepositoryTests.swift::ProfileRepositoryTests.fixedSourceAndPersistedFetch",
-      "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: ProfileRepositoryTests.fixedSourceAndPersistedFetch",
-      "review": "task-28",
-      "destinations": [
-        {
-          "id": "Tests/PlatformTests/ProfileRepositoryTests.swift::ProfileRepositoryTests.fixedSourceAndPersistedFetch",
-          "invocations": 1,
-          "fingerprints": {
-            "body": "b68d543b7bfd57985ac6361a204f0311fe12c4d5f89e173271f22d1afbe3629d",
-            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "479cff9798192864035ffa6fc0dd30685bad954a0df453bb5031a19107f7c46a",
-            "attribute": "efe83d1a7a9b34ea263bd55382fad3900d5b05d203d3bdd1f9c4b05f0fcf0144"
-          }
-        }
-      ]
-    },
-    {
-      "id": "Tests/PlatformTests/ProfileRepositoryTests.swift::ProfileRepositoryTests.invalidFetchIsNotSuccess",
-      "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: ProfileRepositoryTests.invalidFetchIsNotSuccess",
-      "review": "task-28",
-      "destinations": [
-        {
-          "id": "Tests/PlatformTests/ProfileRepositoryTests.swift::ProfileRepositoryTests.invalidFetchIsNotSuccess",
-          "invocations": 3,
-          "fingerprints": {
-            "body": "ea0c948b3b55ad82911dae4edff81dd9c33d7988d99db69f339f01ac2e7085b0",
-            "arguments": "0ef8f811bd14f4deabbd4290381d0e8b2e07f776240c620e0ed99c75b3e5155c",
-            "assertions": "6590f6b703173827909b3e36c3416fcc11087ba08f606ae51d690b03c787d22b",
-            "attribute": "28a62484d0666994828496fe7c9b1f5d11175b8fbbd0fe57521d16b1943d2810"
-          }
-        }
-      ]
-    },
-    {
       "id": "Tests/PlatformTests/ProfileRepositoryTests.swift::ProfileRepositoryTests.fetchedWriteFailureKeepsCacheAbsent",
       "classification": "D",
       "adaptation": "Independent/new-boundary unit guarantee: ProfileRepositoryTests.fetchedWriteFailureKeepsCacheAbsent",
@@ -18053,19 +18023,19 @@
       ]
     },
     {
-      "id": "Tests/PlatformTests/ProfileRepositoryTests.swift::ProfileRepositoryTests.unsafePathNeverRequests",
+      "id": "Tests/PlatformTests/ProfileRepositoryTests.swift::ProfileRepositoryTests.fixedSourceAndPersistedFetch",
       "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: ProfileRepositoryTests.unsafePathNeverRequests",
+      "adaptation": "Independent/new-boundary unit guarantee: ProfileRepositoryTests.fixedSourceAndPersistedFetch",
       "review": "task-28",
       "destinations": [
         {
-          "id": "Tests/PlatformTests/ProfileRepositoryTests.swift::ProfileRepositoryTests.unsafePathNeverRequests",
-          "invocations": 5,
+          "id": "Tests/PlatformTests/ProfileRepositoryTests.swift::ProfileRepositoryTests.fixedSourceAndPersistedFetch",
+          "invocations": 1,
           "fingerprints": {
-            "body": "2ca992ebb97218949b14dd801ec4b32a9ffd2ccaed3d758eff01ae0a7cccbbbe",
-            "arguments": "6e5a5a49c70c96230f70e9d5abfbdfc777b1985a9d791e8b08c8e4832b6c67f6",
-            "assertions": "e3234ba503641ff95dadd4b8ba2860988feba68d044fcb27d78b02f45ce616dc",
-            "attribute": "f0978147c27610a81f8314a4442f306ee854a4c8271bc9d03d22b487bef1797f"
+            "body": "b68d543b7bfd57985ac6361a204f0311fe12c4d5f89e173271f22d1afbe3629d",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "479cff9798192864035ffa6fc0dd30685bad954a0df453bb5031a19107f7c46a",
+            "attribute": "efe83d1a7a9b34ea263bd55382fad3900d5b05d203d3bdd1f9c4b05f0fcf0144"
           }
         }
       ]
@@ -18107,6 +18077,78 @@
       ]
     },
     {
+      "id": "Tests/PlatformTests/ProfileRepositoryTests.swift::ProfileRepositoryTests.invalidFetchIsNotSuccess",
+      "classification": "D",
+      "adaptation": "Independent/new-boundary unit guarantee: ProfileRepositoryTests.invalidFetchIsNotSuccess",
+      "review": "task-28",
+      "destinations": [
+        {
+          "id": "Tests/PlatformTests/ProfileRepositoryTests.swift::ProfileRepositoryTests.invalidFetchIsNotSuccess",
+          "invocations": 3,
+          "fingerprints": {
+            "body": "ea0c948b3b55ad82911dae4edff81dd9c33d7988d99db69f339f01ac2e7085b0",
+            "arguments": "0ef8f811bd14f4deabbd4290381d0e8b2e07f776240c620e0ed99c75b3e5155c",
+            "assertions": "6590f6b703173827909b3e36c3416fcc11087ba08f606ae51d690b03c787d22b",
+            "attribute": "28a62484d0666994828496fe7c9b1f5d11175b8fbbd0fe57521d16b1943d2810"
+          }
+        }
+      ]
+    },
+    {
+      "id": "Tests/PlatformTests/ProfileRepositoryTests.swift::ProfileRepositoryTests.memoryIsTheSingleLoadedProfileStore",
+      "classification": "D",
+      "adaptation": "Independent/new-boundary unit guarantee: ProfileRepositoryTests.memoryIsTheSingleLoadedProfileStore",
+      "review": "task-28",
+      "destinations": [
+        {
+          "id": "Tests/PlatformTests/ProfileRepositoryTests.swift::ProfileRepositoryTests.memoryIsTheSingleLoadedProfileStore",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "12b45c25d96349872e4fae0200d8ef879a3b68ea920cc0027319c513e02e0dab",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "9ad59098cf7f976cf6b391ab303ac2440019c14c0aa4aded630670bae341303d",
+            "attribute": "6fc2dc1e3b8228bcafc6dd9564b9fc5a23e8004fe6b162aea15fecc2121202e7"
+          }
+        }
+      ]
+    },
+    {
+      "id": "Tests/PlatformTests/ProfileRepositoryTests.swift::ProfileRepositoryTests.staleFailureRetainsCatalog",
+      "classification": "D",
+      "adaptation": "Independent/new-boundary unit guarantee: ProfileRepositoryTests.staleFailureRetainsCatalog",
+      "review": "task-28",
+      "destinations": [
+        {
+          "id": "Tests/PlatformTests/ProfileRepositoryTests.swift::ProfileRepositoryTests.staleFailureRetainsCatalog",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "2462b4c4432731253db2c3c077ea9fe84eb6571908dd9247e35c9205d6f2a169",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "21d67d2dcde1615a9c599916e7b04950ef5aebc1968d8fe57a69bc493e2ef863",
+            "attribute": "876178fbd408fdeb915c8bd9d70de69e7fcdf4224a6181b4af84c00dcc2f8d70"
+          }
+        }
+      ]
+    },
+    {
+      "id": "Tests/PlatformTests/ProfileRepositoryTests.swift::ProfileRepositoryTests.ttlBoundaryIsFresh",
+      "classification": "D",
+      "adaptation": "Independent/new-boundary unit guarantee: ProfileRepositoryTests.ttlBoundaryIsFresh",
+      "review": "task-28",
+      "destinations": [
+        {
+          "id": "Tests/PlatformTests/ProfileRepositoryTests.swift::ProfileRepositoryTests.ttlBoundaryIsFresh",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "9663aa238a142272960c845d3a1bb165e39876725dc3889f556430df7fbde328",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "f28be4187d9bb2d7fa41cdf62d92a10cb19bac6ca3473700233655c21f1efe2d",
+            "attribute": "946cf40cb9251bc6501c14893f6eba9725b179b6c7a48774f0446217fd3a2f50"
+          }
+        }
+      ]
+    },
+    {
       "id": "Tests/PlatformTests/ProfileRepositoryTests.swift::ProfileRepositoryTests.unreadableCacheIsObservable",
       "classification": "D",
       "adaptation": "Independent/new-boundary unit guarantee: ProfileRepositoryTests.unreadableCacheIsObservable",
@@ -18125,19 +18167,19 @@
       ]
     },
     {
-      "id": "Tests/PlatformTests/ProfileRepositoryTests.swift::ProfileRepositoryTests.favoritesBeforeSearchLimit",
+      "id": "Tests/PlatformTests/ProfileRepositoryTests.swift::ProfileRepositoryTests.unsafePathNeverRequests",
       "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: ProfileRepositoryTests.favoritesBeforeSearchLimit",
+      "adaptation": "Independent/new-boundary unit guarantee: ProfileRepositoryTests.unsafePathNeverRequests",
       "review": "task-28",
       "destinations": [
         {
-          "id": "Tests/PlatformTests/ProfileRepositoryTests.swift::ProfileRepositoryTests.favoritesBeforeSearchLimit",
-          "invocations": 1,
+          "id": "Tests/PlatformTests/ProfileRepositoryTests.swift::ProfileRepositoryTests.unsafePathNeverRequests",
+          "invocations": 5,
           "fingerprints": {
-            "body": "7a8ef9cc4d98747d3492dcb0e1a69e5c8d150a1096e6b4c807d3b38d9cdfeb28",
-            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "5c2f2b1f88b23c151dc210fe13af25739082099b361cb3aa2b29d5bd2b27f442",
-            "attribute": "9e30f1565d8e5bb6249da064baf549e094fdeb9989340bbc26dec332c2fa1048"
+            "body": "2ca992ebb97218949b14dd801ec4b32a9ffd2ccaed3d758eff01ae0a7cccbbbe",
+            "arguments": "6e5a5a49c70c96230f70e9d5abfbdfc777b1985a9d791e8b08c8e4832b6c67f6",
+            "assertions": "e3234ba503641ff95dadd4b8ba2860988feba68d044fcb27d78b02f45ce616dc",
+            "attribute": "f0978147c27610a81f8314a4442f306ee854a4c8271bc9d03d22b487bef1797f"
           }
         }
       ]
@@ -18179,42 +18221,6 @@
       "review": "task-11"
     },
     {
-      "id": "Tests/UpstreamCompatibilityTests/AudioEngineTapInitialStateTests.swift::AudioEngineRouteBoundaryTests.unknownAuthorizationPreservesRequest",
-      "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: AudioEngineRouteBoundaryTests.unknownAuthorizationPreservesRequest",
-      "destinations": [
-        {
-          "id": "Tests/UpstreamCompatibilityTests/AudioEngineTapInitialStateTests.swift::AudioEngineRouteBoundaryTests.unknownAuthorizationPreservesRequest",
-          "invocations": 1,
-          "fingerprints": {
-            "body": "b14f77d5b9a9bf2c317d2f824b85f3edbf4ee80cca367d240924710657d4eda8",
-            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "101b670c5d6e9ca4579614874338074bcb5453571df95bf6d99a1f0ec664ee4c",
-            "attribute": "19d7a1c00cb557c860f16548503b204a9cdb59a579f1adf1a1a15dacb2491068"
-          }
-        }
-      ],
-      "review": "task-14"
-    },
-    {
-      "id": "Tests/UpstreamCompatibilityTests/AudioEngineTapInitialStateTests.swift::AudioEngineRouteBoundaryTests.unavailableRuntimePreservesRequest",
-      "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: AudioEngineRouteBoundaryTests.unavailableRuntimePreservesRequest",
-      "destinations": [
-        {
-          "id": "Tests/UpstreamCompatibilityTests/AudioEngineTapInitialStateTests.swift::AudioEngineRouteBoundaryTests.unavailableRuntimePreservesRequest",
-          "invocations": 1,
-          "fingerprints": {
-            "body": "53ee4e8782d0a627e8d6161fddda0739dc625f58031d12d91098cd15793e70c1",
-            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "a6e27094bd2ebce882ac26c9e5df55ea7c7215d1bd34ab60a05a3cdcb7f8976e",
-            "attribute": "2c723079f6f501339431c409b773c35129782596ff511a1eed63b152e42d23ae"
-          }
-        }
-      ],
-      "review": "task-14"
-    },
-    {
       "id": "Tests/UpstreamCompatibilityTests/AudioEngineTapInitialStateTests.swift::AudioEngineRouteBoundaryTests.failedActivationKeepsOldRoute",
       "classification": "D",
       "adaptation": "Independent/new-boundary unit guarantee: AudioEngineRouteBoundaryTests.failedActivationKeepsOldRoute",
@@ -18227,24 +18233,6 @@
             "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
             "assertions": "80b75913b444af44ed632638a297b702b4c995ba0b5dc4e5d12b6c281dff28ed",
             "attribute": "c0bdea2e35f1549c35f322d119efef92e267ddd47f635b68007c4291f47506e2"
-          }
-        }
-      ],
-      "review": "task-14"
-    },
-    {
-      "id": "Tests/UpstreamCompatibilityTests/AudioEngineTapInitialStateTests.swift::AudioEngineRouteBoundaryTests.vanishedProcessReleasesRoute",
-      "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: AudioEngineRouteBoundaryTests.vanishedProcessReleasesRoute",
-      "destinations": [
-        {
-          "id": "Tests/UpstreamCompatibilityTests/AudioEngineTapInitialStateTests.swift::AudioEngineRouteBoundaryTests.vanishedProcessReleasesRoute",
-          "invocations": 1,
-          "fingerprints": {
-            "body": "fbdd5c88646f366a215025cc68e7a7268694f451762b2869eb540dccdbf6fea5",
-            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "dd1fd578528fafb4870d1ebd565ae0dae63c7f1ff42535c4497ec416dc0dcbe3",
-            "attribute": "45e88972ab42e139cd2bb28d5d20cfed01239578525d0ab72c2b2298bcc5ea1d"
           }
         }
       ],
@@ -18269,18 +18257,72 @@
       ]
     },
     {
-      "id": "Tests/UpstreamCompatibilityTests/BiquadProcessorSignalAdversarialTests.swift::NaNMidBufferTests.nonFiniteMidBufferReportsErrorAndMutesBlock",
+      "id": "Tests/UpstreamCompatibilityTests/AudioEngineTapInitialStateTests.swift::AudioEngineRouteBoundaryTests.unavailableRuntimePreservesRequest",
       "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: NaNMidBufferTests.nonFiniteMidBufferReportsErrorAndMutesBlock",
+      "adaptation": "Independent/new-boundary unit guarantee: AudioEngineRouteBoundaryTests.unavailableRuntimePreservesRequest",
       "destinations": [
         {
-          "id": "Tests/UpstreamCompatibilityTests/BiquadProcessorSignalAdversarialTests.swift::NaNMidBufferTests.nonFiniteMidBufferReportsErrorAndMutesBlock",
+          "id": "Tests/UpstreamCompatibilityTests/AudioEngineTapInitialStateTests.swift::AudioEngineRouteBoundaryTests.unavailableRuntimePreservesRequest",
           "invocations": 1,
           "fingerprints": {
-            "body": "35ec63c33aabc243c99cdbc3ca2706c3dc6fdd27e63defac1303f8b4be266c6d",
+            "body": "53ee4e8782d0a627e8d6161fddda0739dc625f58031d12d91098cd15793e70c1",
             "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "65e69e335f1d08ee0c772615fb10c8dcf2dfd7c48d691bfa88bb1a050e982a22",
-            "attribute": "1f959670bab831235c1fdae68977e33ae17569317a033229204a71c32f1683f9"
+            "assertions": "a6e27094bd2ebce882ac26c9e5df55ea7c7215d1bd34ab60a05a3cdcb7f8976e",
+            "attribute": "2c723079f6f501339431c409b773c35129782596ff511a1eed63b152e42d23ae"
+          }
+        }
+      ],
+      "review": "task-14"
+    },
+    {
+      "id": "Tests/UpstreamCompatibilityTests/AudioEngineTapInitialStateTests.swift::AudioEngineRouteBoundaryTests.unknownAuthorizationPreservesRequest",
+      "classification": "D",
+      "adaptation": "Independent/new-boundary unit guarantee: AudioEngineRouteBoundaryTests.unknownAuthorizationPreservesRequest",
+      "destinations": [
+        {
+          "id": "Tests/UpstreamCompatibilityTests/AudioEngineTapInitialStateTests.swift::AudioEngineRouteBoundaryTests.unknownAuthorizationPreservesRequest",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "b14f77d5b9a9bf2c317d2f824b85f3edbf4ee80cca367d240924710657d4eda8",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "101b670c5d6e9ca4579614874338074bcb5453571df95bf6d99a1f0ec664ee4c",
+            "attribute": "19d7a1c00cb557c860f16548503b204a9cdb59a579f1adf1a1a15dacb2491068"
+          }
+        }
+      ],
+      "review": "task-14"
+    },
+    {
+      "id": "Tests/UpstreamCompatibilityTests/AudioEngineTapInitialStateTests.swift::AudioEngineRouteBoundaryTests.vanishedProcessReleasesRoute",
+      "classification": "D",
+      "adaptation": "Independent/new-boundary unit guarantee: AudioEngineRouteBoundaryTests.vanishedProcessReleasesRoute",
+      "destinations": [
+        {
+          "id": "Tests/UpstreamCompatibilityTests/AudioEngineTapInitialStateTests.swift::AudioEngineRouteBoundaryTests.vanishedProcessReleasesRoute",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "fbdd5c88646f366a215025cc68e7a7268694f451762b2869eb540dccdbf6fea5",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "dd1fd578528fafb4870d1ebd565ae0dae63c7f1ff42535c4497ec416dc0dcbe3",
+            "attribute": "45e88972ab42e139cd2bb28d5d20cfed01239578525d0ab72c2b2298bcc5ea1d"
+          }
+        }
+      ],
+      "review": "task-14"
+    },
+    {
+      "id": "Tests/UpstreamCompatibilityTests/BiquadProcessorSignalAdversarialTests.swift::ExtremeAmplitudeTests.infinityInputReportsErrorAndMutesBlock",
+      "classification": "D",
+      "adaptation": "Independent/new-boundary unit guarantee: ExtremeAmplitudeTests.infinityInputReportsErrorAndMutesBlock",
+      "destinations": [
+        {
+          "id": "Tests/UpstreamCompatibilityTests/BiquadProcessorSignalAdversarialTests.swift::ExtremeAmplitudeTests.infinityInputReportsErrorAndMutesBlock",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "4b83a74acda8f4bc6e1cdf7b5a01b8248bff24d297b1c4cbd5b546878068259e",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "398a3acd1fae583e34dc1aafb55ccaf3820c4516dcf07b5790aee4277f9b0e7e",
+            "attribute": "711b15920ea3f6bea019a670277777bd83c469586958de7c8e1af13f550ebc68"
           }
         }
       ],
@@ -18305,18 +18347,18 @@
       "review": "task-8"
     },
     {
-      "id": "Tests/UpstreamCompatibilityTests/BiquadProcessorSignalAdversarialTests.swift::ExtremeAmplitudeTests.infinityInputReportsErrorAndMutesBlock",
+      "id": "Tests/UpstreamCompatibilityTests/BiquadProcessorSignalAdversarialTests.swift::NaNMidBufferTests.nonFiniteMidBufferReportsErrorAndMutesBlock",
       "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: ExtremeAmplitudeTests.infinityInputReportsErrorAndMutesBlock",
+      "adaptation": "Independent/new-boundary unit guarantee: NaNMidBufferTests.nonFiniteMidBufferReportsErrorAndMutesBlock",
       "destinations": [
         {
-          "id": "Tests/UpstreamCompatibilityTests/BiquadProcessorSignalAdversarialTests.swift::ExtremeAmplitudeTests.infinityInputReportsErrorAndMutesBlock",
+          "id": "Tests/UpstreamCompatibilityTests/BiquadProcessorSignalAdversarialTests.swift::NaNMidBufferTests.nonFiniteMidBufferReportsErrorAndMutesBlock",
           "invocations": 1,
           "fingerprints": {
-            "body": "4b83a74acda8f4bc6e1cdf7b5a01b8248bff24d297b1c4cbd5b546878068259e",
+            "body": "35ec63c33aabc243c99cdbc3ca2706c3dc6fdd27e63defac1303f8b4be266c6d",
             "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "398a3acd1fae583e34dc1aafb55ccaf3820c4516dcf07b5790aee4277f9b0e7e",
-            "attribute": "711b15920ea3f6bea019a670277777bd83c469586958de7c8e1af13f550ebc68"
+            "assertions": "65e69e335f1d08ee0c772615fb10c8dcf2dfd7c48d691bfa88bb1a050e982a22",
+            "attribute": "1f959670bab831235c1fdae68977e33ae17569317a033229204a71c32f1683f9"
           }
         }
       ],
@@ -18431,36 +18473,18 @@
       "review": "task-12"
     },
     {
-      "id": "Tests/UpstreamCompatibilityTests/MediaKeyMonitorHandlerTests.swift::MediaKeyCompositionBoundaryTests.registeredCallbackAppliesControlPlan",
+      "id": "Tests/UpstreamCompatibilityTests/MediaKeyMonitorHandlerTests.swift::MediaKeyCompositionBoundaryTests.ddcFloorBoundary",
       "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: MediaKeyCompositionBoundaryTests.registeredCallbackAppliesControlPlan",
+      "adaptation": "Independent/new-boundary unit guarantee: MediaKeyCompositionBoundaryTests.ddcFloorBoundary",
       "destinations": [
         {
-          "id": "Tests/UpstreamCompatibilityTests/MediaKeyMonitorHandlerTests.swift::MediaKeyCompositionBoundaryTests.registeredCallbackAppliesControlPlan",
+          "id": "Tests/UpstreamCompatibilityTests/MediaKeyMonitorHandlerTests.swift::MediaKeyCompositionBoundaryTests.ddcFloorBoundary",
           "invocations": 1,
           "fingerprints": {
-            "body": "48abb6b71be10dedfeeb606380ab0191b089f3d12b68ba27af9d96a5f91e40d8",
+            "body": "4f3137168fc21d20463c2b28646084c5a6f4b911b4ec508ce6b908a065ee4e69",
             "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "2a74f38b8723bc859e688278e41d7fc63d7c377f1ca1302138a825e36c4a39a8",
-            "attribute": "90bb3050b375ddaa54c057d7a7811f883f2b5acf94f3aaeacf6abb7b4e396b77"
-          }
-        }
-      ],
-      "review": "task-13"
-    },
-    {
-      "id": "Tests/UpstreamCompatibilityTests/MediaKeyMonitorHandlerTests.swift::MediaKeyCompositionBoundaryTests.retainedCallbackAfterStopIsInert",
-      "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: MediaKeyCompositionBoundaryTests.retainedCallbackAfterStopIsInert",
-      "destinations": [
-        {
-          "id": "Tests/UpstreamCompatibilityTests/MediaKeyMonitorHandlerTests.swift::MediaKeyCompositionBoundaryTests.retainedCallbackAfterStopIsInert",
-          "invocations": 1,
-          "fingerprints": {
-            "body": "9ab846d6defb19258a82ce7c9c88cf275d39b6dfa077027ccae36b68c022f695",
-            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "27b714972087e0c3018d50ad43fcc9d8ea4643f08096c6da9209fb835a4fff50",
-            "attribute": "62cab452bc7821d5cade9342151300a4c43bdf532e933c57ff4609079f2689c6"
+            "assertions": "9c290b3b7e223ff106297979a42a7db9668e49ea1bb9b1384bf632ebd58286e4",
+            "attribute": "a21a2c463238844e0da377e8200af34875801edd28bea09fb42ffa57fc4bf6b2"
           }
         }
       ],
@@ -18503,18 +18527,36 @@
       "review": "task-13"
     },
     {
-      "id": "Tests/UpstreamCompatibilityTests/MediaKeyMonitorHandlerTests.swift::MediaKeyCompositionBoundaryTests.ddcFloorBoundary",
+      "id": "Tests/UpstreamCompatibilityTests/MediaKeyMonitorHandlerTests.swift::MediaKeyCompositionBoundaryTests.registeredCallbackAppliesControlPlan",
       "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: MediaKeyCompositionBoundaryTests.ddcFloorBoundary",
+      "adaptation": "Independent/new-boundary unit guarantee: MediaKeyCompositionBoundaryTests.registeredCallbackAppliesControlPlan",
       "destinations": [
         {
-          "id": "Tests/UpstreamCompatibilityTests/MediaKeyMonitorHandlerTests.swift::MediaKeyCompositionBoundaryTests.ddcFloorBoundary",
+          "id": "Tests/UpstreamCompatibilityTests/MediaKeyMonitorHandlerTests.swift::MediaKeyCompositionBoundaryTests.registeredCallbackAppliesControlPlan",
           "invocations": 1,
           "fingerprints": {
-            "body": "4f3137168fc21d20463c2b28646084c5a6f4b911b4ec508ce6b908a065ee4e69",
+            "body": "48abb6b71be10dedfeeb606380ab0191b089f3d12b68ba27af9d96a5f91e40d8",
             "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "9c290b3b7e223ff106297979a42a7db9668e49ea1bb9b1384bf632ebd58286e4",
-            "attribute": "a21a2c463238844e0da377e8200af34875801edd28bea09fb42ffa57fc4bf6b2"
+            "assertions": "2a74f38b8723bc859e688278e41d7fc63d7c377f1ca1302138a825e36c4a39a8",
+            "attribute": "90bb3050b375ddaa54c057d7a7811f883f2b5acf94f3aaeacf6abb7b4e396b77"
+          }
+        }
+      ],
+      "review": "task-13"
+    },
+    {
+      "id": "Tests/UpstreamCompatibilityTests/MediaKeyMonitorHandlerTests.swift::MediaKeyCompositionBoundaryTests.retainedCallbackAfterStopIsInert",
+      "classification": "D",
+      "adaptation": "Independent/new-boundary unit guarantee: MediaKeyCompositionBoundaryTests.retainedCallbackAfterStopIsInert",
+      "destinations": [
+        {
+          "id": "Tests/UpstreamCompatibilityTests/MediaKeyMonitorHandlerTests.swift::MediaKeyCompositionBoundaryTests.retainedCallbackAfterStopIsInert",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "9ab846d6defb19258a82ce7c9c88cf275d39b6dfa077027ccae36b68c022f695",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "27b714972087e0c3018d50ad43fcc9d8ea4643f08096c6da9209fb835a4fff50",
+            "attribute": "62cab452bc7821d5cade9342151300a4c43bdf532e933c57ff4609079f2689c6"
           }
         }
       ],
@@ -18539,24 +18581,6 @@
       "review": "task-11"
     },
     {
-      "id": "Tests/UpstreamCompatibilityTests/MenuBarIconImageSizeTests.swift::MenuBarIconRendererBoundaryTests.missingImagesRemainNil",
-      "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: MenuBarIconRendererBoundaryTests.missingImagesRemainNil",
-      "destinations": [
-        {
-          "id": "Tests/UpstreamCompatibilityTests/MenuBarIconImageSizeTests.swift::MenuBarIconRendererBoundaryTests.missingImagesRemainNil",
-          "invocations": 1,
-          "fingerprints": {
-            "body": "6e82ad85e4e5b80615b9ba8374177203593c537a590309d3d590eb82aefa1308",
-            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "19229f7c712eec251324efecbf67043335e27f1bd61358c7cdf173a0fbd58294",
-            "attribute": "d5665fd3b1c79c23b611548a03a0f88bf02a2bcc4cc451c877e7ca889a576628"
-          }
-        }
-      ],
-      "review": "task-11"
-    },
-    {
       "id": "Tests/UpstreamCompatibilityTests/MenuBarIconImageSizeTests.swift::MenuBarIconRendererBoundaryTests.customAccessibilityDescription",
       "classification": "D",
       "adaptation": "Independent/new-boundary unit guarantee: MenuBarIconRendererBoundaryTests.customAccessibilityDescription",
@@ -18569,6 +18593,24 @@
             "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
             "assertions": "f72ac88054f142db002130499af2da6cf539ad5511c3a367f4f228bca7bb0dbc",
             "attribute": "dfeb70521e7b1f1b91ca9d90bf62f5e60b03ef921d60885714fba49ed1f5846c"
+          }
+        }
+      ],
+      "review": "task-11"
+    },
+    {
+      "id": "Tests/UpstreamCompatibilityTests/MenuBarIconImageSizeTests.swift::MenuBarIconRendererBoundaryTests.missingImagesRemainNil",
+      "classification": "D",
+      "adaptation": "Independent/new-boundary unit guarantee: MenuBarIconRendererBoundaryTests.missingImagesRemainNil",
+      "destinations": [
+        {
+          "id": "Tests/UpstreamCompatibilityTests/MenuBarIconImageSizeTests.swift::MenuBarIconRendererBoundaryTests.missingImagesRemainNil",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "6e82ad85e4e5b80615b9ba8374177203593c537a590309d3d590eb82aefa1308",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "19229f7c712eec251324efecbf67043335e27f1bd61358c7cdf173a0fbd58294",
+            "attribute": "d5665fd3b1c79c23b611548a03a0f88bf02a2bcc4cc451c877e7ca889a576628"
           }
         }
       ],
@@ -18611,24 +18653,6 @@
       "review": "task-13"
     },
     {
-      "id": "Tests/UpstreamCompatibilityTests/ShortcutsRegistryTests.swift::ShortcutRegistrationBoundaryTests.retainedCallbackAfterStopIsInert",
-      "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: ShortcutRegistrationBoundaryTests.retainedCallbackAfterStopIsInert",
-      "destinations": [
-        {
-          "id": "Tests/UpstreamCompatibilityTests/ShortcutsRegistryTests.swift::ShortcutRegistrationBoundaryTests.retainedCallbackAfterStopIsInert",
-          "invocations": 1,
-          "fingerprints": {
-            "body": "7f72a20932d6de9af5dbe45daeb0a7bc998e837b85d6e34c336c560990066893",
-            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "439cd07eee9e7f96178197a413efb7d51aad5c8e2113d5b8db0dac1085f155f8",
-            "attribute": "d0be0e17476abf375ba2474bb29233c6aeb1ad117941cf153fa29dcc2763650c"
-          }
-        }
-      ],
-      "review": "task-13"
-    },
-    {
       "id": "Tests/UpstreamCompatibilityTests/ShortcutsRegistryTests.swift::ShortcutRegistrationBoundaryTests.repeatedStartRegistersOnce",
       "classification": "D",
       "adaptation": "Independent/new-boundary unit guarantee: ShortcutRegistrationBoundaryTests.repeatedStartRegistersOnce",
@@ -18647,60 +18671,22 @@
       "review": "task-13"
     },
     {
-      "id": "Tools/DSPTests/main.cpp::mathBoundaries",
+      "id": "Tests/UpstreamCompatibilityTests/ShortcutsRegistryTests.swift::ShortcutRegistrationBoundaryTests.retainedCallbackAfterStopIsInert",
       "classification": "D",
-      "adaptation": "Real coefficient builders: identity/unity and invalid numerical input boundaries.",
-      "review": "task-31",
+      "adaptation": "Independent/new-boundary unit guarantee: ShortcutRegistrationBoundaryTests.retainedCallbackAfterStopIsInert",
       "destinations": [
         {
-          "id": "Tools/DSPTests/main.cpp::mathBoundaries",
-          "kind": "cpp",
+          "id": "Tests/UpstreamCompatibilityTests/ShortcutsRegistryTests.swift::ShortcutRegistrationBoundaryTests.retainedCallbackAfterStopIsInert",
           "invocations": 1,
-          "guarantee": "Real coefficient builders: identity/unity and invalid numerical input boundaries."
+          "fingerprints": {
+            "body": "7f72a20932d6de9af5dbe45daeb0a7bc998e837b85d6e34c336c560990066893",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "439cd07eee9e7f96178197a413efb7d51aad5c8e2113d5b8db0dac1085f155f8",
+            "attribute": "d0be0e17476abf375ba2474bb29233c6aeb1ad117941cf153fa29dcc2763650c"
+          }
         }
-      ]
-    },
-    {
-      "id": "Tools/DSPTests/main.cpp::firstFrameAndTail",
-      "classification": "D",
-      "adaptation": "Initial and resumed short sounds survive without fade/gate; zero input advances real IIR tails.",
-      "review": "task-31",
-      "destinations": [
-        {
-          "id": "Tools/DSPTests/main.cpp::firstFrameAndTail",
-          "kind": "cpp",
-          "invocations": 1,
-          "guarantee": "Initial and resumed short sounds survive without fade/gate; zero input advances real IIR tails."
-        }
-      ]
-    },
-    {
-      "id": "Tools/DSPTests/main.cpp::partitionAndPathIsolation",
-      "classification": "D",
-      "adaptation": "Arbitrary frame partitions are bit exact; independently prepared routes and channels own distinct histories.",
-      "review": "task-31",
-      "destinations": [
-        {
-          "id": "Tools/DSPTests/main.cpp::partitionAndPathIsolation",
-          "kind": "cpp",
-          "invocations": 1,
-          "guarantee": "Arbitrary frame partitions are bit exact; independently prepared routes and channels own distinct histories."
-        }
-      ]
-    },
-    {
-      "id": "Tools/DSPTests/main.cpp::validationAndRecovery",
-      "classification": "D",
-      "adaptation": "Invalid configuration is transactional; nonfinite signals fail explicitly, mute bounded output and recover with reset state.",
-      "review": "task-31",
-      "destinations": [
-        {
-          "id": "Tools/DSPTests/main.cpp::validationAndRecovery",
-          "kind": "cpp",
-          "invocations": 1,
-          "guarantee": "Invalid configuration is transactional; nonfinite signals fail explicitly, mute bounded output and recover with reset state."
-        }
-      ]
+      ],
+      "review": "task-13"
     },
     {
       "id": "Tools/DSPTests/main.cpp::cBoundaryAndRealtime",
@@ -18731,6 +18717,62 @@
       ]
     },
     {
+      "id": "Tools/DSPTests/main.cpp::dynamicsNumericalBoundaries",
+      "classification": "D",
+      "adaptation": "Direct loudness/limiter/dynamics kernels retain numerical bounds and independent prepared state.",
+      "review": "task-31",
+      "destinations": [
+        {
+          "id": "Tools/DSPTests/main.cpp::dynamicsNumericalBoundaries",
+          "kind": "cpp",
+          "invocations": 1,
+          "guarantee": "Direct loudness/limiter/dynamics kernels retain numerical bounds and independent prepared state."
+        }
+      ]
+    },
+    {
+      "id": "Tools/DSPTests/main.cpp::firstFrameAndTail",
+      "classification": "D",
+      "adaptation": "Initial and resumed short sounds survive without fade/gate; zero input advances real IIR tails.",
+      "review": "task-31",
+      "destinations": [
+        {
+          "id": "Tools/DSPTests/main.cpp::firstFrameAndTail",
+          "kind": "cpp",
+          "invocations": 1,
+          "guarantee": "Initial and resumed short sounds survive without fade/gate; zero input advances real IIR tails."
+        }
+      ]
+    },
+    {
+      "id": "Tools/DSPTests/main.cpp::mathBoundaries",
+      "classification": "D",
+      "adaptation": "Real coefficient builders: identity/unity and invalid numerical input boundaries.",
+      "review": "task-31",
+      "destinations": [
+        {
+          "id": "Tools/DSPTests/main.cpp::mathBoundaries",
+          "kind": "cpp",
+          "invocations": 1,
+          "guarantee": "Real coefficient builders: identity/unity and invalid numerical input boundaries."
+        }
+      ]
+    },
+    {
+      "id": "Tools/DSPTests/main.cpp::partitionAndPathIsolation",
+      "classification": "D",
+      "adaptation": "Arbitrary frame partitions are bit exact; independently prepared routes and channels own distinct histories.",
+      "review": "task-31",
+      "destinations": [
+        {
+          "id": "Tools/DSPTests/main.cpp::partitionAndPathIsolation",
+          "kind": "cpp",
+          "invocations": 1,
+          "guarantee": "Arbitrary frame partitions are bit exact; independently prepared routes and channels own distinct histories."
+        }
+      ]
+    },
+    {
       "id": "Tools/DSPTests/main.cpp::planarChannelsAndInvalidViews",
       "classification": "D",
       "adaptation": "Real planar channel views preserve independent signal state and reject invalid/overlapping shapes.",
@@ -18745,16 +18787,16 @@
       ]
     },
     {
-      "id": "Tools/DSPTests/main.cpp::dynamicsNumericalBoundaries",
+      "id": "Tools/DSPTests/main.cpp::validationAndRecovery",
       "classification": "D",
-      "adaptation": "Direct loudness/limiter/dynamics kernels retain numerical bounds and independent prepared state.",
+      "adaptation": "Invalid configuration is transactional; nonfinite signals fail explicitly, mute bounded output and recover with reset state.",
       "review": "task-31",
       "destinations": [
         {
-          "id": "Tools/DSPTests/main.cpp::dynamicsNumericalBoundaries",
+          "id": "Tools/DSPTests/main.cpp::validationAndRecovery",
           "kind": "cpp",
           "invocations": 1,
-          "guarantee": "Direct loudness/limiter/dynamics kernels retain numerical bounds and independent prepared state."
+          "guarantee": "Invalid configuration is transactional; nonfinite signals fail explicitly, mute bounded output and recover with reset state."
         }
       ]
     }
