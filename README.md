@@ -9,25 +9,16 @@ macOS向け[FineTune](https://github.com/ronitsingh10/FineTune)を再設計・�
 
 ## 開発環境
 
-Swift 6とC++20に対応するXcode、Xcode付属の`swift format`、native書式用の`clang-format`、開発コマンド実行用の[just](https://github.com/casey/just)を使用します。
-Swift Packageの外部依存はありません。
+macOS上で、次のツールを使用します。
 
-ローカル開発環境とCIの指定は次のとおりです。
+- Swift 6・C++20に対応するXcode（`swift format`を含む）
+- `clang-format` 21.1.8（native書式用）
+- [just](https://github.com/casey/just)（開発コマンド実行用）
 
-| 項目 | ローカル開発環境 | CIの指定 |
-| --- | --- | --- |
-| Xcode | 27.2（27B52） | 26.6（17F113） |
-| Swift | 6.4.2、Swift 6 language mode | Xcode同梱、Swift 6 language mode |
-| Apple Clang | 21.0.0、C++20 | Xcode同梱、C++20 |
-| macOS SDK | 27.2 | 26.5 |
-| アーキテクチャ | Apple Silicon（arm64） | arm64、`macos-26` runner |
-| clang-format | 21.1.8（書式専用） | 21.1.8（書式専用） |
+ビルド対象はmacOS 15.4以降です。Swift Packageの外部依存はありません。
+OS・言語・依存関係の設定は[Package.swift](<Package.swift>)で管理します。
 
-ビルド対象はmacOS 15.4以降です。OS・言語・依存関係の設定は[Package.swift](<Package.swift>)で管理します。
-
-[CI](<.github/workflows/check.yml>)はpush／pull requestで`just toolchain`と`just check`を実行します。
-GAの[runner構成](https://github.com/actions/runner-images/blob/a2d4955654f519bd5b559bffaea60d9f90156630/images/macos/macos-26-arm64-Readme.md#xcode)に合わせた別環境であり、ローカルと同一のツールチェーンではありません。
-指定したXcode・SDK・アーキテクチャが違えば失敗させ、既定の版へは切り替えません。実機音声・署名・配布は対象外です。
+[CI](<.github/workflows/check.yml>)でも`just toolchain`と`just check`を実行します。
 
 ## ビルドとテスト
 
