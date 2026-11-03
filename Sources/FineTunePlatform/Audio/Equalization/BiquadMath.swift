@@ -48,16 +48,7 @@ public enum BiquadMath {
   public static func coefficientsForAutoEQFilters(
     _ filters: [AutoEQFilter], sampleRate: Double, profileOptimizedRate: Double = 48000
   ) -> [Double] {
-    let specifications = filters.map { filter in
-      let type: FTBiquadFilterType
-      switch filter.type {
-      case .peaking: type = FT_BIQUAD_PEAKING
-      case .lowShelf: type = FT_BIQUAD_LOW_SHELF
-      case .highShelf: type = FT_BIQUAD_HIGH_SHELF
-      }
-      return FTBiquadFilter(
-        type: type, frequency: filter.frequency, gain_db: filter.gainDB, q: filter.q)
-    }
+    let specifications = nativeFilters(filters)
     var output = [Double](repeating: 0, count: filters.count * 5)
     let status = specifications.withUnsafeBufferPointer { input in
       output.withUnsafeMutableBufferPointer { result in
@@ -68,6 +59,20 @@ public enum BiquadMath {
     }
     precondition(status == FT_BIQUAD_OK, "Invalid AutoEQ coefficient configuration")
     return output
+  }
+
+  // Shared value conversion for raw math and executable preparation; no DSP logic here.
+  static func nativeFilters(_ filters: [AutoEQFilter]) -> [FTBiquadFilter] {
+    filters.map { filter in
+      let type: FTBiquadFilterType
+      switch filter.type {
+      case .peaking: type = FT_BIQUAD_PEAKING
+      case .lowShelf: type = FT_BIQUAD_LOW_SHELF
+      case .highShelf: type = FT_BIQUAD_HIGH_SHELF
+      }
+      return FTBiquadFilter(
+        type: type, frequency: filter.frequency, gain_db: filter.gainDB, q: filter.q)
+    }
   }
 
   private static func calculate(

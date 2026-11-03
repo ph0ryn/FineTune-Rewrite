@@ -125,15 +125,15 @@ public final class AutoEQProcessor: BiquadProcessor {
       setEnabled(false)
       return
     }
-    var coefficients = BiquadMath.coefficientsForAutoEQFilters(
-      profile.filters, sampleRate: sampleRate, profileOptimizedRate: profile.optimizedSampleRate)
-    if preampEnabled {
-      if coefficients.isEmpty { coefficients = [1, 0, 0, 0, 0] }
-      let gain = pow(10.0, Double(profile.preampDB) / 20.0)
-      for index in 0..<3 { coefficients[index] *= gain }
+    let specifications = BiquadMath.nativeFilters(profile.filters)
+    let result = withNativeHandle { handle in
+      specifications.withUnsafeBufferPointer {
+        ft_biquad_prepare_autoeq(
+          handle, $0.baseAddress, UInt32($0.count), sampleRate, profile.optimizedSampleRate,
+          profile.preampDB, preampEnabled)
+      }
     }
-    precondition(
-      replaceCoefficients(coefficients, sectionCount: coefficients.count / 5) == FT_BIQUAD_OK)
+    precondition(result == FT_BIQUAD_OK, "Unable to prepare AutoEQ")
     setEnabled(true)
   }
 }

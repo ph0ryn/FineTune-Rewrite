@@ -37,6 +37,14 @@ FTBiquadProcessor *ft_biquad_create(uint32_t channel_count);
 void ft_biquad_destroy(FTBiquadProcessor *processor);
 FTBiquadStatus ft_biquad_replace_coefficients(FTBiquadProcessor *processor,
                                               const double *coefficients, uint32_t section_count);
+// Non-RT shared AutoEQ preparation using actual callback rate, never a device-rate guess.
+// Empty active profiles apply one scaled-unity section only when preamp is enabled.
+// Success resets history and preserves enabled state; failure preserves both and configuration.
+// Borrows filters only for this call. At most ten filters; null is valid only for count zero.
+FTBiquadStatus ft_biquad_prepare_autoeq(FTBiquadProcessor *processor, const FTBiquadFilter *filters,
+                                        uint32_t filter_count, double actual_sample_rate,
+                                        double profile_optimized_rate, float preamp_db,
+                                        bool preamp_enabled);
 // Copies immutable configuration and enabled state, never mutable delay history.
 // Both instances must be quiescent and have matching channel counts.
 FTBiquadStatus ft_biquad_copy_configuration(const FTBiquadProcessor *source,

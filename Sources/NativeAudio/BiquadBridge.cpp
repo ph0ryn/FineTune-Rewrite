@@ -1,4 +1,5 @@
 #include "AudioDSP/AudioDSP.hpp"
+#include "AudioDSP/AutoEQ.hpp"
 #include "NativeAudioBiquad.h"
 
 #include <algorithm>
@@ -47,6 +48,27 @@ FTBiquadStatus ft_biquad_replace_coefficients(FTBiquadProcessor *processor,
     const auto result =
         dsp::prepareBiquad(std::span(coefficients, static_cast<std::size_t>(section_count) * 5),
                            processor->channelCount, prepared);
+    if (result != dsp::Status::ok) {
+        return status(result);
+    }
+    return status(processor->processor.configure(prepared));
+}
+
+FTBiquadStatus ft_biquad_prepare_autoeq(FTBiquadProcessor *processor, const FTBiquadFilter *filters,
+                                        uint32_t filter_count, double actual_sample_rate,
+                                        double profile_optimized_rate, float preamp_db,
+                                        bool preamp_enabled) {
+    if (!processor || filter_count > dsp::maxBiquadSections || (!filters && filter_count)) {
+        return FT_BIQUAD_INVALID_ARGUMENT;
+    }
+    std::array<dsp::FilterSpec, dsp::maxBiquadSections> specifications{};
+    for (std::size_t i = 0; i < filter_count; ++i) {
+        specifications[i] = filterSpec(filters[i]);
+    }
+    dsp::PreparedBiquad prepared;
+    const auto result = dsp::prepareAutoEQ(std::span(specifications).first(filter_count),
+                                           actual_sample_rate, profile_optimized_rate, preamp_db,
+                                           preamp_enabled, processor->channelCount, prepared);
     if (result != dsp::Status::ok) {
         return status(result);
     }
