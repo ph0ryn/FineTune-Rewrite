@@ -1,29 +1,40 @@
 import AppKit
 import AudioToolbox
+import Darwin
 import FineTuneDomain
 import Observation
 
-@Observable
-@MainActor
-public final class AudioDeviceMonitor: AudioDeviceProviding {
-  public private(set) var outputDevices: [AudioDevice] = []
-  public private(set) var inputDevices: [AudioDevice] = []
+/// Read-only device discovery. The observation is the single source of its legacy array getters.
+@Observable @MainActor
+public final class AudioDeviceMonitor: AudioDeviceObservationProviding {
+  public private(set) var observation = AudioDeviceObservationSnapshot()
+  public var outputDevices: [AudioDevice] { observation.outputDevices }
+  public var inputDevices: [AudioDevice] { observation.inputDevices }
+  public var lastError: (any Error)? { observation.health.error }
+  public var onObservationChanged: (() -> Void)?
   public var onDeviceDisconnected: ((String, String) -> Void)?
   public var onDeviceConnected: ((String, String) -> Void)?
   public var onInputDeviceDisconnected: ((String, String) -> Void)?
   public var onInputDeviceConnected: ((String, String) -> Void)?
   public var onSampleRateChanged: ((String, Double) -> Void)?
-  public private(set) var lastError: Error?
-  private var listeners:
-    [(AudioObjectID, AudioObjectPropertyAddress, AudioObjectPropertyListenerBlock)] = []
+  private let inventory: any AudioDeviceInventoryReading
+  private let subscriptions: AudioObservationSubscriptions
+  private var projection = DeviceObservationProjection()
   private var rates: [String: Double] = [:]
   private var running = false
+  private var generation: UInt64 = 0
 
-  public init() {}
+  public convenience init() {
+    self.init(
+      inventory: CoreAudioObservationInventory(), observer: CoreAudioDevicePropertyObserver())
+  }
+  init(inventory: any AudioDeviceInventoryReading, observer: any AudioDevicePropertyObserving) {
+    self.inventory = inventory
+    subscriptions = AudioObservationSubscriptions(observer: observer)
+  }
 
   public func device(for uid: String) -> AudioDevice? { outputDevices.first { $0.uid == uid } }
   public func inputDevice(for uid: String) -> AudioDevice? { inputDevices.first { $0.uid == uid } }
-
   nonisolated public static func isMeaningfulRateChange(oldRate: Double, newRate: Double) -> Bool {
     newRate > 0 && oldRate != newRate
   }
@@ -31,156 +42,192 @@ public final class AudioDeviceMonitor: AudioDeviceProviding {
   public func start() {
     guard !running else { return }
     running = true
+    generation += 1
     refresh()
   }
 
   public func stop() {
-    for (object, storedAddress, block) in listeners {
-      var address = storedAddress
-      AudioObjectRemovePropertyListenerBlock(object, &address, .main, block)
-    }
-    listeners.removeAll()
     running = false
+    generation += 1
+    subscriptions.cancel()
+    guard observation.health != .notStarted else { return }
+    observation = AudioDeviceObservationSnapshot(
+      outputDevices: outputDevices, inputDevices: inputDevices, health: .notStarted,
+      revision: observation.revision + 1)
+    onObservationChanged?()
   }
 
   public func refresh() {
+    let currentGeneration = generation
     do {
-      let ids = try AudioProperties.array(
-        .system, kAudioHardwarePropertyDevices, initial: AudioDeviceID.unknown)
-      var outputs: [AudioDevice] = []
-      var inputs: [AudioDevice] = []
-      for id in ids {
-        guard let uid = try? id.readDeviceUID(), let name = try? id.readDeviceName() else {
-          continue
-        }
-        let outputStreams = try AudioProperties.array(
-          id, kAudioDevicePropertyStreams, scope: kAudioObjectPropertyScopeOutput,
-          initial: AudioStreamID.unknown
-        )
-        let inputStreams = try AudioProperties.array(
-          id, kAudioDevicePropertyStreams, scope: kAudioObjectPropertyScopeInput,
-          initial: AudioStreamID.unknown
-        )
-        if !outputStreams.isEmpty {
-          let transport = id.readTransportType()
-          let headphoneSource = try? AudioProperties.read(
-            id, kAudioDevicePropertyDataSource, scope: kAudioObjectPropertyScopeOutput,
-            initial: UInt32(0)
-          )
-          let excluded = ["HomePod", "Apple TV", "Studio Display", "Pro Display XDR"]
-            .contains { name.localizedCaseInsensitiveContains($0) }
-          let supportsAutoEQ: Bool =
-            switch transport {
-            case .hdmi, .displayPort, .airPlay, .virtual: false
-            case .builtIn: headphoneSource == 0x6864_706E
-            default: !excluded
-            }
-          outputs.append(
-            AudioDevice(id: id, uid: uid, name: name, icon: nil, supportsAutoEQ: supportsAutoEQ))
-          if let rate = try? id.readNominalSampleRate(), rate > 0 {
-            if let oldRate = rates[uid],
-              Self.isMeaningfulRateChange(oldRate: oldRate, newRate: rate)
-            {
-              onSampleRateChanged?(uid, rate)
-            }
-            rates[uid] = rate
-          }
-        }
-        if !inputStreams.isEmpty {
-          inputs.append(AudioDevice(id: id, uid: uid, name: name, icon: nil, supportsAutoEQ: false))
+      let raw = try inventory.readDevices()
+      var nextProjection = projection
+      let devices = try nextProjection.project(raw.devices)
+      if running {
+        try subscriptions.sync(raw.observationTargets) { [weak self] in
+          guard let self, self.running, self.generation == currentGeneration else { return }
+          self.refresh()
         }
       }
-      notifyChanges(
-        from: outputDevices, to: outputs, removed: onDeviceDisconnected, added: onDeviceConnected)
-      notifyChanges(
-        from: inputDevices, to: inputs, removed: onInputDeviceDisconnected,
+      let oldOutputs = outputDevices
+      let oldInputs = inputDevices
+      let oldRates = rates
+      var nextRates: [String: Double] = [:]
+      for row in raw.devices where devices.outputs.contains(where: { $0.uid == row.device.uid }) {
+        nextRates[row.device.uid] = row.sampleRate
+      }
+      projection = nextProjection
+      rates = nextRates
+      guard
+        observation.health != .healthy || !sameDeviceObservation(oldOutputs, devices.outputs)
+          || !sameDeviceObservation(oldInputs, devices.inputs)
+      else { return }
+      observation = AudioDeviceObservationSnapshot(
+        outputDevices: devices.outputs, inputDevices: devices.inputs, health: .healthy,
+        revision: observation.revision + 1)
+      let publishedRevision = observation.revision
+      onObservationChanged?()
+      guard generation == currentGeneration, observation.revision == publishedRevision else {
+        return
+      }
+      notify(
+        oldOutputs, new: devices.outputs, removed: onDeviceDisconnected, added: onDeviceConnected)
+      notify(
+        oldInputs, new: devices.inputs, removed: onInputDeviceDisconnected,
         added: onInputDeviceConnected)
-      outputDevices = outputs
-      inputDevices = inputs
-      rates = rates.filter { key, _ in outputs.contains { $0.uid == key } }
-      lastError = nil
-      if running { installListeners(ids: ids) }
-    } catch { lastError = error }
+      for (uid, rate) in nextRates {
+        if let old = oldRates[uid], Self.isMeaningfulRateChange(oldRate: old, newRate: rate) {
+          onSampleRateChanged?(uid, rate)
+        }
+      }
+    } catch { fail(error) }
   }
 
-  private func notifyChanges(
-    from old: [AudioDevice], to new: [AudioDevice], removed: ((String, String) -> Void)?,
+  private func fail(_ error: any Error) {
+    let health = AudioObservationHealth.failed(error.localizedDescription)
+    guard observation.health != health else { return }
+    observation = AudioDeviceObservationSnapshot(
+      outputDevices: outputDevices, inputDevices: inputDevices, health: health,
+      revision: observation.revision + 1)
+    onObservationChanged?()
+  }
+
+  private func notify(
+    _ old: [AudioDevice], new: [AudioDevice], removed: ((String, String) -> Void)?,
     added: ((String, String) -> Void)?
   ) {
-    for device in old where !new.contains(device) { removed?(device.uid, device.name) }
-    for device in new where !old.contains(device) { added?(device.uid, device.name) }
-  }
-
-  private func installListeners(ids: [AudioDeviceID]) {
-    for (object, storedAddress, block) in listeners {
-      var address = storedAddress
-      AudioObjectRemovePropertyListenerBlock(object, &address, .main, block)
-    }
-    listeners.removeAll()
-    let properties =
-      [(AudioObjectID.system, kAudioHardwarePropertyDevices)]
-      + ids.map { ($0, kAudioDevicePropertyNominalSampleRate) }
-    for (object, selector) in properties {
-      var address = AudioProperties.address(selector)
-      let block: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
-        Task { @MainActor [weak self] in self?.refresh() }
-      }
-      if AudioObjectAddPropertyListenerBlock(object, &address, .main, block) == noErr {
-        listeners.append((object, address, block))
-      }
-    }
+    let oldUIDs = Set(old.map(\.uid))
+    let newUIDs = Set(new.map(\.uid))
+    for row in old where !newUIDs.contains(row.uid) { removed?(row.uid, row.name) }
+    for row in new where !oldUIDs.contains(row.uid) { added?(row.uid, row.name) }
   }
 }
 
-/// Enumerates the OS process-audio snapshot; observing never creates taps or requests permission.
-@Observable
-@MainActor
-public final class AudioProcessMonitor: AudioProcessMonitoring {
-  public private(set) var activeApps: [AudioApp] = []
+/// Grouped process observation never constructs taps, asks for TCC or registers in its initializer.
+@Observable @MainActor
+public final class AudioProcessMonitor: AudioProcessObservationProviding {
+  public private(set) var observation = AudioProcessObservationSnapshot()
+  public var activeApps: [AudioApp] { observation.activeApps }
+  public var lastError: (any Error)? { observation.health.error }
   public var onAppsChanged: (([AudioApp]) -> Void)?
-  public private(set) var lastError: Error?
-  private var listener: AudioObjectPropertyListenerBlock?
+  public var onObservationChanged: (() -> Void)?
+  private let inventory: any AudioProcessInventoryReading
+  private let metadata: any AudioProcessMetadataReading
+  private let subscriptions: AudioObservationSubscriptions
+  private let clock: any AudioObservationScheduling
+  private let currentPID: () -> pid_t
+  private var projection = ProcessObservationProjection()
+  private var periodic: DevicePropertyObservation?
+  private var running = false
+  private var generation: UInt64 = 0
 
-  public init() {}
+  public convenience init() {
+    self.init(
+      inventory: CoreAudioObservationInventory(), metadata: SystemAudioProcessMetadata(),
+      observer: CoreAudioDevicePropertyObserver(), clock: ContinuousAudioObservationClock(),
+      currentPID: { getpid() })
+  }
+
+  init(
+    inventory: any AudioProcessInventoryReading, metadata: any AudioProcessMetadataReading,
+    observer: any AudioDevicePropertyObserving, clock: any AudioObservationScheduling,
+    currentPID: @escaping () -> pid_t
+  ) {
+    self.inventory = inventory
+    self.metadata = metadata
+    self.clock = clock
+    self.currentPID = currentPID
+    subscriptions = AudioObservationSubscriptions(observer: observer)
+  }
 
   public func start() {
-    guard listener == nil else { return }
+    guard !running else { return }
+    running = true
+    generation += 1
+    let currentGeneration = generation
     refresh()
-    var address = AudioProperties.address(kAudioHardwarePropertyProcessObjectList)
-    let block: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
-      Task { @MainActor [weak self] in self?.refresh() }
+    guard running, generation == currentGeneration else { return }
+    periodic = clock.schedule(every: .seconds(10)) { [weak self] result in
+      guard let self, self.running, self.generation == currentGeneration else { return }
+      switch result {
+      case .success: self.refresh()
+      case .failure(let error): self.fail(error)
+      }
     }
-    let status = AudioObjectAddPropertyListenerBlock(.system, &address, .main, block)
-    if status == noErr { listener = block } else { lastError = AudioProperties.error(status) }
   }
 
   public func stop() {
-    guard let listener else { return }
-    var address = AudioProperties.address(kAudioHardwarePropertyProcessObjectList)
-    AudioObjectRemovePropertyListenerBlock(.system, &address, .main, listener)
-    self.listener = nil
+    running = false
+    generation += 1
+    periodic?.cancel()
+    periodic = nil
+    subscriptions.cancel()
+    guard observation.health != .notStarted else { return }
+    observation = AudioProcessObservationSnapshot(
+      activeApps: activeApps, health: .notStarted, revision: observation.revision + 1)
+    onObservationChanged?()
   }
 
   public func refresh() {
+    let currentGeneration = generation
     do {
-      let objects = try AudioProperties.array(
-        .system, kAudioHardwarePropertyProcessObjectList, initial: AudioObjectID.unknown)
-      var byPID: [pid_t: [AudioObjectID]] = [:]
-      for object in objects {
-        let pid = try AudioProperties.read(object, kAudioProcessPropertyPID, initial: pid_t(0))
-        if pid > 0 { byPID[pid, default: []].append(object) }
+      let raw = try inventory.readProcesses()
+      let grouped = try AudioProcessGrouper().group(
+        raw, metadata: metadata, currentPID: currentPID())
+      var nextProjection = projection
+      let apps = nextProjection.project(grouped, previous: activeApps)
+      if running {
+        var targets: Set<AudioObservationTarget> = [
+          .init(object: .system, selector: kAudioHardwarePropertyProcessObjectList)
+        ]
+        for row in raw {
+          targets.insert(.init(object: row.objectID, selector: kAudioProcessPropertyIsRunning))
+        }
+        try subscriptions.sync(targets) { [weak self] in
+          guard let self, self.running, self.generation == currentGeneration else { return }
+          self.refresh()
+        }
       }
-      let apps = byPID.keys.sorted().map { pid in
-        let application = NSRunningApplication(processIdentifier: pid)
-        return AudioApp(
-          id: pid, processObjectIDs: byPID[pid] ?? [],
-          name: application?.localizedName ?? ProcessNameLookup.name(for: pid) ?? String(pid),
-          icon: application?.icon ?? NSImage(), bundleID: application?.bundleIdentifier
-        )
+      projection = nextProjection
+      guard observation.health != .healthy || !sameProcessObservation(activeApps, apps) else {
+        return
       }
-      activeApps = apps
-      lastError = nil
+      observation = AudioProcessObservationSnapshot(
+        activeApps: apps, health: .healthy, revision: observation.revision + 1)
+      let publishedRevision = observation.revision
+      onObservationChanged?()
+      guard generation == currentGeneration, observation.revision == publishedRevision else {
+        return
+      }
       onAppsChanged?(apps)
-    } catch { lastError = error }
+    } catch { fail(error) }
+  }
+
+  private func fail(_ error: any Error) {
+    let health = AudioObservationHealth.failed(error.localizedDescription)
+    guard observation.health != health else { return }
+    observation = AudioProcessObservationSnapshot(
+      activeApps: activeApps, health: health, revision: observation.revision + 1)
+    onObservationChanged?()
   }
 }

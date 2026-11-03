@@ -1,10 +1,10 @@
 FineTune Rewrite — license notices
 
 This development application contains components with different licenses.
-The application must not be described as MIT-only: its device icon catalog and
-URL automation grammar are GPL-3.0-only, derived from FineTune by Ronit Singh.
-Other independently written
-source files retain their stated licenses. These notices do not certify that a
+The application must not be described as MIT-only: its device icon catalog,
+URL automation grammar and system audio daemon vocabulary are GPL-3.0-only,
+derived from FineTune by Ronit Singh. Other independently written source files
+retain their stated licenses. These notices do not certify that a
 particular binary distribution has met every applicable license condition.
 
 FineTune device icon catalog
@@ -23,6 +23,13 @@ FineTune URL automation grammar
   Upstream: https://github.com/ronitsingh10/FineTune
   Fixed revision: 2285279d36d3f8115c1c2d4aecd904f1bdf96a51
   Local file: Sources/FineTuneControl/Automation/URLAutomationParser.swift
+  License: GPL-3.0-only, complete text and attribution below.
+
+FineTune system audio daemon vocabulary
+  Source: FineTune/Audio/Monitors/AudioProcessMonitor.swift, lines 20–58
+  Upstream: https://github.com/ronitsingh10/FineTune
+  Fixed revision: 2285279d36d3f8115c1c2d4aecd904f1bdf96a51
+  Local file: Sources/FineTunePlatform/Devices/Observation/systemAudioDaemonCatalog.swift
   License: GPL-3.0-only, complete text and attribution below.
 
 Independent FineTune Rewrite source

@@ -9,15 +9,22 @@ public struct AudioDevice: Identifiable, Hashable {
   public let name: String
   public let icon: NSImage?
   public let supportsAutoEQ: Bool
+  /// Nonzero for a production observation; includes changes that require native preparation.
+  public let bindingRevision: UInt64
+  /// The rate/physical-format subset of binding changes, not display metadata.
+  public let formatRevision: UInt64
 
   public init(
-    id: AudioDeviceID, uid: String, name: String, icon: NSImage?, supportsAutoEQ: Bool
+    id: AudioDeviceID, uid: String, name: String, icon: NSImage?, supportsAutoEQ: Bool,
+    bindingRevision: UInt64 = 0, formatRevision: UInt64 = 0
   ) {
     self.id = id
     self.uid = uid
     self.name = name
     self.icon = icon
     self.supportsAutoEQ = supportsAutoEQ
+    self.bindingRevision = bindingRevision
+    self.formatRevision = formatRevision
   }
 
   public static func == (lhs: AudioDevice, rhs: AudioDevice) -> Bool { lhs.uid == rhs.uid }
@@ -33,10 +40,11 @@ public struct AudioApp: Identifiable, Hashable {
   public let icon: NSImage
   public let bundleID: String?
   public let isHelperBacked: Bool
+  public let processRevision: UInt64
 
   public init(
     id: pid_t, processObjectIDs: [AudioObjectID], name: String, icon: NSImage,
-    bundleID: String?, isHelperBacked: Bool = false
+    bundleID: String?, isHelperBacked: Bool = false, processRevision: UInt64 = 0
   ) {
     self.id = id
     self.processObjectIDs = processObjectIDs
@@ -44,6 +52,7 @@ public struct AudioApp: Identifiable, Hashable {
     self.icon = icon
     self.bundleID = bundleID
     self.isHelperBacked = isHelperBacked
+    self.processRevision = processRevision
   }
 
   public var persistenceIdentifier: String { bundleID ?? "name:\(name)" }
