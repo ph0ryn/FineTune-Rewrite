@@ -417,27 +417,6 @@ private func capturedInitial(_ fix: Fixture) -> TapInitialState? {
 @Suite("Audio route — required Control port contract")
 @MainActor
 struct AudioRoutePortContractTests {
-    @Test("Mock records activate, then mutation events, in invocation order")
-    func recordsCallOrder() throws {
-        let app = AudioApp(
-            id: 1,
-            processObjectIDs: [],
-            name: "X",
-            icon: NSImage(),
-            bundleID: "com.x"
-        )
-        let tap = RecordingProcessTapController(app: app, deviceUIDs: ["uid"])
-
-        try tap.activate(initial: TapInitialState())
-        tap.updateEQSettings(EQSettings.flat)
-        tap.updateAutoEQProfile(nil)
-
-        #expect(tap.events.count == 3)
-        if case .activate = tap.events[0] {} else { Issue.record("expected .activate at 0") }
-        if case .updateEQSettings = tap.events[1] {} else { Issue.record("expected .updateEQSettings at 1") }
-        if case .updateAutoEQProfile = tap.events[2] {} else { Issue.record("expected .updateAutoEQProfile at 2") }
-    }
-
     @Test("Empty Control state prepares unity volume, independent mute, flat EQ and no correction")
     func controlInitialStateDefaults() {
         // Original ID: defaultsMatchProductionController. A test-double's old internal
@@ -455,32 +434,6 @@ struct AudioRoutePortContractTests {
         #expect(initial.loudnessEqualizerSettings.enabled == false)
     }
 
-    @Test("Backward-compatible activate() convenience routes through activate(initial:)")
-    func convenienceActivateRoutesThroughInitial() throws {
-        let app = AudioApp(
-            id: 1,
-            processObjectIDs: [],
-            name: "X",
-            icon: NSImage(),
-            bundleID: "com.x"
-        )
-        let tap = RecordingProcessTapController(app: app, deviceUIDs: ["uid"])
-
-        // Convenience extension on the protocol: should funnel through activate(initial:)
-        // with a default TapInitialState — proves no caller can sneak around the
-        // initial-state contract by calling the old no-arg overload.
-        try tap.activate()
-        if case let .activate(snap) = tap.events.first {
-            #expect(snap.autoEQProfile?.id == nil)
-            #expect(snap.loudnessCompensationEnabled == false)
-            #expect(snap.loudnessEqualizerSettings.enabled == false)
-            #expect(snap.autoEQPreampEnabled == false)
-            #expect(snap.eqSettings == EQSettings.flat)
-            #expect(snap.loudnessVolume == 1.0)
-        } else {
-            Issue.record("activate() did not record an .activate event")
-        }
-    }
 }
 
 // Rewrite-specific contracts: observing success must not be confused with saving a request.

@@ -40,7 +40,3 @@ public protocol AudioRouteControlling: AnyObject {
   func updateLoudnessCompensation(volume: Float, enabled: Bool)
   func updateLoudnessEqualization(_ settings: LoudnessEqualizerSettings)
 }
-
-extension AudioRouteControlling {
-  public func activate() throws { try activate(initial: TapInitialState()) }
-}
