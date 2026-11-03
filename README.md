@@ -9,7 +9,7 @@ macOS向け[FineTune](https://github.com/ronitsingh10/FineTune)を再設計・�
 
 ## 開発環境
 
-Swift 6とC++20に対応するXcode、Xcode付属の`swift format`、開発コマンド実行用の[just](https://github.com/casey/just)を使用します。
+Swift 6とC++20に対応するXcode、Xcode付属の`swift format`、native書式用の`clang-format`、開発コマンド実行用の[just](https://github.com/casey/just)を使用します。
 Swift Packageの外部依存はありません。
 
 開発に使用するツールチェーンは次のとおりです。
@@ -21,6 +21,7 @@ Swift Packageの外部依存はありません。
 | Apple Clang | 21.0.0、C++20 |
 | macOS SDK | 27.2 |
 | アーキテクチャ | Apple Silicon（arm64） |
+| clang-format | 21.1.8（書式専用） |
 
 ビルド対象はmacOS 15.4以降です。OS・言語・依存関係の設定は[Package.swift](<Package.swift>)で管理します。
 
@@ -32,7 +33,7 @@ Swift Packageの外部依存はありません。
 # 選択中のXcode・Swift・Clang・macOS SDKを確認
 just toolchain
 
-# Swiftの書式確認 → debugビルド・テスト → releaseビルド・テスト
+# Swift・nativeの書式確認 → debugビルド・テスト → releaseビルド・テスト
 just check
 
 # 個別にビルド・テスト（省略時はdebug）
@@ -41,7 +42,7 @@ just test
 just build release
 just test release
 
-# Swiftの書式確認／修正
+# Swift・nativeの書式確認／修正
 just lint
 just format
 
@@ -59,7 +60,9 @@ SDKの自動検出が古いCommand Line Toolsを参照する場合は、選択�
 SDKROOT="$(xcrun --sdk macosx --show-sdk-path)" just build
 ```
 
-書式確認対象はSwiftです。
+言語別に`just lint-swift`・`just lint-native`、`just format-swift`・`just format-native`も実行できます。
+Swiftはpackage・ソース・テスト、nativeはGit管理中および無視設定に該当しない未追跡の`.h`・`.hpp`・`.cpp`・`.mm`を対象にします。
+nativeの書式は[.clang-format](<.clang-format>)で管理します。書式検査は静的解析やリアルタイム安全性の検証ではありません。
 SwiftPMのビルド生成物は`.build/`以下に作成されます。
 SwiftPMやコンパイラはユーザー領域のキャッシュも使うため、sandbox環境ではその書き込み権限が別途必要になる場合があります。
 
