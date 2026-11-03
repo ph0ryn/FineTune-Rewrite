@@ -228,6 +228,8 @@ struct Sample {
         recipes = {
             "Justfile": "test-native:\n    clang++ -O0 actual.cpp\n",
             "scripts/testNativeHAL.py": 'SOURCES = ["actual.cpp"]\n',
+            "Tools/AudioProbe/Info.plist": '<plist version="1.0"><string>before</string></plist>\n',
+            "Config/AppInfo.plist": '<plist version="1.0"><string>before</string></plist>\n',
         }
         for path, content in recipes.items():
             recipe = self.root / path
@@ -249,7 +251,9 @@ struct Sample {
             with self.subTest(recipe=path):
                 prepared = audit.source_snapshot(self.root)
                 self.assertEqual(audit.snapshot_errors(self.root, prepared, []), [])
-                (self.root / path).write_text(content + "# compile recipe changed\n")
+                changed = content.replace("actual.cpp", "other.cpp").replace(">before<", ">after<")
+                self.assertNotEqual(changed, content)
+                (self.root / path).write_text(changed)
                 self.assertNotEqual(audit.source_snapshot(self.root)["sha256"], prepared["sha256"])
                 self.assertIn("Compile input snapshot changed during/after this test run",
                               audit.snapshot_errors(self.root, prepared, []))

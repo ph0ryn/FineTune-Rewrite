@@ -550,7 +550,7 @@ def source_snapshot(root):
                 continue
             files[relative.as_posix()] = hashlib.sha256(file.read_bytes()).hexdigest()
     for path in ("Package.swift", "Package.resolved", "FineTune.xcodeproj/project.pbxproj",
-                 "Justfile", "scripts/buildApp.sh", "scripts/testNativeHAL.py"):
+                 "Config/AppInfo.plist", "Justfile", "scripts/buildApp.sh", "scripts/testNativeHAL.py"):
         file = root / path
         if file.is_file():
             files[path] = hashlib.sha256(file.read_bytes()).hexdigest()
