@@ -1,0 +1,436 @@
+import FineTuneDomain
+
+extension AudioController {
+  func changed(_ identifiers: [String]) {
+    revision &+= 1
+    for identifier in Set(identifiers) {
+      appRevisions[identifier] = revision
+      for record in owned.values where record.key.appIdentifier == identifier {
+        deliverLevels(record)
+        enqueueUpdate(record)
+      }
+      reconcile(identifier)
+    }
+  }
+
+  func reconcileAll() {
+    for application in applications { reconcile(application.identifier) }
+  }
+
+  func reconcile(_ identifier: String, force: Bool = false) {
+    guard let application = app(identifier), !settingsStore.isIgnored(identifier),
+      case .userInitiated(let sessionID) = captureIntent
+    else {
+      stopRoutes(for: identifier)
+      return
+    }
+    guard hasApplications, hasOutputs, applicationObservationFailure == nil,
+      outputObservationFailure == nil, !knownPermissionDenied
+    else { return }
+    let available = Dictionary(uniqueKeysWithValues: outputs.map { ($0.uid, $0) })
+    let wanted: Set<String>
+    if settingsStore.isFollowingDefault(for: identifier) {
+      wanted = Set(defaultOutputUID.map { [$0] } ?? [])
+    } else {
+      wanted =
+        settingsStore.getSelectedDeviceUIDs(for: identifier)
+        ?? Set(settingsStore.getDeviceRouting(for: identifier).map { [$0] } ?? [])
+    }
+    var chosen = orderedUIDs(wanted).compactMap { available[$0] }
+    if settingsStore.getDeviceSelectionMode(for: identifier) != .multi {
+      chosen = Array(chosen.prefix(1))
+    }
+    if chosen.isEmpty, let fallback = defaultOutputUID.flatMap({ available[$0] }) {
+      chosen = [fallback]
+    }
+    guard !chosen.isEmpty else {
+      stopRoutes(for: identifier)
+      routeFailure = AudioRouteFailure(
+        kind: .unavailable, stage: "outputs",
+        message: "No output is currently available for \(identifier).")
+      return
+    }
+    let plan = AudioRoutePlan(
+      processRevision: application.processRevision, sessionID: sessionID, outputs: chosen)
+    if !force, let previous = plans[identifier], plan.hasSameBindings(as: previous),
+      routingTasks[identifier] != nil
+        || ((active[identifier] ?? [:]).count == plan.outputs.count
+          && usableActiveRoutes(identifier, plan: plan).count == plan.outputs.count)
+    {
+      return
+    }
+    guard let runtime else {
+      routeFailure = AudioRouteFailure(
+        kind: .unavailable, stage: "prepare", message: "The live audio runtime is unavailable.")
+      return
+    }
+    cancelPreparation(for: identifier)
+    let generation = (generations[identifier] ?? 0) &+ 1
+    generations[identifier] = generation
+    plans[identifier] = plan
+    let workID = AudioRouteWorkID(identifier: identifier, generation: generation)
+    let task = Task { [weak self] in
+      guard let self else { return }
+      await self.apply(
+        plan, identifier: identifier, generation: generation, runtime: runtime, force: force)
+      if self.generations[identifier] == generation { self.routingTasks[identifier] = nil }
+      self.allRoutingTasks[workID] = nil
+    }
+    routingTasks[identifier] = task
+    allRoutingTasks[workID] = task
+  }
+
+  func usableActiveRoutes(_ identifier: String, plan: AudioRoutePlan) -> [String: AudioRouteKey] {
+    (active[identifier] ?? [:]).filter { uid, key in
+      guard let record = owned[key], let state = routeObservations[key],
+        state.phase == .committed || state.phase == .firstApplied,
+        state.failure == nil, state.cleanupFailure == nil,
+        let output = plan.outputs.first(where: { $0.uid == uid })
+      else { return false }
+      return record.processRevision == plan.processRevision && record.sessionID == plan.sessionID
+        && record.output.bindingRevision == output.bindingRevision
+    }
+  }
+
+  func apply(
+    _ plan: AudioRoutePlan, identifier: String, generation: UInt64,
+    runtime: any AudioRoutingRuntime, force: Bool
+  ) async {
+    var candidates: [ManagedAudioRoute] = []
+    var retiredPrevious = false
+    var operationSessionID = plan.sessionID
+    let reusable = force ? [:] : usableActiveRoutes(identifier, plan: plan)
+    let retained = Set(reusable.values)
+    let previous = owned.values.filter {
+      $0.key.appIdentifier == identifier && !retained.contains($0.key)
+    }
+    do {
+      for output in plan.outputs where reusable[output.uid] == nil {
+        try current(identifier, generation: generation)
+        let key = AudioRouteKey(
+          appIdentifier: identifier, deviceUID: output.uid, generation: generation)
+        let state = try makeState(identifier: identifier, output: currentOutput(output))
+        let handle = try await runtime.prepare(
+          AudioRouteRequest(
+            key: key, processRevision: plan.processRevision, initialState: state,
+            captureIntent: .userInitiated(sessionID: plan.sessionID)))
+        guard handle.key == key else {
+          handle.cancel()
+          _ = await handle.retire()
+          throw AudioRouteFailure(
+            kind: .bindingChanged, stage: "prepare",
+            message: "The prepared owner returned a different route binding.")
+        }
+        let record = ManagedAudioRoute(
+          handle: handle, processRevision: plan.processRevision, sessionID: plan.sessionID,
+          output: output)
+        candidates.append(record)
+        owned[key] = record
+        routeObservations[key] = AudioRouteObservation(key: key, phase: .prepared)
+        handle.onObservation = { [weak self] observation in self?.receive(observation) }
+        try current(identifier, generation: generation)
+      }
+      if !previous.isEmpty {
+        for record in candidates {
+          let receipt = try await record.handle.startMuted(state: makeState(record))
+          receive(receipt)
+          try receiptSucceeded(receipt)
+          try current(identifier, generation: generation)
+        }
+        for record in candidates {
+          try await waitUntilArmed(record.key)
+          try current(identifier, generation: generation)
+        }
+        for record in previous {
+          operationSessionID = record.sessionID
+          try await retire(record)
+        }
+        retiredPrevious = true
+      }
+      operationSessionID = plan.sessionID
+      try current(identifier, generation: generation)
+      var committed = reusable
+      for record in candidates {
+        let receipt = try await record.handle.commit(state: makeState(record))
+        receive(receipt)
+        try receiptSucceeded(receipt)
+        try current(identifier, generation: generation)
+        guard let phase = routeObservations[record.key]?.phase,
+          phase == .committed || phase == .firstApplied
+        else {
+          throw AudioRouteFailure(
+            stage: "commit", message: "The runtime did not confirm the render-permit commit.")
+        }
+        committed[record.key.deviceUID] = record.key
+        deliverLevels(record)
+        enqueueUpdate(record)
+      }
+      active[identifier] = committed
+      routeFailure = nil
+    } catch {
+      let isCurrent = generations[identifier] == generation && captureIntent != .none
+      if isCurrent {
+        let reason = failure(error, stage: "route")
+        routeFailure = reason
+        if reason.kind == .permissionDenied,
+          captureIntent == .userInitiated(sessionID: operationSessionID)
+        {
+          knownPermissionDenied = true
+        }
+      }
+      // If cancellation crossed irreversible old retirement, retain the already-armed read owners
+      // until the next candidate is armed. They cannot publish or acquire a new render permit.
+      let holdReadOwners =
+        !isCurrent && retiredPrevious && captureIntent != .none && app(identifier) != nil
+      if !holdReadOwners {
+        for record in candidates {
+          record.handle.cancel()
+          scheduleRetirement(record)
+        }
+      }
+    }
+  }
+
+  func current(_ identifier: String, generation: UInt64) throws {
+    try Task.checkCancellation()
+    guard generations[identifier] == generation, captureIntent != .none,
+      app(identifier) != nil, !settingsStore.isIgnored(identifier)
+    else { throw CancellationError() }
+  }
+
+  func currentOutput(_ previous: AudioOutputDescriptor) -> AudioOutputDescriptor {
+    outputs.first { $0.uid == previous.uid && $0.bindingRevision == previous.bindingRevision }
+      ?? previous
+  }
+
+  func makeState(_ record: ManagedAudioRoute) throws -> AudioOutputState {
+    try makeState(identifier: record.key.appIdentifier, output: currentOutput(record.output))
+  }
+
+  func makeState(identifier: String, output: AudioOutputDescriptor) throws -> AudioOutputState {
+    let appGain = gain(for: identifier)
+    let profile: AutoEQProfile?
+    if output.supportsAutoEQ, let selection = settingsStore.getAutoEQSelection(for: output.uid),
+      selection.isEnabled
+    {
+      profile = profileLookup(selection.profileID)
+    } else {
+      profile = nil
+    }
+    let settings = settingsStore.appSettings
+    if settings.loudnessCompensationEnabled && output.volume == nil {
+      throw AudioRouteFailure(
+        kind: .unavailable, stage: "loudness",
+        message: "The unboosted device volume is unavailable for \(output.uid).")
+    }
+    var loudness = LoudnessEqualizerSettings()
+    loudness.enabled = settings.loudnessEqualizationEnabled
+    return AudioOutputState(
+      revision: appRevisions[identifier] ?? revision,
+      effectiveGain: appGain * boost(for: identifier).rawValue * output.processingGain,
+      isMuted: isMuted(for: identifier) || output.isMuted == true,
+      processing: TapInitialState(
+        eqSettings: settingsStore.getEQSettings(for: identifier), autoEQProfile: profile,
+        autoEQPreampEnabled: settingsStore.autoEQPreampEnabled,
+        // Unity is only an unused input while loudness is disabled, never an observed scalar.
+        loudnessVolume: appGain * (output.volume ?? 1),
+        loudnessCompensationEnabled: settings.loudnessCompensationEnabled,
+        loudnessEqualizerSettings: loudness))
+  }
+
+  func deliverLevels(_ record: ManagedAudioRoute) {
+    let output = currentOutput(record.output)
+    let identifier = record.key.appIdentifier
+    record.handle.requestLevels(
+      AudioOutputLevels(
+        revision: appRevisions[identifier] ?? revision,
+        effectiveGain: gain(for: identifier) * boost(for: identifier).rawValue
+          * output.processingGain,
+        isMuted: isMuted(for: identifier) || output.isMuted == true,
+        effectiveLoudnessVolume: gain(for: identifier)
+          * (output.volume ?? record.output.volume ?? 1)))
+  }
+
+  func enqueueUpdate(_ record: ManagedAudioRoute) {
+    guard updateTasks[record.key] == nil else { return }
+    updateTasks[record.key] = Task { [weak self] in
+      guard let self else { return }
+      defer { self.updateTasks[record.key] = nil }
+      do {
+        while self.owned[record.key] != nil && self.captureIntent != .none {
+          let state = try self.makeState(record)
+          let receipt = try await record.handle.update(state: state)
+          self.receive(receipt)
+          try self.receiptSucceeded(receipt)
+          if (self.appRevisions[record.key.appIdentifier] ?? self.revision) == state.revision {
+            break
+          }
+        }
+      } catch {
+        if self.owned[record.key] != nil && !(error is CancellationError) {
+          self.routeFailure = self.failure(error, stage: "update")
+        }
+      }
+    }
+  }
+
+  func receive(_ incoming: AudioRouteObservation) {
+    guard let record = owned[incoming.key] else { return }
+    let prior = routeObservations[incoming.key]
+    let phase: AudioRoutePhase
+    if let prior, incoming.phase != .failed, prior.phase == .failed, incoming.phase != .retired {
+      phase = prior.phase
+    } else if let prior, incoming.phase != .failed,
+      phaseOrder(prior.phase) > phaseOrder(incoming.phase)
+    {
+      phase = prior.phase
+    } else {
+      phase = incoming.phase
+    }
+    let merged = AudioRouteObservation(
+      key: incoming.key, phase: phase,
+      acceptedRevision: maxRevision(prior?.acceptedRevision, incoming.acceptedRevision),
+      appliedRevision: maxRevision(prior?.appliedRevision, incoming.appliedRevision),
+      failure: incoming.failure ?? prior?.failure,
+      cleanupFailure: incoming.cleanupFailure ?? prior?.cleanupFailure)
+    routeObservations[incoming.key] = merged
+    if let error = merged.failure ?? merged.cleanupFailure {
+      armWaiters.removeValue(forKey: incoming.key)?.resume(throwing: error)
+      retirementWaiters.removeValue(forKey: incoming.key)?.resume(throwing: error)
+    } else {
+      if phase == .armed || phase == .committed || phase == .firstApplied {
+        armWaiters.removeValue(forKey: incoming.key)?.resume()
+      }
+      if phase == .retired {
+        armWaiters.removeValue(forKey: incoming.key)?.resume(throwing: CancellationError())
+        retirementWaiters.removeValue(forKey: incoming.key)?.resume()
+      }
+    }
+    if let error = incoming.failure ?? incoming.cleanupFailure {
+      let relevant =
+        generations[incoming.key.appIdentifier] == incoming.key.generation
+        || active[incoming.key.appIdentifier]?.values.contains(incoming.key) == true
+      if relevant {
+        routeFailure = error
+        if error.kind == .permissionDenied,
+          captureIntent == .userInitiated(sessionID: record.sessionID)
+        {
+          knownPermissionDenied = true
+        }
+        if error.kind == .bindingChanged, prior != merged, captureIntent != .none {
+          reconcile(record.key.appIdentifier, force: true)
+        }
+      }
+    }
+    // A retired acknowledgement releases ownership even when the same observation reports an error.
+    if phase == .retired {
+      owned[incoming.key] = nil
+      if active[incoming.key.appIdentifier]?[incoming.key.deviceUID] == incoming.key {
+        active[incoming.key.appIdentifier]?[incoming.key.deviceUID] = nil
+      }
+    }
+  }
+
+  func receiptSucceeded(_ value: AudioRouteObservation) throws {
+    let observed = routeObservations[value.key]
+    if let error = observed?.failure ?? observed?.cleanupFailure ?? value.failure
+      ?? value.cleanupFailure
+    {
+      throw error
+    }
+  }
+
+  func waitUntilArmed(_ key: AudioRouteKey) async throws {
+    if let value = routeObservations[key] {
+      try receiptSucceeded(value)
+      if value.phase == .armed || value.phase == .committed || value.phase == .firstApplied {
+        return
+      }
+    }
+    try await withCheckedThrowingContinuation { armWaiters[key] = $0 }
+  }
+
+  func retire(_ record: ManagedAudioRoute) async throws {
+    if let value = routeObservations[record.key], value.phase == .retired {
+      try receiptSucceeded(value)
+      return
+    }
+    try await retirement(record).value
+  }
+
+  /// Register before the first await: handoff, stop and shutdown join one native retirement.
+  func retirement(_ record: ManagedAudioRoute) -> Task<Void, any Error> {
+    if let existing = retirementTasks[record.key] { return existing }
+    let task = Task<Void, any Error> {
+      defer { self.retirementTasks[record.key] = nil }
+      do {
+        self.updateTasks[record.key]?.cancel()
+        switch await record.handle.retire() {
+        case .retired: self.receive(AudioRouteObservation(key: record.key, phase: .retired))
+        case .failed(let error): throw error
+        case .pending:
+          if let value = self.routeObservations[record.key] {
+            try self.receiptSucceeded(value)
+            if value.phase == .retired { return }
+          }
+          try await withCheckedThrowingContinuation { self.retirementWaiters[record.key] = $0 }
+        }
+        if let value = self.routeObservations[record.key] { try self.receiptSucceeded(value) }
+      } catch {
+        self.routeFailure = self.failure(error, stage: "retire")
+        throw error
+      }
+    }
+    retirementTasks[record.key] = task
+    return task
+  }
+
+  func scheduleRetirement(_ record: ManagedAudioRoute) {
+    guard owned[record.key] != nil, routeObservations[record.key]?.phase != .retired else { return }
+    _ = retirement(record)
+  }
+
+  func cancelPreparation(for identifier: String) {
+    routingTasks[identifier]?.cancel()
+    routingTasks[identifier] = nil
+    for key in Array(armWaiters.keys) where key.appIdentifier == identifier {
+      armWaiters.removeValue(forKey: key)?.resume(throwing: CancellationError())
+    }
+    for record in owned.values
+    where record.key.appIdentifier == identifier
+      && active[identifier]?[record.key.deviceUID] != record.key
+    { record.handle.cancel() }
+  }
+
+  func stopRoutes(for identifier: String) {
+    generations[identifier] = (generations[identifier] ?? 0) &+ 1
+    cancelPreparation(for: identifier)
+    plans[identifier] = nil
+    for record in owned.values where record.key.appIdentifier == identifier {
+      record.handle.cancel()
+      scheduleRetirement(record)
+    }
+  }
+
+  func maxRevision(_ first: UInt64?, _ second: UInt64?) -> UInt64? {
+    switch (first, second) {
+    case (let a?, let b?): max(a, b)
+    case (let a?, nil): a
+    case (nil, let b?): b
+    case (nil, nil): nil
+    }
+  }
+
+  func phaseOrder(_ phase: AudioRoutePhase) -> Int {
+    switch phase {
+    case .prepared: 0
+    case .accepted: 1
+    case .started: 2
+    case .armed: 3
+    case .committed: 4
+    case .firstApplied: 5
+    case .retiring, .failed: 6
+    case .retired: 7
+    }
+  }
+}

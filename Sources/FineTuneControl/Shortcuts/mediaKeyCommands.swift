@@ -33,8 +33,9 @@ public struct VolumeKeyPlanner: Sendable {
 
   public mutating func plan(
     event: MediaKeyEvent, tier: VolumeControlTier, currentGain: Float, currentMute: Bool,
-    step: VolumeHotkeyStep, nowNanoseconds: UInt64
+    step: VolumeHotkeyStep, nowNanoseconds: UInt64, stepMultiplier: Double = 1
   ) -> VolumeKeyChange? {
+    guard stepMultiplier.isFinite, stepMultiplier > 0 else { return nil }
     let slider = VolumeMapping.sliderFraction(forSystemGain: currentGain, tier: tier)
     let direction: Double
     let repeats: Bool
@@ -60,7 +61,7 @@ public struct VolumeKeyPlanner: Sendable {
       lastDDCRepeatNanoseconds = nowNanoseconds
     }
 
-    let next = max(0, min(1, slider + direction * step.sliderDelta))
+    let next = max(0, min(1, slider + direction * step.sliderDelta * stepMultiplier))
     let silent = next <= 0.001
     let newMute = direction > 0 ? false : silent
     let gain = VolumeMapping.systemGain(forSliderFraction: next, tier: tier)

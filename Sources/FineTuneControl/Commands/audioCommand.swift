@@ -20,6 +20,8 @@ public enum AudioCommand: Equatable, Sendable {
   case setOutputDevice(identifier: String, uid: String)
   /// nil resets all active targets; an explicit identity also saves inactive preferences.
   case resetGainAndMute(identifier: String?)
+  /// Only the confirmed reset UI dispatches this destructive preference operation.
+  case resetAllSettings
   case updateAppSettings(AppSettings)
   case setAutoEQSelection(deviceUID: String, selection: AutoEQSelection?)
   case setAutoEQPreampEnabled(Bool)
@@ -28,7 +30,10 @@ public enum AudioCommand: Equatable, Sendable {
   case requestCaptureStart
   case stopCapture
   case setDefaultDevice(scope: AudioDeviceScope, uid: String)
+  /// UI editing applies the gain and unmutes the device.
   case setDeviceGain(scope: AudioDeviceScope, uid: String, gain: Float)
+  /// Raw/media gain changes preserve the independent mute state.
+  case setRawDeviceGain(scope: AudioDeviceScope, uid: String, gain: Float)
   case setDeviceMuted(scope: AudioDeviceScope, uid: String, muted: Bool)
   case stepDeviceVolume(scope: AudioDeviceScope, uid: String, isUp: Bool, shift: Bool)
   case setDeviceHidden(scope: AudioDeviceScope, uid: String, hidden: Bool)
