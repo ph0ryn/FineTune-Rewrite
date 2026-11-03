@@ -51,9 +51,9 @@
     },
     "task-14": {
       "author": "domain-engineer",
-      "reviewer": null,
-      "status": "pending",
-      "evidence": null
+      "reviewer": "compatibility-scout",
+      "status": "approved",
+      "evidence": "Independent task32 closes all65 original device guarantees (A7/B58) plus D5 at the recorded 38-input cleanup snapshot, not future modernized Root. Removed only two recorder/convenience self-tests and unused parameterless activate; both original IDs stay B many-to-many onto actual Engine activation-first/no-pre-mutation and actual Control defaults. Existing158/160 reviewed destinations and current input/assertion fingerprints independently rechecked against their approved/adapted baselines; final two substitutions explicitly approved. Fresh bounded actual-source Debug/Release each74 declarations/16 suites/zero issues; frozen copies match recorded bytes after undoing the single isolated mutant setter. Actual copied Engine pre-activate EQ mutant triggers exact three existing assertions (ordering2 plus cache miss), exit1; no Root mutation. Current phase27/35/Store production drift is recorded, not silently approved; future modernization requires separate mapping/helper review and final fresh-root gate. Combined 13/14 current test snapshot177 Swift declarations/189 invocations; original160/166 unchanged. Detailed .indexion/cache/domainShortcutIndependentReview.md and task32-post-cleanup-evidence.json."
     },
     "task-15": {
       "author": "dsp-engineer",
@@ -69,9 +69,9 @@
     },
     "integration-tests": {
       "author": "integration-engineer",
-      "reviewer": null,
-      "status": "pending",
-      "evidence": null
+      "reviewer": "compatibility-scout",
+      "status": "approved",
+      "evidence": "Independent bounded D2 source review: real C++20/span feature/compiler macro and actual Objective-C++ NSObject class messaging across the C ABI, correct scalar/extern-C test-only header and package Foundation/C++20 wiring. No fixed-success facade, production probe consumer, hardware or login operations. Exact two unchanged Swift method/file fingerprints and three native helper rawSHA pinned. Historical preliminary Debug contains both2/2 with complete four product runs and no issues/skips/duplicates, but no before-run source snapshot exists for that historical run; final current-root Debug/Release evidence remains required. This is not original758, DSP behavior, minimum-OS or future Root30/Main graph approval. Detailed .indexion/cache/buildSmokeIndependentReview.md and buildSmokeIndependentEvidence.json."
     },
     "task-25": {
       "author": "ui-style-engineer",
@@ -435,7 +435,7 @@
       "derived_from": [
         "FineTuneTests/AudioEngineTapInitialStateTests.swift"
       ],
-      "tokens_sha256": "24cdf704e5ea6f4c58117ab009ab26664013f9d4bec8e2aaf4371cc685a9b09f",
+      "tokens_sha256": "e919c2e0c4b25b4f3bb25ad5f6402bc5cc7166744c030bb4610194f0ddce8494",
       "review": "task-14"
     },
     {
@@ -2143,11 +2143,27 @@
       },
       "destinations": [
         {
-          "id": "Tests/UpstreamCompatibilityTests/AudioEngineTapInitialStateTests.swift::AudioRoutePortContractTests.recordsCallOrder",
-          "invocations": 1
+          "id": "Tests/UpstreamCompatibilityTests/AudioEngineTapInitialStateTests.swift::AudioEngineTapInitialStateTests.activateIsFirstEvent",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "71ca8012cdd0fa2dec0a85866254be027f31a4eda1770fb8e6fdc559d2906f06",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "eca9a27ca2ffcb835ef0753a685756c9a2f8f41845e781a7866e37a3e8d89362",
+            "attribute": "cc2342e128157e2b6c71abceaf7e7772ece98856f5a237830eed84dca255c6ec"
+          }
+        },
+        {
+          "id": "Tests/UpstreamCompatibilityTests/AudioEngineTapInitialStateTests.swift::AudioEngineTapInitialStateTests.noMutationBeforeActivate",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "b786f1814c23b0d8ab35a8d9f3d7416044824d8c32617494b6085bc8a3b60101",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "af90bb1c5d0b756860c92f0ecf3b6d9a935cefc99afe13a21e878c7df031a2de",
+            "attribute": "284efd5d206afa04343fe08ca8cd8ef7081542f2933a306291778dde175d2568"
+          }
         }
       ],
-      "adaptation": "Retain only the small real Control runtime-port recording/forwarding contract. Remove obsolete switch/health/refresh/source-UID mock methods and use the actual value-semantic TapInitialState directly rather than a duplicate snapshot type.",
+      "adaptation": "Lead-approved superseded scaffolding: remove the recording-double self-test rather than preserving a test count. The actual Engine activation and no-pre-activation-mutation units provide the stronger externally meaningful initial-state ordering guarantee. An isolated actual-engine setter-before-activate mutant must be detected by those retained assertions.",
       "review": "task-14"
     },
     {
@@ -2167,12 +2183,13 @@
           "invocations": 1,
           "fingerprints": {
             "body": "c4b9ea2c24718e5a8bbf72affd2ed6fec169a636bf644cec9ba7cc8341efb61c",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
             "assertions": "575113cf88309613d37fb8449f9ce6e403e5f293833eab2cfeca35f356c63bfb",
             "attribute": "872ccc5c9d053b0ca30fc684b62ec111e01393969df762fa0882ea46f1fba78b"
           }
         }
       ],
-      "adaptation": "Lead-approved B: the old controller internal/test-double defaults are not restored. Actual Control VolumeState and TapInitialState defaults verify unity volume, independent unmuted state/boost, flat EQ, no correction/preamp, and disabled loudness processing. Small route-port recording and convenience-forwarding tests retain ordering guarantees.",
+      "adaptation": "Lead-approved B: the old controller internal/test-double defaults are not restored. Actual Control VolumeState and TapInitialState defaults verify unity volume, independent unmuted state/boost, flat EQ, no correction/preamp, and disabled loudness processing. Actual Engine activation/no-pre-mutation units provide ordering guarantees without recording-double or unused convenience self-tests.",
       "review": "task-14"
     },
     {
@@ -2188,15 +2205,37 @@
       },
       "destinations": [
         {
-          "id": "Tests/UpstreamCompatibilityTests/AudioEngineTapInitialStateTests.swift::AudioRoutePortContractTests.convenienceActivateRoutesThroughInitial",
+          "id": "Tests/UpstreamCompatibilityTests/AudioEngineTapInitialStateTests.swift::AudioRoutePortContractTests.controlInitialStateDefaults",
           "invocations": 1,
           "fingerprints": {
-            "body": "c023b4867ae0c4841707556ab5a93e2e9572e10e9eb9b7c0310bd29406def50a",
-            "assertions": "ed6c5991f4a1a353c874dc2ee95aaa04ebd9a9fcc79e25f806d3815f6f4db73e"
+            "body": "c4b9ea2c24718e5a8bbf72affd2ed6fec169a636bf644cec9ba7cc8341efb61c",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "575113cf88309613d37fb8449f9ce6e403e5f293833eab2cfeca35f356c63bfb",
+            "attribute": "872ccc5c9d053b0ca30fc684b62ec111e01393969df762fa0882ea46f1fba78b"
+          }
+        },
+        {
+          "id": "Tests/UpstreamCompatibilityTests/AudioEngineTapInitialStateTests.swift::AudioEngineTapInitialStateTests.activateIsFirstEvent",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "71ca8012cdd0fa2dec0a85866254be027f31a4eda1770fb8e6fdc559d2906f06",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "eca9a27ca2ffcb835ef0753a685756c9a2f8f41845e781a7866e37a3e8d89362",
+            "attribute": "cc2342e128157e2b6c71abceaf7e7772ece98856f5a237830eed84dca255c6ec"
+          }
+        },
+        {
+          "id": "Tests/UpstreamCompatibilityTests/AudioEngineTapInitialStateTests.swift::AudioEngineTapInitialStateTests.noMutationBeforeActivate",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "b786f1814c23b0d8ab35a8d9f3d7416044824d8c32617494b6085bc8a3b60101",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "af90bb1c5d0b756860c92f0ecf3b6d9a935cefc99afe13a21e878c7df031a2de",
+            "attribute": "284efd5d206afa04343fe08ca8cd8ef7081542f2933a306291778dde175d2568"
           }
         }
       ],
-      "adaptation": "Retain only the small real Control runtime-port recording/forwarding contract. Remove obsolete switch/health/refresh/source-UID mock methods and use the actual value-semantic TapInitialState directly rather than a duplicate snapshot type.",
+      "adaptation": "Lead-approved superseded scaffolding: production no-argument activate consumers are zero, so remove the unused public convenience and its self-test. Actual Control initial-value assertions plus real Engine initialization/ordering units jointly replace the original two trivial forwarding/default guarantees; original source identity remains in this many-to-many B mapping.",
       "review": "task-14"
     },
     {
@@ -18858,6 +18897,27 @@
       "derived_from": [],
       "license": "MIT",
       "review": "task-31"
+    },
+    {
+      "destination": "Tests/NativeBuildSupport/CppBuildProbe.cpp",
+      "sha256": "98529407b95a08e20fadf6a1db8a9c5c3fd0a19a0a08e3aafcc14c941ebe758d",
+      "derived_from": [],
+      "license": "MIT",
+      "review": "integration-tests"
+    },
+    {
+      "destination": "Tests/NativeBuildSupport/ObjCBuildProbe.mm",
+      "sha256": "2c4248b50d20b39b1e0313ba597b8dd8b1e125f060f3acf12901ea9464596e1d",
+      "derived_from": [],
+      "license": "MIT",
+      "review": "integration-tests"
+    },
+    {
+      "destination": "Tests/NativeBuildSupport/include/NativeBuildSupport.h",
+      "sha256": "13764baece5c61dfc37960417f919cc3fb97eb0b7acf82920f0f4f50878ef933",
+      "derived_from": [],
+      "license": "MIT",
+      "review": "integration-tests"
     }
   ]
 }
