@@ -42,3 +42,22 @@ jobs:
           just --version
           just toolchain
           just check
+      # This disposable runner may register its built bundle; the local default gate never does.
+      - name: Build unsigned app bundles on ephemeral runner
+        run: |
+          just build-app debug
+          just build-app release
+      - name: Upload test evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: test-evidence
+          path: |
+            .build/test-results-*.xml
+            .build/test-events-*.jsonl
+            .build/test-dsp-results-*.json
+            .build/test-source-snapshot-*.json
+            .build/test-audit-*.json
+          if-no-files-found: warn
+          include-hidden-files: true
+          retention-days: 7

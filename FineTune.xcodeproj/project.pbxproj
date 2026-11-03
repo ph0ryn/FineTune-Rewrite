@@ -1,0 +1,246 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		F10000000000000000000021 /* FineTuneDomain in Frameworks */ = {isa = PBXBuildFile; productRef = F10000000000000000000017 /* FineTuneDomain */; };
+		F10000000000000000000022 /* FineTuneControl in Frameworks */ = {isa = PBXBuildFile; productRef = F10000000000000000000018 /* FineTuneControl */; };
+		F10000000000000000000023 /* FineTunePlatform in Frameworks */ = {isa = PBXBuildFile; productRef = F10000000000000000000019 /* FineTunePlatform */; };
+		F10000000000000000000024 /* KeyboardShortcuts in Frameworks */ = {isa = PBXBuildFile; productRef = F10000000000000000000020 /* KeyboardShortcuts */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		F10000000000000000000003 /* FineTuneRewrite.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FineTuneRewrite.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		F10000000000000000000004 /* App */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = App;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		F10000000000000000000005 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F10000000000000000000021 /* FineTuneDomain in Frameworks */,
+				F10000000000000000000022 /* FineTuneControl in Frameworks */,
+				F10000000000000000000023 /* FineTunePlatform in Frameworks */,
+				F10000000000000000000024 /* KeyboardShortcuts in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		F10000000000000000000006 = {
+			isa = PBXGroup;
+			children = (
+				F10000000000000000000004 /* App */,
+				F10000000000000000000007 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		F10000000000000000000007 /* Products */ = {
+			isa = PBXGroup;
+			children = (F10000000000000000000003 /* FineTuneRewrite.app */);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		F10000000000000000000008 /* FineTuneRewrite */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F10000000000000000000015 /* Build configuration list for PBXNativeTarget "FineTuneRewrite" */;
+			buildPhases = (
+				F1000000000000000000000A /* Sources */,
+				F10000000000000000000005 /* Frameworks */,
+				F1000000000000000000000B /* Resources */,
+			);
+			buildRules = ();
+			dependencies = ();
+			fileSystemSynchronizedGroups = (F10000000000000000000004 /* App */);
+			name = FineTuneRewrite;
+			packageProductDependencies = (
+				F10000000000000000000017 /* FineTuneDomain */,
+				F10000000000000000000018 /* FineTuneControl */,
+				F10000000000000000000019 /* FineTunePlatform */,
+				F10000000000000000000020 /* KeyboardShortcuts */,
+			);
+			productName = FineTuneRewrite;
+			productReference = F10000000000000000000003 /* FineTuneRewrite.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		F10000000000000000000009 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastUpgradeCheck = 2660;
+				TargetAttributes = {
+					F10000000000000000000008 = {CreatedOnToolsVersion = 26.6; };
+				};
+			};
+			buildConfigurationList = F10000000000000000000014 /* Build configuration list for PBXProject "FineTune" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (en, Base);
+			mainGroup = F10000000000000000000006;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				F10000000000000000000016 /* XCLocalSwiftPackageReference "." */,
+				F10000000000000000000025 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = F10000000000000000000007 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (F10000000000000000000008 /* FineTuneRewrite */);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		F1000000000000000000000B /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = ();
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		F1000000000000000000000A /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = ();
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		F10000000000000000000010 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_CXX_LANGUAGE_STANDARD = "c++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_TESTABILITY = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				MACOSX_DEPLOYMENT_TARGET = 15.4;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		F10000000000000000000011 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_CXX_LANGUAGE_STANDARD = "c++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				MACOSX_DEPLOYMENT_TARGET = 15.4;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+			};
+			name = Release;
+		};
+		F10000000000000000000012 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "FineTune Rewrite";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				INFOPLIST_KEY_LSUIElement = YES;
+				INFOPLIST_KEY_NSAudioCaptureUsageDescription = "FineTune Rewrite needs access to adjust audio from your applications.";
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "FineTune Rewrite uses Bluetooth to show and connect your paired audio devices.";
+				LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/../Frameworks");
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ph0ryn.FineTuneRewrite;
+				PRODUCT_MODULE_NAME = FineTune;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		F10000000000000000000013 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "FineTune Rewrite";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				INFOPLIST_KEY_LSUIElement = YES;
+				INFOPLIST_KEY_NSAudioCaptureUsageDescription = "FineTune Rewrite needs access to adjust audio from your applications.";
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "FineTune Rewrite uses Bluetooth to show and connect your paired audio devices.";
+				LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/../Frameworks");
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ph0ryn.FineTuneRewrite;
+				PRODUCT_MODULE_NAME = FineTune;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		F10000000000000000000014 /* Build configuration list for PBXProject "FineTune" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (F10000000000000000000010 /* Debug */, F10000000000000000000011 /* Release */);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		F10000000000000000000015 /* Build configuration list for PBXNativeTarget "FineTuneRewrite" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (F10000000000000000000012 /* Debug */, F10000000000000000000013 /* Release */);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		F10000000000000000000016 /* XCLocalSwiftPackageReference "." */ = {isa = XCLocalSwiftPackageReference; relativePath = .; };
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		F10000000000000000000025 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sindresorhus/KeyboardShortcuts";
+			requirement = {kind = revision; revision = 1aef85578fdd4f9eaeeb8d53b7b4fc31bf08fe27; };
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		F10000000000000000000017 /* FineTuneDomain */ = {isa = XCSwiftPackageProductDependency; package = F10000000000000000000016; productName = FineTuneDomain; };
+		F10000000000000000000018 /* FineTuneControl */ = {isa = XCSwiftPackageProductDependency; package = F10000000000000000000016; productName = FineTuneControl; };
+		F10000000000000000000019 /* FineTunePlatform */ = {isa = XCSwiftPackageProductDependency; package = F10000000000000000000016; productName = FineTunePlatform; };
+		F10000000000000000000020 /* KeyboardShortcuts */ = {isa = XCSwiftPackageProductDependency; package = F10000000000000000000025; productName = KeyboardShortcuts; };
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = F10000000000000000000009 /* Project object */;
+}

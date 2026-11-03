@@ -12,6 +12,7 @@ let package = Package(
     .library(name: "NativeAudio", targets: ["NativeAudio"]),
     .library(name: "AudioDSP", targets: ["AudioDSP"]),
     .executable(name: "FineTune", targets: ["FineTune"]),
+    .executable(name: "DSPTests", targets: ["DSPTests"]),
   ],
   dependencies: [
     .package(
@@ -27,12 +28,13 @@ let package = Package(
       dependencies: [
         "FineTuneDomain", "FineTuneControl", "NativeAudio",
         .product(name: "KeyboardShortcuts", package: "KeyboardShortcuts"),
-      ]
+      ],
+      linkerSettings: [.linkedFramework("IOBluetooth")]
     ),
     .target(
       name: "NativeAudio",
       dependencies: ["AudioDSP"],
-      linkerSettings: [.linkedFramework("Foundation")]
+      linkerSettings: [.linkedFramework("Foundation"), .linkedFramework("CoreAudio")]
     ),
     .target(name: "AudioDSP"),
     .executableTarget(
@@ -59,6 +61,26 @@ let package = Package(
       resources: [.copy("Fixtures")],
       // Match the fixed upstream Xcode test target without changing test bodies.
       swiftSettings: [.unsafeFlags(["-default-isolation", "MainActor"])]
+    ),
+    .testTarget(
+      name: "NativeContractTests",
+      dependencies: ["FineTunePlatform", "NativeAudio"]
+    ),
+    .testTarget(
+      name: "AppCompositionTests",
+      dependencies: ["FineTune", "FineTuneDomain", "FineTuneControl", "FineTunePlatform"]
+    ),
+    .testTarget(
+      name: "ControlTests",
+      dependencies: ["FineTuneDomain", "FineTuneControl"]
+    ),
+    .testTarget(
+      name: "DomainTests",
+      dependencies: ["FineTuneDomain"]
+    ),
+    .testTarget(
+      name: "PlatformTests",
+      dependencies: ["FineTuneDomain", "FineTuneControl", "FineTunePlatform"]
     ),
     .target(
       name: "NativeBuildSupport",
