@@ -1,6 +1,7 @@
 #include "AudioDSP/Pipeline.hpp"
 #include "NativeAudioDynamics.h"
 #include "NativeAudioPipeline.h"
+#include "PreparedPipelineStages.hpp"
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -22,6 +23,42 @@ struct FTPipeline {
     std::unique_ptr<FTLoudnessCompensator, decltype(&ft_loudness_compensator_destroy)> compensator{
         nullptr, ft_loudness_compensator_destroy};
 };
+
+namespace finetune::native {
+void swapPreparedPipelineStages(FTPipeline *pipeline, PreparedPipelineStages &stages) noexcept {
+    if (stages.changedMask & PreparedPipelineStages::eqChanged) {
+        pipeline->eq.swap(stages.eq);
+    }
+    if (stages.changedMask & PreparedPipelineStages::autoEQChanged) {
+        pipeline->autoEQ.swap(stages.autoEQ);
+    }
+    if (stages.changedMask & PreparedPipelineStages::equalizerChanged) {
+        pipeline->equalizer.swap(stages.equalizer);
+    }
+    if (stages.changedMask & PreparedPipelineStages::compensatorChanged) {
+        pipeline->compensator.swap(stages.compensator);
+    }
+}
+
+void mergeUnconsumedOlderStages(PreparedPipelineStages &newer,
+                                PreparedPipelineStages &older) noexcept {
+    const auto inherited = older.changedMask & ~newer.changedMask;
+    if (inherited & PreparedPipelineStages::eqChanged) {
+        newer.eq = std::move(older.eq);
+    }
+    if (inherited & PreparedPipelineStages::autoEQChanged) {
+        newer.autoEQ = std::move(older.autoEQ);
+    }
+    if (inherited & PreparedPipelineStages::equalizerChanged) {
+        newer.equalizer = std::move(older.equalizer);
+    }
+    if (inherited & PreparedPipelineStages::compensatorChanged) {
+        newer.compensator = std::move(older.compensator);
+    }
+    newer.changedMask |= older.changedMask;
+    older.changedMask = 0;
+}
+} // namespace finetune::native
 
 namespace {
 FTPipelineStatus convert(Status status) noexcept { return static_cast<FTPipelineStatus>(status); }
