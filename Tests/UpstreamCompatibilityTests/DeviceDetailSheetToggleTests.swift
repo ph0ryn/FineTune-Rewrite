@@ -134,7 +134,7 @@ extension DeviceDetailSheet {
   /// Simulates a user flipping the toggle to `newValue`. Mirrors the set-closure
   /// on `useSoftwareBinding`: `onOverrideChange(newValue ? .some(.software) : nil)`.
   func simulateToggleChange(newValue: Bool) {
-    onOverrideChange(newValue ? .some(.software) : nil)
+    onOverrideChange?(newValue ? .some(.software) : nil)
   }
 
 }

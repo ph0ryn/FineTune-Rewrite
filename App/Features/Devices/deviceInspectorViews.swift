@@ -9,39 +9,139 @@ import SwiftUI
 final class DeviceInspectorModel {
   private let device: AudioDevice
   private let transport: TransportType
+  private let isInput: Bool
+  private let reader: any AudioDevicePropertyReading
+  private let writer: any AudioDevicePropertyWriting
+  private let observer: any AudioDevicePropertyObserving
+  private let resolveUID: (String) throws -> AudioDeviceID
+  private var observations: [AudioObjectPropertySelector: DevicePropertyObservation] = [:]
+  private var observedID: AudioDeviceID?
+  private var generation: UInt64 = 0
+  private var running = false
   private(set) var info: DeviceInspectorInfo?
   private(set) var error: String?
 
-  init(device: AudioDevice, transport: TransportType) {
+  init(
+    device: AudioDevice, transport: TransportType, isInput: Bool = false,
+    reader: any AudioDevicePropertyReading = CoreAudioDevicePropertyReader(),
+    writer: any AudioDevicePropertyWriting = CoreAudioDevicePropertyWriter(),
+    observer: any AudioDevicePropertyObserving = CoreAudioDevicePropertyObserver(),
+    resolveUID: @escaping (String) throws -> AudioDeviceID = {
+      try CoreAudioDeviceUIDResolver.resolve(uid: $0)
+    }
+  ) {
     self.device = device
     self.transport = transport
+    self.isInput = isInput
+    self.reader = reader
+    self.writer = writer
+    self.observer = observer
+    self.resolveUID = resolveUID
   }
 
-  /// Called by the visible inspector, not by constructing a test view or a fixture device.
+  func start() {
+    guard !running else { return }
+    running = true
+    refresh()
+  }
+
+  func stop() {
+    running = false
+    cancelObservations()
+  }
+
+  isolated deinit { for observation in observations.values { observation.cancel() } }
+
+  /// Explicit refresh/start only: constructing an inspector does not query HAL or register listeners.
   func refresh() {
+    var resolvedID: AudioDeviceID?
     do {
-      let rate = try device.id.readNominalSampleRate()
+      let id = try resolveUID(device.uid)
+      guard id.isValid else { throw DeviceBackendError.unavailableDevice(device.uid) }
+      resolvedID = id
+      var failures: [String] = []
+      let properties = AudioDeviceInspector(reader: reader) {
+        failures.append($0.localizedDescription)
+      }
+      let rate = try reader.readScalar(
+        id, selector: kAudioDevicePropertyNominalSampleRate,
+        scope: kAudioObjectPropertyScopeGlobal, initial: Double(0))
+      guard rate.isFinite, rate > 0 else {
+        throw DeviceBackendError.operationFailed("The device returned an invalid sample rate.")
+      }
       info = DeviceInspectorInfo(
         transportLabel: Self.transportLabel(transport), sampleRate: rate,
-        availableSampleRates: device.id.readAvailableSampleRates(),
-        sampleRateSettable: device.id.isPropertySettable(
-          kAudioDevicePropertyNominalSampleRate, scope: kAudioObjectPropertyScopeGlobal),
-        formatLabel: DeviceInspectorInfo.formatPhysicalFormat(device.id.readPhysicalFormat()),
-        hogModeOwner: device.id.readHogModeOwner(), uid: device.uid
-      )
-      error = nil
+        availableSampleRates: properties.readAvailableSampleRates(for: id),
+        sampleRateSettable: properties.isPropertySettable(
+          kAudioDevicePropertyNominalSampleRate, for: id, scope: kAudioObjectPropertyScopeGlobal),
+        formatLabel: DeviceInspectorInfo.formatPhysicalFormat(
+          properties.readPhysicalFormat(
+            for: id,
+            scope: isInput ? kAudioObjectPropertyScopeInput : kAudioObjectPropertyScopeOutput)),
+        hogModeOwner: properties.readHogModeOwner(for: id), uid: device.uid)
+      error = failures.isEmpty ? nil : failures.joined(separator: "\n")
     } catch {
       self.error = "Unable to read device information: \(error.localizedDescription)"
+    }
+    if running {
+      if let resolvedID { observeChanges(for: resolvedID) } else { cancelObservations() }
     }
   }
 
   func selectSampleRate(_ rate: Double) {
     do {
-      try device.id.writeNominalSampleRate(rate)
+      guard rate.isFinite, rate > 0 else {
+        throw DeviceBackendError.operationFailed("Choose a valid sample rate.")
+      }
+      let id = try resolveUID(device.uid)
+      guard id.isValid else { throw DeviceBackendError.unavailableDevice(device.uid) }
+      guard
+        reader.hasProperty(
+          id, selector: kAudioDevicePropertyNominalSampleRate,
+          scope: kAudioObjectPropertyScopeGlobal),
+        try reader.isPropertySettable(
+          id, selector: kAudioDevicePropertyNominalSampleRate,
+          scope: kAudioObjectPropertyScopeGlobal)
+      else { throw DeviceBackendError.unsupported("Sample rate changes") }
+      try writer.writeScalar(
+        id, selector: kAudioDevicePropertyNominalSampleRate,
+        scope: kAudioObjectPropertyScopeGlobal, value: rate)
       refresh()
     } catch {
       self.error = "Unable to change sample rate: \(error.localizedDescription)"
     }
+  }
+
+  private func observeChanges(for id: AudioDeviceID) {
+    let selectors = Set(
+      [kAudioDevicePropertyNominalSampleRate, kAudioDevicePropertyHogMode].filter {
+        reader.hasProperty(id, selector: $0, scope: kAudioObjectPropertyScopeGlobal)
+      })
+    guard observedID != id || Set(observations.keys) != selectors else { return }
+    cancelObservations()
+    observedID = id
+    let epoch = generation
+    for selector in selectors {
+      do {
+        observations[selector] = try observer.observe(
+          id, selector: selector, scope: kAudioObjectPropertyScopeGlobal
+        ) { [weak self] in
+          guard let self, self.running, self.generation == epoch, self.observedID == id else {
+            return
+          }
+          self.refresh()
+        }
+      } catch {
+        self.error = "Unable to observe device information: \(error.localizedDescription)"
+      }
+    }
+  }
+
+  private func cancelObservations() {
+    generation &+= 1
+    for observation in observations.values { observation.cancel() }
+    observations.removeAll()
+    observedID = nil
   }
 
   private static func transportLabel(_ transport: TransportType) -> String {
@@ -130,29 +230,43 @@ struct DeviceDetailSheet: View {
   let transportType: TransportType
   let autoDetectedTier: VolumeControlTier
   let currentOverride: VolumeControlTier?
-  let onOverrideChange: (VolumeControlTier?) -> Void
+  let isInput: Bool
+  let allowsVolumeOverride: Bool
+  let onOverrideChange: ((VolumeControlTier?) -> Void)?
   let onDismiss: () -> Void
   @State private var inspector: DeviceInspectorModel
 
   init(
     device: AudioDevice, transportType: TransportType, autoDetectedTier: VolumeControlTier,
-    currentOverride: VolumeControlTier?, onOverrideChange: @escaping (VolumeControlTier?) -> Void,
-    onDismiss: @escaping () -> Void
+    currentOverride: VolumeControlTier?, isInput: Bool = false, allowsVolumeOverride: Bool = true,
+    onOverrideChange: ((VolumeControlTier?) -> Void)?, onDismiss: @escaping () -> Void
   ) {
     self.device = device
     self.transportType = transportType
     self.autoDetectedTier = autoDetectedTier
     self.currentOverride = currentOverride
+    self.isInput = isInput
+    self.allowsVolumeOverride = allowsVolumeOverride
     self.onOverrideChange = onOverrideChange
     self.onDismiss = onDismiss
-    _inspector = State(initialValue: DeviceInspectorModel(device: device, transport: transportType))
+    _inspector = State(
+      initialValue: DeviceInspectorModel(device: device, transport: transportType, isInput: isInput)
+    )
   }
 
-  static func shouldShowToggle(autoTier: VolumeControlTier) -> Bool { autoTier != .software }
+  static func shouldShowToggle(
+    autoTier: VolumeControlTier, isInput: Bool = false, allowsVolumeOverride: Bool = true,
+    hasOverrideAction: Bool = true
+  ) -> Bool {
+    !isInput && allowsVolumeOverride && hasOverrideAction && autoTier != .software
+  }
 
   /// This is the actual SwiftUI binding, also exercised by rewrite boundary tests.
   var useSoftwareBinding: Binding<Bool> {
-    Binding(
+    guard !isInput, allowsVolumeOverride, let onOverrideChange else {
+      preconditionFailure("An unavailable volume override cannot expose a binding")
+    }
+    return Binding(
       get: { currentOverride == .software },
       set: { onOverrideChange($0 ? .software : nil) }
     )
@@ -173,7 +287,10 @@ struct DeviceDetailSheet: View {
         Label(error, systemImage: "exclamationmark.triangle.fill")
           .font(DesignTokens.Typography.caption)
       }
-      if Self.shouldShowToggle(autoTier: autoDetectedTier) {
+      if Self.shouldShowToggle(
+        autoTier: autoDetectedTier, isInput: isInput, allowsVolumeOverride: allowsVolumeOverride,
+        hasOverrideAction: onOverrideChange != nil)
+      {
         Divider()
         Toggle("Use FineTune's software volume", isOn: useSoftwareBinding).toggleStyle(.switch)
           .font(DesignTokens.Typography.pickerText)
@@ -185,6 +302,7 @@ struct DeviceDetailSheet: View {
     }
     .padding(.horizontal, 12).padding(.vertical, 10)
     .background(DesignTokens.Colors.recessedBackground, in: RoundedRectangle(cornerRadius: 10))
-    .onAppear { inspector.refresh() }
+    .onAppear { inspector.start() }
+    .onDisappear { inspector.stop() }
   }
 }
