@@ -102,6 +102,18 @@
       "reviewer": "domain-engineer",
       "status": "approved",
       "evidence": "Independent task24/task29 UI supplement: exact D6 IDs and five new/changed source SHA256 approved; actual Row preserves unavailable input/mute and linear mapping, actual Inspector owns live UID-resolved rate/hog observations with start/stop/generation rejection and write-time UID resolution. All241 original A declarations and B1 unchanged; helper adapts optional binding only. Debug/Release phase XML119 each, zero failure/error/skip, three completed products each,31 before/after/current hashes match. Catalog GPL header is byte-only prefix with original7015-byte source suffix unchanged. Original Inspector observation gap closed; not approval of all Platform backends, BT/DDC, live hardware or future Root/native composition. Detailed .indexion/cache/uiIndependentReview.md supplemental section."
+    },
+    "task-36": {
+      "author": "dsp-engineer",
+      "reviewer": "native-engineer",
+      "status": "approved",
+      "evidence": "Independent Native task49 limited approval at receipt SHA74aea696985a1cef72f956b080f66a19677b2c236dd71923be319e7a4b05492c: current stage test7da1f211, bridge delta80788328 and packetdc855f0f matched; actual22-input/11-TU three-mode proof5 named groups/6572 matrix invocations/96634 checks, real isolated merge mutant and current false-check sensitivity verified. Exclusive/same-generation/unconsumed caller preconditions remain explicit. This does not reapprove own Native26, old31/37 or whole Root. Detailed .indexion/cache/dspStageAndHALIndependentReview.md."
+    },
+    "task-40": {
+      "author": "dsp-engineer",
+      "reviewer": "native-engineer",
+      "status": "approved",
+      "evidence": "Independent Native task49 limited test-callsite approval at receipt SHA74aea696985a1cef72f956b080f66a19677b2c236dd71923be319e7a4b05492c: final testcd774ef7/FakeHALf4778e37/AllocationWatch630d1aa3 matched; actual29-input/12-TU Debug/Release-DNDEBUG/ASan+UBSan each10 actualpath groups/48 invocations/1615 checks, imported stateful-symbol preflight, link map and independent failed-first-row controls verified. Final ten IDs only; historical NativeHALContract.foo reports are not relabeled. No own Native26 approval, universal cleanup/PAC/deadline/TCC/physical HAL or whole Root claim. Detailed .indexion/cache/dspStageAndHALIndependentReview.md."
     }
   },
   "license_notice": {
@@ -18838,6 +18850,216 @@
           "guarantee": "Invalid configuration is transactional; nonfinite signals fail explicitly, mute bounded output and recover with reset state."
         }
       ]
+    },
+    {
+      "id": "Tests/NativeStageTests/main.cpp::fourStageSwapClearAndRetire",
+      "classification": "D",
+      "adaptation": "Actual masked stage ownership swaps/clears return old owners for NRT retirement, without altering unmasked pipeline state.",
+      "review": "task-36",
+      "destinations": [
+        {
+          "id": "Tests/NativeStageTests/main.cpp::fourStageSwapClearAndRetire",
+          "kind": "cpp",
+          "invocations": 1,
+          "guarantee": "Actual masked stage ownership swaps/clears return old owners for NRT retirement, without altering unmasked pipeline state."
+        }
+      ]
+    },
+    {
+      "id": "Tests/NativeStageTests/main.cpp::unmaskedGainAndHistory",
+      "classification": "D",
+      "adaptation": "Actual pipeline processing retains unmasked warm stage history, mapping and gain through a stage exchange.",
+      "review": "task-36",
+      "destinations": [
+        {
+          "id": "Tests/NativeStageTests/main.cpp::unmaskedGainAndHistory",
+          "kind": "cpp",
+          "invocations": 1,
+          "guarantee": "Actual pipeline processing retains unmasked warm stage history, mapping and gain through a stage exchange."
+        }
+      ]
+    },
+    {
+      "id": "Tests/NativeStageTests/main.cpp::singleStagePreservesOthers",
+      "classification": "D",
+      "adaptation": "Eight single-stage presence/clear rows leave other real pipeline stages and effective signals unchanged.",
+      "review": "task-36",
+      "destinations": [
+        {
+          "id": "Tests/NativeStageTests/main.cpp::singleStagePreservesOthers",
+          "kind": "cpp",
+          "invocations": 8,
+          "guarantee": "Eight single-stage presence/clear rows leave other real pipeline stages and effective signals unchanged."
+        }
+      ]
+    },
+    {
+      "id": "Tests/NativeStageTests/main.cpp::mergePendingTwoAndNewThree",
+      "classification": "D",
+      "adaptation": "The newer pending packet wins selected stages, including explicit null; older unselected owners and effective pipeline signals are preserved.",
+      "review": "task-36",
+      "destinations": [
+        {
+          "id": "Tests/NativeStageTests/main.cpp::mergePendingTwoAndNewThree",
+          "kind": "cpp",
+          "invocations": 1,
+          "guarantee": "The newer pending packet wins selected stages, including explicit null; older unselected owners and effective pipeline signals are preserved."
+        }
+      ]
+    },
+    {
+      "id": "Tests/NativeStageTests/main.cpp::exhaustiveUnconsumedMerge",
+      "classification": "D",
+      "adaptation": "All81x81 pairs of four ternary unconsumed stage states preserve the newer-wins mask/owner domain under exclusive/same-generation caller preconditions; not arbitrary scheduling proof.",
+      "review": "task-36",
+      "destinations": [
+        {
+          "id": "Tests/NativeStageTests/main.cpp::exhaustiveUnconsumedMerge",
+          "kind": "cpp",
+          "invocations": 6561,
+          "guarantee": "All81x81 pairs of four ternary unconsumed stage states preserve the newer-wins mask/owner domain under exclusive/same-generation caller preconditions; not arbitrary scheduling proof."
+        }
+      ]
+    },
+    {
+      "id": "Tests/NativeHALContractTests/main.cpp::latestCommitState",
+      "classification": "D",
+      "adaptation": "Two actual C-route full/hot revision scenarios consume the latest accepted state rather than rolling back to an older commit.",
+      "review": "task-40",
+      "destinations": [
+        {
+          "id": "Tests/NativeHALContractTests/main.cpp::latestCommitState",
+          "kind": "cpp",
+          "invocations": 2,
+          "guarantee": "Two actual C-route full/hot revision scenarios consume the latest accepted state rather than rolling back to an older commit."
+        }
+      ]
+    },
+    {
+      "id": "Tests/NativeHALContractTests/main.cpp::acquisitionGuards",
+      "classification": "D",
+      "adaptation": "Three actual C-route acquisition guard scenarios reject unsupported requests before a successful graph can be reported; injected external HAL only.",
+      "review": "task-40",
+      "destinations": [
+        {
+          "id": "Tests/NativeHALContractTests/main.cpp::acquisitionGuards",
+          "kind": "cpp",
+          "invocations": 3,
+          "guarantee": "Three actual C-route acquisition guard scenarios reject unsupported requests before a successful graph can be reported; injected external HAL only."
+        }
+      ]
+    },
+    {
+      "id": "Tests/NativeHALContractTests/main.cpp::capabilityAndCertificate",
+      "classification": "D",
+      "adaptation": "Eleven actual route capability/certificate scenarios reject invalid or stale observed bindings and expose the corresponding public result/silence policy.",
+      "review": "task-40",
+      "destinations": [
+        {
+          "id": "Tests/NativeHALContractTests/main.cpp::capabilityAndCertificate",
+          "kind": "cpp",
+          "invocations": 11,
+          "guarantee": "Eleven actual route capability/certificate scenarios reject invalid or stale observed bindings and expose the corresponding public result/silence policy."
+        }
+      ]
+    },
+    {
+      "id": "Tests/NativeHALContractTests/main.cpp::partialAcquisition",
+      "classification": "D",
+      "adaptation": "Nine injected acquisition-failure points exercise actual partial-resource cleanup without reporting a usable prepared route.",
+      "review": "task-40",
+      "destinations": [
+        {
+          "id": "Tests/NativeHALContractTests/main.cpp::partialAcquisition",
+          "kind": "cpp",
+          "invocations": 9,
+          "guarantee": "Nine injected acquisition-failure points exercise actual partial-resource cleanup without reporting a usable prepared route."
+        }
+      ]
+    },
+    {
+      "id": "Tests/NativeHALContractTests/main.cpp::boundedCleanupDebt",
+      "classification": "D",
+      "adaptation": "Three actual cleanup-debt scenarios retain unresolved resources and respect the explicit bounded owner policy; not every SDK teardown fault combination.",
+      "review": "task-40",
+      "destinations": [
+        {
+          "id": "Tests/NativeHALContractTests/main.cpp::boundedCleanupDebt",
+          "kind": "cpp",
+          "invocations": 3,
+          "guarantee": "Three actual cleanup-debt scenarios retain unresolved resources and respect the explicit bounded owner policy; not every SDK teardown fault combination."
+        }
+      ]
+    },
+    {
+      "id": "Tests/NativeHALContractTests/main.cpp::savedTargetsAndPermit",
+      "classification": "D",
+      "adaptation": "Three actual C-request target/capture-intent scenarios preserve requested UID meaning and reject invalid permission intent; not a real TCC or settings-store test.",
+      "review": "task-40",
+      "destinations": [
+        {
+          "id": "Tests/NativeHALContractTests/main.cpp::savedTargetsAndPermit",
+          "kind": "cpp",
+          "invocations": 3,
+          "guarantee": "Three actual C-request target/capture-intent scenarios preserve requested UID meaning and reject invalid permission intent; not a real TCC or settings-store test."
+        }
+      ]
+    },
+    {
+      "id": "Tests/NativeHALContractTests/main.cpp::callbackSilenceAndInput",
+      "classification": "D",
+      "adaptation": "Three actual production-callback scenarios check borrowed input immutability and known-extent output/silence behavior through the external fixture.",
+      "review": "task-40",
+      "destinations": [
+        {
+          "id": "Tests/NativeHALContractTests/main.cpp::callbackSilenceAndInput",
+          "kind": "cpp",
+          "invocations": 3,
+          "guarantee": "Three actual production-callback scenarios check borrowed input immutability and known-extent output/silence behavior through the external fixture."
+        }
+      ]
+    },
+    {
+      "id": "Tests/NativeHALContractTests/main.cpp::lateCloseAndReuse",
+      "classification": "D",
+      "adaptation": "Ten actual callback close/reuse scenarios exercise stale callback admission and real context ownership through stored production callback pointers.",
+      "review": "task-40",
+      "destinations": [
+        {
+          "id": "Tests/NativeHALContractTests/main.cpp::lateCloseAndReuse",
+          "kind": "cpp",
+          "invocations": 10,
+          "guarantee": "Ten actual callback close/reuse scenarios exercise stale callback admission and real context ownership through stored production callback pointers."
+        }
+      ]
+    },
+    {
+      "id": "Tests/NativeHALContractTests/main.cpp::copiedConfiguration",
+      "classification": "D",
+      "adaptation": "Borrowed process/UID/filter lifetime scenario checks effective real callback signals; commit supplies a safe full state, so no isolated prepare-time DSP-buffer deep-copy proof is claimed.",
+      "review": "task-40",
+      "destinations": [
+        {
+          "id": "Tests/NativeHALContractTests/main.cpp::copiedConfiguration",
+          "kind": "cpp",
+          "invocations": 1,
+          "guarantee": "Borrowed process/UID/filter lifetime scenario checks effective real callback signals; commit supplies a safe full state, so no isolated prepare-time DSP-buffer deep-copy proof is claimed."
+        }
+      ]
+    },
+    {
+      "id": "Tests/NativeHALContractTests/main.cpp::coalescedCoverage",
+      "classification": "D",
+      "adaptation": "Three actual caller scenarios cover full2/hot3, merged EQ2/LC3 and zero-mask inheritance; not a universal mailbox liveness claim.",
+      "review": "task-40",
+      "destinations": [
+        {
+          "id": "Tests/NativeHALContractTests/main.cpp::coalescedCoverage",
+          "kind": "cpp",
+          "invocations": 3,
+          "guarantee": "Three actual caller scenarios cover full2/hot3, merged EQ2/LC3 and zero-mask inheritance; not a universal mailbox liveness claim."
+        }
+      ]
     }
   ],
   "fixtures": [
@@ -18918,6 +19140,34 @@
       "derived_from": [],
       "license": "MIT",
       "review": "integration-tests"
+    },
+    {
+      "destination": "Tests/NativeStageTests/main.cpp",
+      "sha256": "7da1f21102bf0174194acdf925b87565326dee81b249937240378392e09c6b0f",
+      "derived_from": [],
+      "license": "MIT",
+      "review": "task-36"
+    },
+    {
+      "destination": "Tests/NativeHALContractTests/main.cpp",
+      "sha256": "cd774ef71a40553c27259000608b8a62da9fa59d186cdaf0418bf1deb7cc7747",
+      "derived_from": [],
+      "license": "MIT",
+      "review": "task-40"
+    },
+    {
+      "destination": "Tests/NativeHALContractTests/FakeHAL.hpp",
+      "sha256": "f4778e376bba782c27480993539949cbf5b8f319b0d5308155707960f39d5aab",
+      "derived_from": [],
+      "license": "MIT",
+      "review": "task-40"
+    },
+    {
+      "destination": "Tests/NativeHALContractTests/AllocationWatch.hpp",
+      "sha256": "630d1aa3927e4a9a70e7ef14a444b125602f673dfd6df2bf708556ce9d53986c",
+      "derived_from": [],
+      "license": "MIT",
+      "review": "task-40"
     }
   ]
 }
