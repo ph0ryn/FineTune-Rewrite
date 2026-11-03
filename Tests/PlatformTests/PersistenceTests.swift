@@ -177,6 +177,30 @@ struct PersistenceTests {
     #expect(manager.lastSaveError == nil)
   }
 
+  @Test("Failed invalid-file backup blocks both explicit and debounced replacement writes")
+  func failedBackupPreservesOriginalFile() async throws {
+    let directory = try temporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let file = directory.appendingPathComponent("settings.json")
+    let original = Data("{not-json".utf8)
+    try original.write(to: file)
+    // A directory at the backup destination makes atomic backup fail while the
+    // original file remains writable: this is not just a read-only volume test.
+    try FileManager.default.createDirectory(
+      at: directory.appendingPathComponent("settings.backup.json"),
+      withIntermediateDirectories: true)
+    let manager = SettingsManager(directory: directory, launchAtLoginService: LoginSpy())
+    #expect(manager.lastLoadError != nil)
+    manager.setVolume(for: "app", to: 0.5)
+    manager.flushSync()
+    #expect(try Data(contentsOf: file) == original)
+    #expect(manager.lastSaveError != nil)
+    manager.setVolume(for: "app", to: 0.7)
+    try await Task.sleep(for: .milliseconds(750))
+    #expect(try Data(contentsOf: file) == original)
+    #expect(manager.lastSaveError != nil)
+  }
+
   @Test("Missing-file initialization does not create files or call the login service")
   func missingFileHasNoSideEffects() throws {
     let directory = try temporaryDirectory()

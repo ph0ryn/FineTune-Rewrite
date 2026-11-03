@@ -13,20 +13,18 @@ public final class SettingsManager {
   @ObservationIgnored private let fileStore: SettingsFileStore
   @ObservationIgnored private let launchAtLoginService: any LaunchAtLoginService
   @ObservationIgnored private var saveTask: Task<Void, Never>?
+  @ObservationIgnored private var writeBlockedAfterLoadFailure = false
 
   public private(set) var lastLoadError: String?
   public private(set) var lastSaveError: String?
   public private(set) var lastLaunchAtLoginError: String?
 
-  /// Supplying a directory isolates the entire storage boundary. Loading does not register login.
+  /// The composition root must choose a directory explicitly; this library never
+  /// implicitly opens the original app's settings. Loading does not register login.
   public init(
-    directory: URL? = nil,
+    directory: URL,
     launchAtLoginService: any LaunchAtLoginService = SystemLaunchAtLoginService()
   ) {
-    let directory =
-      directory
-      ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-      .appendingPathComponent("FineTune")
     fileStore = SettingsFileStore(directory: directory)
     self.launchAtLoginService = launchAtLoginService
     do {
@@ -37,6 +35,7 @@ public final class SettingsManager {
         try fileStore.backupInvalidFile()
       } catch {
         lastLoadError = "\(lastLoadError ?? "Load failed"); backup failed: \(error)"
+        writeBlockedAfterLoadFailure = true
       }
     }
   }
@@ -60,6 +59,11 @@ public final class SettingsManager {
   public func flushSync() {
     saveTask?.cancel()
     saveTask = nil
+    guard !writeBlockedAfterLoadFailure else {
+      lastSaveError =
+        "Settings write blocked because the unreadable file could not be backed up. Resolve the load error and reinitialize the store."
+      return
+    }
     do {
       try fileStore.write(settings)
       lastSaveError = nil
