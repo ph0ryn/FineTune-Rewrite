@@ -43,12 +43,18 @@ let package = Package(
       ],
       path: "App"
     ),
+    .executableTarget(
+      name: "DSPTests",
+      dependencies: ["AudioDSP", "NativeAudio"],
+      path: "Tools/DSPTests",
+      sources: ["main.cpp", "LoudnessCompatibilityTests.cpp"]
+    ),
     .testTarget(
       name: "UpstreamCompatibilityTests",
       dependencies: [
         "FineTune", .product(name: "KeyboardShortcuts", package: "KeyboardShortcuts"),
       ],
-      exclude: ["COPYING", "README.md"],
+      exclude: ["COPYING", "README.md", "migrationManifest.json"],
       resources: [.copy("Fixtures")],
       // Match the fixed upstream Xcode test target without changing test bodies.
       swiftSettings: [.unsafeFlags(["-default-isolation", "MainActor"])]

@@ -3,15 +3,18 @@
 ## Scope and provenance
 
 The comparison revision is `ronitsingh10/FineTune@2285279d36d3f8115c1c2d4aecd904f1bdf96a51`.
-The original GPLv3 test sources remain unchanged in the pinned checkout. The four derived
-Swift test files retain their upstream header comments and GPLv3 provenance. Production
-C++/C/Swift code and the independent C++ boundary scenarios are newly authored; no upstream
-production implementation was copied.
+The original GPLv3 test sources remain unchanged in the pinned checkout. The seven derived
+Swift files and the translated [pure C++ numerical units](<LoudnessCompatibilityTests.cpp>)
+retain GPLv3 provenance. Production C++/C/Swift code and the independent C++ boundary
+scenarios/runner are newly authored MIT work; no upstream production implementation was
+copied. Linking these units produces a mixed-origin test executable, not an all-MIT set of
+independent tests. The [small test metadata header](<DSPTestUnits.hpp>) adds no product API.
 
 The inventory owner records the original file/body/assertion hashes in
 [the census](<../../.indexion/cache/upstreamTestInventory.json>). This scope contains
-97 upstream declarations / 138 statically expanded invocations before the explicit
-nonportable substitutions below. That count is not an execution result.
+97 Biquad source declarations / 138 statically expanded invocations before the explicit
+nonportable substitutions below; the additional dynamics scope is described later.
+Those original-source counts are not execution results.
 
 ## Standard derivation
 
@@ -94,26 +97,34 @@ upstream NaN/Infinity expectations in the dynamics scope.
 - Mutation check: a scratch-only source variant replaced per-channel filter delays
   with shared channel-0 delays. The unchanged boundary executable failed (exit 1),
   detecting one-sided-channel corruption and planar history sharing.
-- Production C++/Native/Platform/App and the DSPTests executable compile/link through
-  the central integration gate. Its [numeric debug JSON](<../../.indexion/cache/integrationBuild/numeric-debug.jsonl>)
-  was independently grouped by the seven DSP source files: all 152 function declarations
-  ended, including 242 expanded invocations, with zero recorded issues. This means
-  149 portable-original declarations plus three explicit C-to-D substitutions, not
-  152 unchanged-upstream passes. It is a scoped debug unit result, not a full-root,
-  release or hardware-validation claim.
+- The pre-refactor central gate compiled/linked C++/Native/Platform/App and DSPTests.
+  Its [baseline numeric JSON](<../../.indexion/cache/integrationBuild/numeric-debug.jsonl>)
+  was independently grouped by seven DSP files: 152 declarations / 242 invocations,
+  issue0. The reviewed DSP source checkpoint is `ff7800b755e96e9862e84b19562e67ee13c336bc`.
+  This means 149 portable-original declarations plus three explicit C-to-D substitutions,
+  not 152 unchanged-upstream passes. It is baseline evidence, not execution proof for
+  the later C++ unit migration, a full-root/release result or hardware validation.
 - Hardware audio, concurrent handoff and long-duration performance are not validated
   by these deterministic tests.
 
 ## Dynamics scope
 
 The additional three upstream files contain 55 declarations / 104 statically expanded
-invocations. [LoudnessEqualizerTests](<../../Tests/UpstreamCompatibilityTests/LoudnessEqualizerTests.swift>),
-[ISO226ContoursTests](<../../Tests/UpstreamCompatibilityTests/ISO226ContoursTests.swift>) and
-[SoftLimiterAdversarialTests](<../../Tests/UpstreamCompatibilityTests/SoftLimiterAdversarialTests.swift>)
-are byte-identical copies, with no input, expectation, parameter-vector or tolerance edits.
-Together with the Biquad scope this accounts for 152 original declarations / 242 static
-invocations: 149 portable original declarations plus the three explicitly classified
-processor-internal substitutions, not an unqualified claim of 152 unchanged originals.
+invocations. [ISO226ContoursTests](<../../Tests/UpstreamCompatibilityTests/ISO226ContoursTests.swift>)
+and [SoftLimiterAdversarialTests](<../../Tests/UpstreamCompatibilityTests/SoftLimiterAdversarialTests.swift>)
+remain byte-identical. [The equalizer Swift file](<../../Tests/UpstreamCompatibilityTests/LoudnessEqualizerTests.swift>)
+now retains settings defaults and three outer units; eleven pure numerical source scenarios
+run as fifteen named [C++ rows](<LoudnessCompatibilityTests.cpp>) against the same real kernels.
+Inputs, expectations, parameter vectors and tolerances are retained; no legacy helper API
+or alternate numerical implementation is used. Full-file identity is no longer claimed
+for the adapted equalizer file. [The exact mapping](<adaptations.json>) records each source
+ID, destination row, input and tolerance.
+
+With Biquad, the original census still covers 152 declarations / 242 static invocations:
+149 portable source guarantees plus three explicitly classified substitutions. The current
+static destination layout is 141 Swift declarations / 227 invocations plus eleven source
+scenarios / fifteen C++ rows, not 152 unchanged Swift tests. Fresh runtime evidence is
+checked per language rather than adding incompatible declaration and row counts.
 
 The scalar limiter is independently derived as the odd-symmetric rational continuation
 `threshold + headroom * overshoot / (overshoot + headroom)`. It joins the identity with
@@ -155,3 +166,61 @@ and equalizer symbols before their implementation. The full standalone Biquad +
 Dynamics executable subsequently passed with exceptions/RTTI disabled and under
 ASan+UBSan, with no reports. Both public headers also pass strict C11 syntax checking;
 owned C++ and production Swift files pass their target format/lint checks.
+
+## Direct numerical unit migration and named reporting
+
+Task-31 removes only product-unused numerical helper surfaces: 17 C functions, three
+opaque helper types and five Swift helper types. All twenty retained C ABI signatures,
+outer equalizer/compensator Swift APIs, Pipeline code, native DSP algorithms/headers and
+ISO data remain unchanged relative to the reviewed checkpoint. Four retained Swift unit
+bodies are byte-identical; their new runtime execution is a separate integration gate.
+No new product abstraction or test framework was introduced. The shared waveform/RMS
+helper serves both response bounds and monotonicity without duplicating signal generation.
+
+The [runner](<main.cpp>) accepts `DSPTests --report path.json`. Schema1 contains
+`complete` and named `cases` with stable `id`, `status` and `invocations:1`. A fresh
+`complete:false` report is written before execution; `complete:true` appears only after
+all units finish. Failed rows include the first actual/expected measurement, with explicit
+NaN/Infinity strings and null for unknown legacy boolean measurements. Case failure,
+unknown/missing CLI arguments or report I/O failure all return nonzero. Auditing requires
+fresh source-matched output plus process exit, not a leftover JSON file alone.
+
+Migration evidence, distinct from the baseline snapshot:
+
+- Red: the old runner's numeric scenarios passed but it produced no required named report
+  for `--report`; [the assertion failed as intended](<.build/task31-red.log>).
+- Green: C++20/macOS15.4, exceptions/RTTI disabled, full Native/Pipeline linkage and
+  ASan+UBSan passed all fifteen derived rows and eight independent groups with no reports.
+  [The 23-row JSON](<.build/task31-green.json>) was checked for exact IDs, unique rows,
+  completion, passed status and invocation1. [The run log](<.build/task31-green.log>) retains
+  human names. No-argument execution also passed; unknown flag, missing report path and
+  a directory used as report target each returned exit1 without fallback.
+- Sensitivity: an in-memory kernel copy neutralized only K-weighting's +4dB pre-emphasis.
+  The unchanged suite detected four failed rows (2/4/10kHz response and monotonic boost),
+  emitted [a completed failing report with measurements](<.build/task31-mutation.json>)
+  and [exited1](<.build/task31-mutation.log>). Production source was not mutated.
+- Scoped unwrap dry-run found no candidates before/after. The post-edit 90% duplicate
+  scan of the two test translation units found zero similar pairs/function duplicates.
+  These diagnostics supplement consumer review; legitimate FFI/platform adapters remain.
+
+Central product-scope [Debug](<../../.indexion/cache/integrationBuild/test-dsp-results-debug.json>)
+and [Release](<../../.indexion/cache/integrationBuild/test-dsp-results-release.json>) both
+exited0. The reviewer independently checked exact source-mapped fifteen derived plus D8,
+23 unique passed rows, invocation1 and complete schema1. This is current C++ product proof,
+not the old 152-test snapshot. [The independent supplement](<../../.indexion/cache/dsp31IndependentReview.md>)
+approves exact source mapping, unchanged outer bodies and separate fresh sanitizer/reporter
+negative controls, including NaN/Infinity/null values and stale-success overwrite on abrupt exit.
+
+The four retained Swift units also passed independently in Debug and Release against actual
+production Domain/Platform sources and freshly compiled current native C++/C ABI. The small
+[recipe](<.build/task31-retained-swift.py>), [proof with19 before/after hashes](<.build/task31-retained-swift/proof.json>),
+[Debug log](<.build/task31-retained-swift/debug/run.log>) and
+[Release log](<.build/task31-retained-swift/release/run.log>) record import-only test adaptation
+with inverse byte equality. Production source is not copied, no behavior is stubbed, and no
+App/root build is claimed. Initial missing Testing framework/plugin flags were corrected in
+the leaf recipe; their setup logs remain archived, and no test/expectation was skipped.
+
+These close task31's scoped boundary guarantee: eleven moved source scenarios/fifteen C++
+rows plus the four retained Swift scenarios. The broader Swift141/227 and final whole-root
+execution remain integration's later gates, not prerequisites for native consumer work.
+Hardware, permissions, HAL stop/concurrency and callback latency remain outside this proof.

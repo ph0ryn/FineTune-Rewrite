@@ -58,32 +58,6 @@ bool ft_loudness_compensator_is_enabled(const FTLoudnessCompensator *processor);
 int32_t ft_loudness_compensator_process(FTLoudnessCompensator *processor, const float *input,
                                         float *output, uint32_t frame_count);
 
-// Scalar math and analysis boundaries used by the production control adapter.
-float ft_loudness_db_to_linear(float db);
-float ft_loudness_linear_to_db(float linear);
-float ft_loudness_time_coefficient(float time_ms, float step_ms);
-float ft_loudness_desired_gain(const FTLoudnessSettings *settings, float level_db);
-
-typedef struct FTKWeightingFilter FTKWeightingFilter;
-FTKWeightingFilter *ft_k_weighting_create(float sample_rate);
-void ft_k_weighting_destroy(FTKWeightingFilter *filter);
-void ft_k_weighting_reset(FTKWeightingFilter *filter);
-float ft_k_weighting_process_sample(FTKWeightingFilter *filter, float sample);
-
-typedef struct FTLoudnessDetector FTLoudnessDetector;
-FTLoudnessDetector *ft_loudness_detector_create(const FTLoudnessSettings *settings,
-                                                float sample_rate);
-void ft_loudness_detector_destroy(FTLoudnessDetector *detector);
-void ft_loudness_detector_reset(FTLoudnessDetector *detector);
-bool ft_loudness_detector_ingest(FTLoudnessDetector *detector, float sample, float *level_db);
-float ft_loudness_detector_update_envelope(FTLoudnessDetector *detector, float level_db);
-
-typedef struct FTGainSmoother FTGainSmoother;
-FTGainSmoother *ft_gain_smoother_create(const FTLoudnessSettings *settings, float sample_rate);
-void ft_gain_smoother_destroy(FTGainSmoother *smoother);
-void ft_gain_smoother_reset(FTGainSmoother *smoother, float initial_gain_db);
-float ft_gain_smoother_process(FTGainSmoother *smoother, float target_gain_db);
-
 // Non-RT ISO 226:2023 data and approximation helpers. Reference columns:
 // 0=frequency, 1=alpha_f, 2=L_U, 3=T_f; output holds 29 doubles.
 int32_t ft_iso226_reference_data(uint32_t column, double *output);

@@ -1,5 +1,8 @@
+// SPDX-License-Identifier: MIT
+// Independent boundary units and runner. Derived GPL units are in a separate translation unit.
 #include "AudioDSP/AudioDSP.hpp"
 #include "AudioDSP/Dynamics.hpp"
+#include "DSPTestUnits.hpp"
 #include "NativeAudioBiquad.h"
 
 #include <algorithm>
@@ -7,6 +10,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <limits>
 #include <new>
 #include <numbers>
@@ -17,13 +21,108 @@ namespace {
 bool watchAllocations = false;
 std::size_t allocationCount = 0;
 int failures = 0;
-void expect(bool value, const char *message) {
-    if (!value) {
-        std::fprintf(stderr, "FAIL: %s\n", message);
-        ++failures;
+const char *activeID = "setup";
+const char *firstFailure = nullptr;
+bool firstHasMeasurements = false;
+double firstActual = 0, firstExpected = 0;
+
+void recordFailure(const char *message, bool measured, double actual, double expected) {
+    std::fprintf(stderr, "FAIL %s: %s", activeID, message);
+    if (measured) {
+        std::fprintf(stderr, " [actual=%.17g, expected/bound=%.17g]", actual, expected);
+    }
+    std::fputc('\n', stderr);
+    ++failures;
+    if (!firstFailure) {
+        firstFailure = message;
+        firstHasMeasurements = measured;
+        firstActual = actual;
+        firstExpected = expected;
     }
 }
+void expect(bool value, const char *message) {
+    if (!value) {
+        recordFailure(message, false, 0, 0);
+    }
+}
+
+struct UnitResult {
+    const char *id;
+    bool passed;
+    const char *failure;
+    bool measured;
+    double actual;
+    double expected;
+};
+
+void jsonString(std::FILE *file, const char *value) {
+    std::fputc('"', file);
+    for (const auto *p = reinterpret_cast<const unsigned char *>(value); *p; ++p) {
+        if (*p == '"' || *p == '\\') {
+            std::fputc('\\', file);
+            std::fputc(*p, file);
+        } else if (*p < 0x20) {
+            std::fprintf(file, "\\u%04x", static_cast<unsigned>(*p));
+        } else {
+            std::fputc(*p, file);
+        }
+    }
+    std::fputc('"', file);
+}
+void jsonMeasurement(std::FILE *file, bool known, double value) {
+    if (!known) {
+        std::fputs("null", file);
+    } else if (std::isfinite(value)) {
+        std::fprintf(file, "%.17g", value);
+    } else {
+        jsonString(file, std::isnan(value) ? "NaN" : value < 0 ? "-Infinity" : "Infinity");
+    }
+}
+bool writeReport(const char *path, std::span<const UnitResult> results, bool complete) {
+    auto *file = std::fopen(path, "w");
+    if (!file) {
+        std::perror("Unable to open DSP report");
+        return false;
+    }
+    std::fprintf(file, "{\"schema_version\":1,\"complete\":%s,\"cases\":[",
+                 complete ? "true" : "false");
+    bool first = true;
+    for (const auto &result : results) {
+        if (!first) {
+            std::fputc(',', file);
+        }
+        first = false;
+        std::fputs("{\"id\":", file);
+        jsonString(file, result.id);
+        std::fprintf(file, ",\"status\":\"%s\",\"invocations\":1",
+                     result.passed ? "passed" : "failed");
+        if (!result.passed) {
+            std::fputs(",\"failure\":{\"message\":", file);
+            jsonString(file, result.failure);
+            std::fputs(",\"actual\":", file);
+            jsonMeasurement(file, result.measured, result.actual);
+            std::fputs(",\"expected\":", file);
+            jsonMeasurement(file, result.measured, result.expected);
+            std::fputc('}', file);
+        }
+        std::fputc('}', file);
+    }
+    std::fputs("]}\n", file);
+    const bool good = !std::ferror(file);
+    const int closeStatus = std::fclose(file);
+    if (!good || closeStatus != 0) {
+        std::fputs("Unable to finish DSP report\n", stderr);
+        return false;
+    }
+    return true;
+}
 } // namespace
+
+void finetune::test::check(bool condition, const char *property, double actual, double expected) {
+    if (!condition) {
+        recordFailure(property, true, actual, expected);
+    }
+}
 
 void *operator new(std::size_t count) {
     if (watchAllocations) {
@@ -322,16 +421,54 @@ void dynamicsNumericalBoundaries() {
 }
 } // namespace
 
-int main() {
-    mathBoundaries();
-    firstFrameAndTail();
-    partitionAndPathIsolation();
-    validationAndRecovery();
-    cBoundaryAndRealtime();
-    copiedConfigurationOwnsFreshHistory();
-    planarChannelsAndInvalidViews();
-    dynamicsNumericalBoundaries();
-    std::printf("DSP boundary scenarios: %s (%d failures)\n", failures == 0 ? "PASS" : "FAIL",
-                failures);
+int main(int argc, char **argv) {
+    const char *reportPath = nullptr;
+    if (argc != 1) {
+        if (argc != 3 || std::strcmp(argv[1], "--report") != 0) {
+            std::fputs("Usage: DSPTests [--report path.json]\n", stderr);
+            return EXIT_FAILURE;
+        }
+        reportPath = argv[2];
+        if (!writeReport(reportPath, {}, false)) {
+            return EXIT_FAILURE;
+        }
+    }
+    using finetune::test::NamedUnit;
+    const auto compatibility = finetune::test::loudnessCompatibilityUnits();
+    const NamedUnit independent[]{
+        {"Tools/DSPTests/main.cpp::mathBoundaries", mathBoundaries},
+        {"Tools/DSPTests/main.cpp::firstFrameAndTail", firstFrameAndTail},
+        {"Tools/DSPTests/main.cpp::partitionAndPathIsolation", partitionAndPathIsolation},
+        {"Tools/DSPTests/main.cpp::validationAndRecovery", validationAndRecovery},
+        {"Tools/DSPTests/main.cpp::cBoundaryAndRealtime", cBoundaryAndRealtime},
+        {"Tools/DSPTests/main.cpp::copiedConfigurationOwnsFreshHistory",
+         copiedConfigurationOwnsFreshHistory},
+        {"Tools/DSPTests/main.cpp::planarChannelsAndInvalidViews", planarChannelsAndInvalidViews},
+        {"Tools/DSPTests/main.cpp::dynamicsNumericalBoundaries", dynamicsNumericalBoundaries},
+    };
+    std::vector<UnitResult> results;
+    results.reserve(std::size(independent) + compatibility.size());
+    const auto run = [&](NamedUnit unit) {
+        activeID = unit.id;
+        firstFailure = nullptr;
+        firstHasMeasurements = false;
+        const int before = failures;
+        unit.run();
+        const bool passed = failures == before;
+        results.push_back(
+            {unit.id, passed, firstFailure, firstHasMeasurements, firstActual, firstExpected});
+        std::printf("%s %s\n", passed ? "PASS" : "FAIL", unit.id);
+    };
+    for (const auto &unit : independent) {
+        run(unit);
+    }
+    for (const auto &unit : compatibility) {
+        run(unit);
+    }
+    if (reportPath && !writeReport(reportPath, results, true)) {
+        return EXIT_FAILURE;
+    }
+    std::printf("DSP boundary scenarios: %s (%d failures, %zu named cases)\n",
+                failures == 0 ? "PASS" : "FAIL", failures, results.size());
     return failures == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }

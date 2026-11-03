@@ -3,7 +3,7 @@
   "source_revision": "2285279d36d3f8115c1c2d4aecd904f1bdf96a51",
   "classification_meanings": {
     "A": "Portable upstream numerical tests copied byte-identically",
-    "B": "Portable signal guarantees retained with coefficient-copy helper adaptation",
+    "B": "Portable upstream guarantees retained with coefficient-copy boundary or direct real-kernel C++ unit adaptation",
     "C": "Upstream detection-position/private-state limitation not portable to the new processor contract",
     "D": "New or replacement offline unit/boundary coverage, not an unchanged-upstream pass"
   },
@@ -13,12 +13,11 @@
     "statically_expanded_invocations": 242,
     "portable_upstream_declarations": 149,
     "explicit_nonportable_substitutions": 3,
-    "runtime_evidence": "Central integration JSON/XML is authoritative; local compile/sanitizer evidence is separate"
+    "runtime_evidence": "Pre-refactor central 152/242 is baseline only; current Swift events plus fresh C++ named report are audited separately"
   },
   "A_files": [
     "Tests/UpstreamCompatibilityTests/BiquadMathTests.swift",
     "Tests/UpstreamCompatibilityTests/BiquadMathAdversarialTests.swift",
-    "Tests/UpstreamCompatibilityTests/LoudnessEqualizerTests.swift",
     "Tests/UpstreamCompatibilityTests/ISO226ContoursTests.swift",
     "Tests/UpstreamCompatibilityTests/SoftLimiterAdversarialTests.swift"
   ],
@@ -32,6 +31,11 @@
       "source": "FineTuneTests/BiquadProcessorSignalAdversarialTests.swift",
       "destination": "Tests/UpstreamCompatibilityTests/BiquadProcessorSignalAdversarialTests.swift",
       "adaptation": "Three setup helpers use coefficient-copy; all remaining original methods retain assertions except individually classified C methods below; NativeAudio import names explicit C status codes"
+    },
+    {
+      "source": "FineTuneTests/LoudnessEqualizerTests.swift",
+      "destination": "Tests/UpstreamCompatibilityTests/LoudnessEqualizerTests.swift",
+      "adaptation": "Retain settingsDefaults and three outer equalizer Swift units; move eleven pure numerical scenarios to fifteen named C++ cases in the GPL-derived translation unit, preserving vectors and tolerances"
     }
   ],
   "C_to_D": [
@@ -83,10 +87,282 @@
       "Offline mutation replacing per-channel delays with shared channel-0 state is detected"
     ]
   },
-  "approval": "Lead explicitly approved coefficient-boundary helper adaptation, the three C-to-D substitutions, finite detection inside the ordinary loop, and frozen history during disabled bypass on 2026-11-04 JST",
+  "approval": "Lead explicitly approved coefficient-boundary helper adaptation, the three C-to-D substitutions, finite detection inside the ordinary loop, and frozen history during disabled bypass on 2026-11-04 JST; task31 limited language-boundary reduction approved after independent reviews and baseline commit, preserving outer production C/Swift boundaries and all DSP algorithms",
   "limitations": [
     "No hardware audio, OS permission, concurrent handoff or long-duration performance verification",
     "ISO official edition/range checked; paid standard full-table independent verification not claimed",
     "Passing unit tests is not a claim that upstream issues or product-wide compatibility are solved"
-  ]
+  ],
+  "pre_refactor_baseline": {
+    "commit": "ff7800b755e96e9862e84b19562e67ee13c336bc",
+    "swift_declarations": 152,
+    "swift_expanded_invocations": 242,
+    "portable_source_declarations": 149,
+    "explicit_C_to_D": 3
+  },
+  "current_destination_layout": {
+    "swift_declarations": 141,
+    "swift_expanded_invocations": 227,
+    "cpp_source_scenarios": 11,
+    "cpp_expanded_invocations": 15,
+    "independent_cpp_groups": 8,
+    "runtime_status": "Fresh source-matched execution required; these static counts are not runtime proof"
+  },
+  "B_cpp_units": [
+    {
+      "source_id": "FineTuneTests/LoudnessEqualizerTests.swift::LoudnessEqualizerTests.dbLinearRoundTrip",
+      "classification": "B",
+      "destination_kind": "cpp",
+      "cpp_case_ids": [
+        "Tools/DSPTests/LoudnessCompatibilityTests.cpp::dbLinearRoundTrip"
+      ],
+      "inputs": {
+        "db": [
+          -60,
+          -20,
+          -6,
+          0,
+          6,
+          20
+        ],
+        "linear_zero": 0
+      },
+      "property_and_tolerance": "dB round trip <0.001, unity error <0.0001, linear-zero dB <-100",
+      "review_status": "approved by native-engineer; .indexion/cache/dsp31IndependentReview.md"
+    },
+    {
+      "source_id": "FineTuneTests/LoudnessEqualizerTests.swift::LoudnessEqualizerTests.smoothingCoefficientOrder",
+      "classification": "B",
+      "destination_kind": "cpp",
+      "cpp_case_ids": [
+        "Tools/DSPTests/LoudnessCompatibilityTests.cpp::smoothingCoefficientOrder"
+      ],
+      "inputs": {
+        "time_ms": [
+          10,
+          100
+        ],
+        "step_ms": 1
+      },
+      "property_and_tolerance": "fast >slow; both coefficients strictly in (0,1)",
+      "review_status": "approved by native-engineer; .indexion/cache/dsp31IndependentReview.md"
+    },
+    {
+      "source_id": "FineTuneTests/LoudnessEqualizerTests.swift::LoudnessEqualizerTests.kWeightingResetDeterminism",
+      "classification": "B",
+      "destination_kind": "cpp",
+      "cpp_case_ids": [
+        "Tools/DSPTests/LoudnessCompatibilityTests.cpp::kWeightingResetDeterminism"
+      ],
+      "inputs": {
+        "sample_rate": 48000,
+        "impulse": 1,
+        "trailing_zero_samples": 99
+      },
+      "property_and_tolerance": "reset first sample exactly equals original first sample",
+      "review_status": "approved by native-engineer; .indexion/cache/dsp31IndependentReview.md"
+    },
+    {
+      "source_id": "FineTuneTests/LoudnessEqualizerTests.swift::LoudnessEqualizerTests.kWeightingFrequencyResponse",
+      "classification": "B",
+      "destination_kind": "cpp",
+      "cpp_case_ids": [
+        "Tools/DSPTests/LoudnessCompatibilityTests.cpp::kWeightingFrequencyResponse.100Hz",
+        "Tools/DSPTests/LoudnessCompatibilityTests.cpp::kWeightingFrequencyResponse.1000Hz",
+        "Tools/DSPTests/LoudnessCompatibilityTests.cpp::kWeightingFrequencyResponse.2000Hz",
+        "Tools/DSPTests/LoudnessCompatibilityTests.cpp::kWeightingFrequencyResponse.4000Hz",
+        "Tools/DSPTests/LoudnessCompatibilityTests.cpp::kWeightingFrequencyResponse.10000Hz"
+      ],
+      "inputs": {
+        "sample_rate": 48000,
+        "frames": 8192,
+        "skip": 2048,
+        "amplitude": 0.5,
+        "frequency_and_closed_dB_bounds": [
+          [
+            100,
+            -1,
+            1
+          ],
+          [
+            1000,
+            -1,
+            1
+          ],
+          [
+            2000,
+            0.5,
+            3.5
+          ],
+          [
+            4000,
+            2,
+            5
+          ],
+          [
+            10000,
+            2,
+            5
+          ]
+        ],
+        "signal_arithmetic": "Float32 phase/sine/square; Double accumulation"
+      },
+      "property_and_tolerance": "original closed dB bounds unchanged",
+      "review_status": "approved by native-engineer; .indexion/cache/dsp31IndependentReview.md"
+    },
+    {
+      "source_id": "FineTuneTests/LoudnessEqualizerTests.swift::LoudnessEqualizerTests.kWeightingMonotonicHFBoost",
+      "classification": "B",
+      "destination_kind": "cpp",
+      "cpp_case_ids": [
+        "Tools/DSPTests/LoudnessCompatibilityTests.cpp::kWeightingMonotonicHFBoost"
+      ],
+      "inputs": {
+        "sample_rate": 48000,
+        "frames": 8192,
+        "skip": 2048,
+        "amplitude": 0.5,
+        "frequencies": [
+          1000,
+          2000,
+          4000
+        ]
+      },
+      "property_and_tolerance": "gain4k >gain2k >gain1k",
+      "review_status": "approved by native-engineer; .indexion/cache/dsp31IndependentReview.md"
+    },
+    {
+      "source_id": "FineTuneTests/LoudnessEqualizerTests.swift::LoudnessEqualizerTests.ingestReturnsAtHopBoundaries",
+      "classification": "B",
+      "destination_kind": "cpp",
+      "cpp_case_ids": [
+        "Tools/DSPTests/LoudnessCompatibilityTests.cpp::ingestReturnsAtHopBoundaries"
+      ],
+      "inputs": {
+        "sample_rate": 48000,
+        "window_ms": 30,
+        "hop_ms": 15,
+        "amplitude": 0.5,
+        "samples": 1440,
+        "level_indices": [
+          719,
+          1439
+        ]
+      },
+      "property_and_tolerance": "exactly two levels; other1438 samples have none",
+      "review_status": "approved by native-engineer; .indexion/cache/dsp31IndependentReview.md"
+    },
+    {
+      "source_id": "FineTuneTests/LoudnessEqualizerTests.swift::LoudnessEqualizerTests.ingestConvergesToExpectedLevel",
+      "classification": "B",
+      "destination_kind": "cpp",
+      "cpp_case_ids": [
+        "Tools/DSPTests/LoudnessCompatibilityTests.cpp::ingestConvergesToExpectedLevel"
+      ],
+      "inputs": {
+        "sample_rate": 48000,
+        "window_ms": 30,
+        "hop_ms": 15,
+        "attack_ms": 10,
+        "release_ms": 10,
+        "amplitude": 0.5,
+        "samples": 18000
+      },
+      "property_and_tolerance": "abs(last -10log10(0.25)) <0.5dB",
+      "review_status": "approved by native-engineer; .indexion/cache/dsp31IndependentReview.md"
+    },
+    {
+      "source_id": "FineTuneTests/LoudnessEqualizerTests.swift::LoudnessEqualizerTests.detectorAttackFasterThanRelease",
+      "classification": "B",
+      "destination_kind": "cpp",
+      "cpp_case_ids": [
+        "Tools/DSPTests/LoudnessCompatibilityTests.cpp::detectorAttackFasterThanRelease"
+      ],
+      "inputs": {
+        "sample_rate": 48000,
+        "attack_ms": 15,
+        "release_ms": 120,
+        "sequence": "5steps toward -10; reset;20steps toward -10;5steps toward -30; original -30 reference"
+      },
+      "property_and_tolerance": "attack distance >release distance",
+      "review_status": "approved by native-engineer; .indexion/cache/dsp31IndependentReview.md"
+    },
+    {
+      "source_id": "FineTuneTests/LoudnessEqualizerTests.swift::LoudnessEqualizerTests.gainComputerClamps",
+      "classification": "B",
+      "destination_kind": "cpp",
+      "cpp_case_ids": [
+        "Tools/DSPTests/LoudnessCompatibilityTests.cpp::gainComputerClamps"
+      ],
+      "inputs": {
+        "target_db": -12,
+        "max_boost_db": 4,
+        "max_cut_db": 6,
+        "offset_db": 4,
+        "ratio": 1.5,
+        "knee_db": 6,
+        "noise_floor_db": -80,
+        "levels_db": [
+          -18,
+          -10,
+          12
+        ]
+      },
+      "property_and_tolerance": "exact +4/-6 clamps; soft knee strictly in (-1.5,0)dB",
+      "review_status": "approved by native-engineer; .indexion/cache/dsp31IndependentReview.md"
+    },
+    {
+      "source_id": "FineTuneTests/LoudnessEqualizerTests.swift::LoudnessEqualizerTests.gainComputerNoiseFloorProtection",
+      "classification": "B",
+      "destination_kind": "cpp",
+      "cpp_case_ids": [
+        "Tools/DSPTests/LoudnessCompatibilityTests.cpp::gainComputerNoiseFloorProtection"
+      ],
+      "inputs": {
+        "target_db": -20,
+        "max_boost_db": 10,
+        "noise_floor_db": -55,
+        "low_level_max_boost_db": 4,
+        "level_db": -70
+      },
+      "property_and_tolerance": "gain <=4dB",
+      "review_status": "approved by native-engineer; .indexion/cache/dsp31IndependentReview.md"
+    },
+    {
+      "source_id": "FineTuneTests/LoudnessEqualizerTests.swift::LoudnessEqualizerTests.gainSmootherAsymmetry",
+      "classification": "B",
+      "destination_kind": "cpp",
+      "cpp_case_ids": [
+        "Tools/DSPTests/LoudnessCompatibilityTests.cpp::gainSmootherAsymmetry"
+      ],
+      "inputs": {
+        "sample_rate": 48000,
+        "attack_ms": 30,
+        "release_ms": 700,
+        "steps_each": 10,
+        "attack": [
+          0,
+          -10
+        ],
+        "recovery": [
+          -10,
+          0
+        ]
+      },
+      "property_and_tolerance": "recovery distance <reduction distance",
+      "review_status": "approved by native-engineer; .indexion/cache/dsp31IndependentReview.md"
+    }
+  ],
+  "named_report": {
+    "schema_version": 1,
+    "cli": "DSPTests --report path.json",
+    "source_paths": [
+      "Tools/DSPTests/main.cpp",
+      "Tools/DSPTests/DSPTestUnits.hpp",
+      "Tools/DSPTests/LoudnessCompatibilityTests.cpp"
+    ],
+    "completion": "false at start; true only after every case finishes",
+    "failed_exit": "nonzero for failed cases, unknown CLI arguments or report I/O errors",
+    "failure_values": "first actual/expected measurement; explicit NaN/Infinity strings; unknown legacy boolean values are null"
+  }
 }
