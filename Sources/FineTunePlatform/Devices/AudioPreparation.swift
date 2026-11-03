@@ -26,6 +26,7 @@ public final class AutoEQProfileCache {
 
   public func profile(for id: String) -> AutoEQProfile? { profiles[id] }
   public func store(_ profile: AutoEQProfile) { profiles[profile.id] = profile }
+  public func remove(id: String) { profiles[id] = nil }
 }
 
 public enum DeviceVolumePolicy {

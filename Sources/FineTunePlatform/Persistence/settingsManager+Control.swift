@@ -1,3 +1,3 @@
 import FineTuneControl
 
-extension SettingsManager: AppAudioSettingsStore {}
+extension SettingsManager: AppAudioSettingsStore, AutoEQPreferencesReading {}

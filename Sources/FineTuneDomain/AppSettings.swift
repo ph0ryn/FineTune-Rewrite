@@ -89,6 +89,8 @@ public struct ShortcutCodable: Codable, Equatable, Hashable, Sendable {
 /// User preferences only; loading files, operating the OS and mapping UI values live elsewhere.
 public struct AppSettings: Codable, Equatable, Sendable {
   public var launchAtLogin = false
+  /// A durable user wish, never an OS permission observation or a saved native session token.
+  public var explicitUserCaptureEnabled = false
   public var menuBarIconStyle: MenuBarIconStyle = .default
   public var defaultNewAppVolume: Float = 1
   public var lockInputDevice = true
@@ -112,6 +114,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
   public init(from decoder: Decoder) throws {
     let values = try decoder.container(keyedBy: CodingKeys.self)
     launchAtLogin = try values.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? false
+    explicitUserCaptureEnabled =
+      try values.decodeIfPresent(Bool.self, forKey: .explicitUserCaptureEnabled) ?? false
     menuBarIconStyle =
       try values.decodeIfPresent(MenuBarIconStyle.self, forKey: .menuBarIconStyle) ?? .default
     defaultNewAppVolume = try values.decodeIfPresent(Float.self, forKey: .defaultNewAppVolume) ?? 1
