@@ -1,0 +1,44 @@
+name: Development checks
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: macos-26
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Verify CI toolchain
+        run: |
+          version="$(xcodebuild -version)"
+          printf '%s\n' "$version"
+          test "$version" = $'Xcode 26.6\nBuild version 17F113'
+          test "$(uname -m)" = arm64
+          sdk_version="$(xcrun --sdk macosx --show-sdk-version)"
+          printf 'macOS SDK %s\n' "$sdk_version"
+          test "$sdk_version" = 26.5
+          sdk_path="$(xcrun --sdk macosx --show-sdk-path)"
+          printf 'SDKROOT=%s\n' "$sdk_path" >> "$GITHUB_ENV"
+      - name: Install check tools
+        run: |
+          brew install just llvm@21
+          llvm_prefix="$(brew --prefix llvm@21)"
+          printf 'CLANG_FORMAT=%s/bin/clang-format\n' "$llvm_prefix" >> "$GITHUB_ENV"
+      - name: Check
+        run: |
+          just --version
+          just toolchain
+          just check
