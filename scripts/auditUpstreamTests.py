@@ -356,6 +356,11 @@ def audit_static(root, manifest, include_optional=False):
         for destination in destinations:
             identifier = destination["id"]
             kind = destination.get("kind", "swift")
+            execution = destination.get("execution", "required")
+            if execution not in ("required", "optional-hardware"):
+                errors.append(f"Unknown execution policy: {identifier}")
+            if execution == "optional-hardware" and not entry.get("optional_reason"):
+                errors.append(f"Optional hardware coverage has no explicit reason: {identifier}")
             if kind == "cpp":
                 if identifier.split("::", 1)[0] not in native_paths:
                     errors.append(f"Unlisted native destination source: {identifier}")
@@ -367,11 +372,6 @@ def audit_static(root, manifest, include_optional=False):
                 continue
             method = actual.get(identifier)
             mapped.add(identifier)
-            execution = destination.get("execution", "required")
-            if execution not in ("required", "optional-hardware"):
-                errors.append(f"Unknown execution policy: {identifier}")
-            if execution == "optional-hardware" and not entry.get("optional_reason"):
-                errors.append(f"Optional hardware coverage has no explicit reason: {identifier}")
             if execution == "required" or include_optional:
                 if identifier in expected and expected[identifier] != destination["invocations"]:
                     errors.append(f"Conflicting destination invocation count: {identifier}")
@@ -482,7 +482,7 @@ def audit_events(records, expected):
                     "runs_started": run_starts, "runs_ended": run_ends}
 
 
-def cpp_expectations(manifest):
+def cpp_expectations(manifest, include_optional=False):
     expected = {}
     for entry in manifest.get("tests", []) + manifest.get("additional_tests", []):
         for destination in entry.get("destinations", []):
@@ -491,6 +491,8 @@ def cpp_expectations(manifest):
             identifier, count = destination["id"], destination["invocations"]
             if not isinstance(count, int) or isinstance(count, bool) or count < 1:
                 raise ValueError(f"Invalid native unit invocation count: {identifier}")
+            if destination.get("execution") == "optional-hardware" and not include_optional:
+                continue
             if identifier in expected and expected[identifier] != count:
                 raise ValueError(f"Conflicting native unit invocation count: {identifier}")
             expected[identifier] = count
@@ -613,7 +615,7 @@ def main(argv=None):
         for key, value in BASELINE_TOTALS.items():
             if manifest.get("upstream", {}).get(key) != value:
                 errors.append(f"Fixed baseline {key} must remain {value}")
-        expected_cpp = cpp_expectations(manifest)
+        expected_cpp = cpp_expectations(manifest, options.include_optional_hardware)
         runtime, cpp_runtime, run_source_sha256 = None, None, None
         if options.events or options.cpp_events:
             if options.source_snapshot:

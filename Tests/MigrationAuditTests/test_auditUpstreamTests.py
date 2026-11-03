@@ -251,7 +251,7 @@ struct Sample {
         self.assertEqual(result, 1)
         self.assertFalse(events.exists())
 
-    def test_cpp_unit_replaces_swift_shape_with_reviewed_guarantee_mapping(self):
+    def make_cpp_guarantee(self):
         native_path = "Tools/DSPTests/CompatibilityTests.cpp"
         native_file = self.root / native_path
         native_file.parent.mkdir(parents=True)
@@ -268,10 +268,32 @@ struct Sample {
         entry["adaptation"] = "The same finite scalar inputs are directly checked in the C++ kernel unit."
         entry["destinations"] = [{"kind": "cpp", "id": native_path + "::values", "invocations": 1,
                                    "guarantee": "Inputs 1 and 2 remain below 10; exact scalar comparison."}]
+        return native_path + "::values"
+
+    def test_cpp_unit_replaces_swift_shape_with_reviewed_guarantee_mapping(self):
+        identifier = self.make_cpp_guarantee()
         errors, expected_swift = audit.audit_static(self.root, self.manifest)
         self.assertEqual(errors, [])
         self.assertEqual(expected_swift, {})
-        self.assertEqual(audit.cpp_expectations(self.manifest), {native_path + "::values": 1})
+        self.assertEqual(audit.cpp_expectations(self.manifest), {identifier: 1})
+
+    def test_optional_cpp_hardware_guarantees_require_explicit_inclusion_and_reason(self):
+        identifier = self.make_cpp_guarantee()
+        entry = self.manifest["tests"][0]
+        entry["optional_reason"] = "External-device fixture is only executed by a separate explicit runner."
+        entry["destinations"][0]["execution"] = "optional-hardware"
+        self.assertEqual(audit.audit_static(self.root, self.manifest)[0], [])
+        self.assertEqual(audit.cpp_expectations(self.manifest), {})
+        self.assertEqual(audit.cpp_expectations(self.manifest, include_optional=True), {identifier: 1})
+        del entry["optional_reason"]
+        self.assertTrue(audit.audit_static(self.root, self.manifest)[0])
+        entry["destinations"][0]["execution"] = "unknown-policy"
+        errors, _ = audit.audit_static(self.root, self.manifest)
+        self.assertTrue(any("Unknown execution policy" in error for error in errors))
+        entry["destinations"][0]["execution"] = "optional-hardware"
+        entry["destinations"][0]["invocations"] = 0
+        with self.assertRaises(ValueError):
+            audit.cpp_expectations(self.manifest)
 
     def test_cpp_named_runtime_rows_are_separate_from_swift_declarations(self):
         expected = {"Tools/DSPTests/CompatibilityTests.cpp::response.100Hz": 1,
