@@ -114,6 +114,12 @@
       "reviewer": "native-engineer",
       "status": "approved",
       "evidence": "Independent Native task49 limited test-callsite approval at receipt SHA74aea696985a1cef72f956b080f66a19677b2c236dd71923be319e7a4b05492c: final testcd774ef7/FakeHALf4778e37/AllocationWatch630d1aa3 matched; actual29-input/12-TU Debug/Release-DNDEBUG/ASan+UBSan each10 actualpath groups/48 invocations/1615 checks, imported stateful-symbol preflight, link map and independent failed-first-row controls verified. Final ten IDs only; historical NativeHALContract.foo reports are not relabeled. No own Native26 approval, universal cleanup/PAC/deadline/TCC/physical HAL or whole Root claim. Detailed .indexion/cache/dspStageAndHALIndependentReview.md."
+    },
+    "task-33": {
+      "author": "dsp-engineer",
+      "reviewer": "native-engineer",
+      "status": "approved",
+      "evidence": "Independent Native49 exact seven-source AutoEQ preparation/C-adapter/facade/test delta approval at receipt SHA74aea696985a1cef72f956b080f66a19677b2c236dd71923be319e7a4b05492c, not old31 or ownNative26. Current test75d2578d; separate fresh53 isolated actual native3TU leaf Debug/Release JSONL3 declarations/14 invocations/one complete run, XML3 declaration rows F/E/S0 independently audited by compatibility-scout, with19 before/after/archive/current input hashes and21 regular sealed tar members. Source/count/fingerprint derive from the actual same-type static-let literal, not hardcoded12. New namedCPP0; no wholeRoot/physicalHAL/TCC/RT deadline approval. Details .indexion/cache/dspStageAndHALIndependentReview.md and .indexion/cache/task19-autoEQ33-independent-seal.json; actual packet .indexion/cache/autoEQSwiftCurrentVerification/20261103T232900-44294935/packet.json."
     }
   },
   "license_notice": {
@@ -825,6 +831,12 @@
       ],
       "tokens_sha256": "4a94817dd501f70467d4c7552ace3e017809c0aefc04dda89fa6029ac7e22c6e",
       "review": "task-7"
+    },
+    {
+      "destination": "Tests/NativeContractTests/AutoEQPreparationTests.swift",
+      "derived_from": [],
+      "tokens_sha256": "2345cf3d06323fe8ba0012c43356894aaad71105813736e1444c93ea45db6a09",
+      "review": "task-33"
     }
   ],
   "support_files": [],
@@ -19058,6 +19070,60 @@
           "kind": "cpp",
           "invocations": 3,
           "guarantee": "Three actual caller scenarios cover full2/hot3, merged EQ2/LC3 and zero-mask inheritance; not a universal mailbox liveness claim."
+        }
+      ]
+    },
+    {
+      "id": "Tests/NativeContractTests/AutoEQPreparationTests.swift::AutoEQPreparationTests.bothConsumersMatchGolden",
+      "classification": "D",
+      "adaptation": "Twelve independent literal pre-refactor signal rows compare both the real native C ABI and production Swift facade against finite golden outputs with unchanged1e-7 tolerance.",
+      "review": "task-33",
+      "destinations": [
+        {
+          "id": "Tests/NativeContractTests/AutoEQPreparationTests.swift::AutoEQPreparationTests.bothConsumersMatchGolden",
+          "invocations": 12,
+          "fingerprints": {
+            "body": "3b2ca7760aeaa163ac8a43819d50a4550b313c39d4ba46f74d8b19b2f2c98d00",
+            "arguments": "d7fd1c7f6c7889bf2e2f7cde5048f9d54d593024ca074bb6413aad55ef9ecc5c",
+            "assertions": "d9808736962152f629abd6c3365c05a5bfcb2dce53afd93e3e03f2049569f0c8",
+            "attribute": "d799fea79007ec8179a7e5023a655c2260b468f98b62b7d71ab60949cb8935e8"
+          }
+        }
+      ]
+    },
+    {
+      "id": "Tests/NativeContractTests/AutoEQPreparationTests.swift::AutoEQPreparationTests.rateAndPreampUpdates",
+      "classification": "D",
+      "adaptation": "Production facade callback-rate/preamp/profile-removal updates rebuild from shared values and reproduce exact literal signals, then disabled input passthrough.",
+      "review": "task-33",
+      "destinations": [
+        {
+          "id": "Tests/NativeContractTests/AutoEQPreparationTests.swift::AutoEQPreparationTests.rateAndPreampUpdates",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "ab130a07333a5e963f7c2967c4d1f15d1452cf39c422a84087f7892fbc4f2c98",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "7179016941ed3ccd35f6a7fbe078a8a3a0541c31750bb0ec4a925d1eaef07930",
+            "attribute": "8ea6d8ab9d41331f166f1b0da10d3f9762fd177f5a9c5d63761f3da5ae0c0fc5"
+          }
+        }
+      ]
+    },
+    {
+      "id": "Tests/NativeContractTests/AutoEQPreparationTests.swift::AutoEQPreparationTests.invalidPreparationIsTransactional",
+      "classification": "D",
+      "adaptation": "Real C ABI invalid count/sample-rate/nonfinite-preamp inputs preserve existing coefficients, disabled state and warmed history; re-enable output matches an untouched real reference handle.",
+      "review": "task-33",
+      "destinations": [
+        {
+          "id": "Tests/NativeContractTests/AutoEQPreparationTests.swift::AutoEQPreparationTests.invalidPreparationIsTransactional",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "44bb8b4060c5a9aa04d1ead91cff5cc296564e7407d190002e7a1fec06c0bed9",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "fb1752f92a008d12116c6f1f8de75d864eff4a5eef771c3f7fad94cb7d588df6",
+            "attribute": "2082db26abb133d9c93cb5ba6fdbbf4acad93410a6b5b5f6a401d35b0344eede"
+          }
         }
       ]
     }
