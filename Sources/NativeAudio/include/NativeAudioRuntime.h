@@ -110,7 +110,7 @@ typedef enum FTNativePhase {
 typedef struct FTNativeRouteSnapshot {
     FTNativePhase phase;
     uint64_t accepted_revision; // Full processing state only; zero means not accepted.
-    uint64_t applied_revision; // Conservative full-state coverage, not fast levels alone.
+    uint64_t applied_revision;  // Conservative full-state coverage, not fast levels alone.
     uint64_t levels_revision;
     uint64_t processing_revision;
     uint64_t callback_count;
@@ -124,7 +124,8 @@ typedef struct FTNativeOutputDescription {
     uint32_t object_id;
     uint32_t input_channels;
     uint32_t output_channels;
-    double virtual_sample_rate; // Zero means not certified/available; never a nominal-rate fallback.
+    double
+        virtual_sample_rate; // Zero means not certified/available; never a nominal-rate fallback.
     bool stereo_float32_supported; // Output format only, not capture/permission certification.
 } FTNativeOutputDescription;
 
@@ -153,7 +154,8 @@ void ft_native_route_cancel(FTNativeRoute *route);
 // Mandatory NRT maintenance while active: poll to collect consumed/retired stage packets.
 // RT deliberately stops consuming a second command while the retired slot remains occupied.
 // Snapshot is not a pure getter and must run on the route's serialized NRT owner lane.
-FTNativeResult ft_native_route_snapshot(const FTNativeRoute *route, FTNativeRouteSnapshot *snapshot);
+FTNativeResult ft_native_route_snapshot(const FTNativeRoute *route,
+                                        FTNativeRouteSnapshot *snapshot);
 // NRT incremental teardown. Pending is predicate-based; no fixed-delay reclamation.
 FTNativeResult ft_native_route_retire(FTNativeRoute *route, FTNativeError *cleanup_failure);
 // Caller precondition: final caller/queued operation has stopped borrowing the handle;

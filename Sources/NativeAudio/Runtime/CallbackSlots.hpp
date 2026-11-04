@@ -23,11 +23,11 @@ struct CallbackCookie {
                    ? CallbackCookie{(generation << slotBits) | slot}
                    : CallbackCookie{};
     }
-    constexpr bool valid() const noexcept {
-        return value <= maxValue && (value >> slotBits) != 0;
-    }
+    constexpr bool valid() const noexcept { return value <= maxValue && (value >> slotBits) != 0; }
     constexpr std::size_t slot() const noexcept { return value & (slotCount - 1); }
-    void *opaque() const noexcept { return reinterpret_cast<void *>(static_cast<std::uintptr_t>(value)); }
+    void *opaque() const noexcept {
+        return reinterpret_cast<void *>(static_cast<std::uintptr_t>(value));
+    }
     static CallbackCookie fromOpaque(void *data) noexcept {
         return {static_cast<std::uint64_t>(reinterpret_cast<std::uintptr_t>(data))};
     }

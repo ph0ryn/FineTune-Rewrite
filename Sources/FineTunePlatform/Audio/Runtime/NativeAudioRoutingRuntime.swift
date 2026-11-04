@@ -39,7 +39,7 @@ public final class NativeAudioRoutingRuntime: AudioRoutingRuntime {
       throw AudioRouteFailure(
         stage: "resolveProcess", message: "Unable to resolve the app's process group: \(error)")
     }
-    let objects = app.processObjectIDs // Copy values only; no AudioApp/NSImage crosses the lane.
+    let objects = app.processObjectIDs  // Copy values only; no AudioApp/NSImage crosses the lane.
     guard !objects.isEmpty else {
       throw AudioRouteFailure(
         kind: .unavailable, stage: "resolveProcess",

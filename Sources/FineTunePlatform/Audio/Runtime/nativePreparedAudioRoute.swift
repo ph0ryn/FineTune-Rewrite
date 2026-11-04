@@ -27,7 +27,7 @@ final class NativePreparedAudioRoute: PreparedAudioRoute {
 
   deinit {
     monitor?.cancel()
-    owner.cancel() // Admission only. NativeRouteOwner schedules all destruction on its NRT lane.
+    owner.cancel()  // Admission only. NativeRouteOwner schedules all destruction on its NRT lane.
   }
 
   func startMuted(state: AudioOutputState) async throws -> AudioRouteObservation {
@@ -50,7 +50,8 @@ final class NativePreparedAudioRoute: PreparedAudioRoute {
     guard ft_native_route_request_levels(owner.pointer.value, native) == FT_NATIVE_OK else {
       let failure = AudioRouteFailure(
         stage: "levels", message: "Unable to publish the requested audio levels.")
-      emit(AudioRouteObservation(key: key, phase: .failed, failure: failure), sequence: nextSequence())
+      emit(
+        AudioRouteObservation(key: key, phase: .failed, failure: failure), sequence: nextSequence())
       return
     }
   }
@@ -88,9 +89,10 @@ final class NativePreparedAudioRoute: PreparedAudioRoute {
     latestFullRevision = state.revision
     // This MainActor is the sole hot-lane producer. A late full state cannot replace newer
     // hot levels; native revision checks ignore stale tuples. Plain C full calls also work.
-    requestLevels(AudioOutputLevels(
-      revision: state.revision, effectiveGain: state.effectiveGain, isMuted: state.isMuted,
-      effectiveLoudnessVolume: state.processing.loudnessVolume))
+    requestLevels(
+      AudioOutputLevels(
+        revision: state.revision, effectiveGain: state.effectiveGain, isMuted: state.isMuted,
+        effectiveLoudnessVolume: state.processing.loudnessVolume))
     let operationSequence = nextSequence()
     let result = await owner.perform { pointer in
       withNativeRuntimeState(state) { native in
@@ -111,8 +113,10 @@ final class NativePreparedAudioRoute: PreparedAudioRoute {
       let failure = nativeRouteFailure(result.failure)
       let observation = AudioRouteObservation(
         key: key, phase: .failed,
-        acceptedRevision: result.snapshot.accepted_revision == 0 ? nil : result.snapshot.accepted_revision,
-        appliedRevision: result.snapshot.applied_revision == 0 ? nil : result.snapshot.applied_revision,
+        acceptedRevision: result.snapshot.accepted_revision == 0
+          ? nil : result.snapshot.accepted_revision,
+        appliedRevision: result.snapshot.applied_revision == 0
+          ? nil : result.snapshot.applied_revision,
         failure: failure,
         cleanupFailure: result.snapshot.cleanup_failure.kind == FT_NATIVE_NO_FAILURE
           ? nil : nativeRouteFailure(result.snapshot.cleanup_failure))
@@ -163,17 +167,23 @@ final class NativePreparedAudioRoute: PreparedAudioRoute {
       retired = true
       monitor?.cancel()
       monitor = nil
-      emit(nativeRouteObservation(key: key, snapshot: result.snapshot, phase: .retired), sequence: sequence)
+      emit(
+        nativeRouteObservation(key: key, snapshot: result.snapshot, phase: .retired),
+        sequence: sequence)
       return .retired
     }
     if result.result == FT_NATIVE_PENDING {
-      emit(nativeRouteObservation(key: key, snapshot: result.snapshot, phase: .retiring), sequence: sequence)
+      emit(
+        nativeRouteObservation(key: key, snapshot: result.snapshot, phase: .retiring),
+        sequence: sequence)
       return .pending
     }
     monitor?.cancel()
     monitor = nil
     let failure = nativeRouteFailure(result.failure)
-    emit(nativeRouteObservation(key: key, snapshot: result.snapshot, phase: .failed), sequence: sequence)
+    emit(
+      nativeRouteObservation(key: key, snapshot: result.snapshot, phase: .failed),
+      sequence: sequence)
     return .failed(failure)
   }
 

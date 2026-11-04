@@ -4,8 +4,8 @@
 #include "NativeAudioRuntime.h"
 #include <CoreAudio/CoreAudio.h>
 #include <array>
-#include <cstdint>
 #include <cmath>
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -13,8 +13,8 @@ namespace finetune::runtime {
 
 inline bool nativeFloat32Format(const AudioStreamBasicDescription &format) noexcept {
     const auto planar = (format.mFormatFlags & kAudioFormatFlagIsNonInterleaved) != 0;
-    const UInt32 allowed = kAudioFormatFlagIsFloat | kAudioFormatFlagIsPacked |
-                          kAudioFormatFlagIsNonInterleaved;
+    const UInt32 allowed =
+        kAudioFormatFlagIsFloat | kAudioFormatFlagIsPacked | kAudioFormatFlagIsNonInterleaved;
     return format.mFormatID == kAudioFormatLinearPCM && std::isfinite(format.mSampleRate) &&
            format.mSampleRate >= 8000 && format.mSampleRate <= 384000 &&
            (format.mFormatFlags & (kAudioFormatFlagIsFloat | kAudioFormatFlagIsPacked)) ==
@@ -76,7 +76,8 @@ struct HalAPI {
     OSStatus (*destroyAggregate)(void *, AudioObjectID) = nullptr;
     // noErr/present=false only after an actual bad-object observation, not a guessed delay.
     OSStatus (*aggregatePresent)(void *, AudioObjectID, bool &) = nullptr;
-    OSStatus (*createIOProc)(void *, AudioObjectID, AudioDeviceIOProc, void *, AudioDeviceIOProcID &) = nullptr;
+    OSStatus (*createIOProc)(void *, AudioObjectID, AudioDeviceIOProc, void *,
+                             AudioDeviceIOProcID &) = nullptr;
     OSStatus (*destroyIOProc)(void *, AudioObjectID, AudioDeviceIOProcID) = nullptr;
     OSStatus (*certify)(void *, AudioObjectID, AudioDeviceIOProcID, const OutputDevice &,
                         const TapDescription &, FormatCertificate &) = nullptr;

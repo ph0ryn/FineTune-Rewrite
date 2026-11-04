@@ -82,7 +82,8 @@ func nativeRouteFailure(_ error: FTNativeError) -> AudioRouteFailure {
   }
   let message: String
   if error.operation == FT_NATIVE_USAGE_DESCRIPTION {
-    message = "Audio capture is unavailable in this build. Use the configured FineTune app or AudioProbe build."
+    message =
+      "Audio capture is unavailable in this build. Use the configured FineTune app or AudioProbe build."
   } else {
     switch kind {
     case .captureNotRequested:
@@ -126,7 +127,8 @@ func nativeRouteObservation(
     key: key, phase: phase ?? nativeRoutePhase(snapshot.phase),
     acceptedRevision: snapshot.accepted_revision == 0 ? nil : snapshot.accepted_revision,
     appliedRevision: snapshot.applied_revision == 0 ? nil : snapshot.applied_revision,
-    failure: snapshot.failure.kind == FT_NATIVE_NO_FAILURE ? nil : nativeRouteFailure(snapshot.failure),
+    failure: snapshot.failure.kind == FT_NATIVE_NO_FAILURE
+      ? nil : nativeRouteFailure(snapshot.failure),
     cleanupFailure: snapshot.cleanup_failure.kind == FT_NATIVE_NO_FAILURE
       ? nil : nativeRouteFailure(snapshot.cleanup_failure))
 }

@@ -18,8 +18,9 @@ using finetune::runtime::CallbackSlots;
 using finetune::runtime::ReclaimState;
 
 // The same scalar/pointer argument shape as the HAL IOProc, without invoking HAL.
-extern "C" __attribute__((noinline)) void *cookieABIEcho(
-    std::uint32_t, const void *, const void *, const void *, void *, const void *, void *data) noexcept {
+extern "C" __attribute__((noinline)) void *cookieABIEcho(std::uint32_t, const void *, const void *,
+                                                         const void *, void *, const void *,
+                                                         void *data) noexcept {
     return data;
 }
 
@@ -57,8 +58,8 @@ void cookiePointerRoundTrip() {
         for (std::uint64_t generation : {std::uint64_t{1}, CallbackCookie::maxGeneration}) {
             const auto cookie = CallbackCookie::make(slot, generation);
             check(cookie.valid() && cookie.slot() == slot, "valid edge cookie preserves slot");
-            const auto returned = echo(0, nullptr, nullptr, nullptr, nullptr, nullptr,
-                                                cookie.opaque());
+            const auto returned =
+                echo(0, nullptr, nullptr, nullptr, nullptr, nullptr, cookie.opaque());
             check(CallbackCookie::fromOpaque(returned).value == cookie.value,
                   "64-bit integer -> opaque C userdata ABI -> integer preserves all chosen bits");
         }
@@ -83,7 +84,8 @@ void firstCallbackAndClosedEntry() {
     const auto result = slots.reclaim(cookie);
     check(result.state == ReclaimState::reclaimed && result.context == &body,
           "closed quiescent context transfers to NRT exactly once");
-    check(slots.reclaim(cookie).state == ReclaimState::stale, "duplicate reclaim is explicit stale");
+    check(slots.reclaim(cookie).state == ReclaimState::stale,
+          "duplicate reclaim is explicit stale");
 }
 void lateOldCookieAfterReuse() {
     CallbackSlots slots;
@@ -146,7 +148,8 @@ void leaseMovesHaveOneReaderOwnership() {
     auto moved = std::move(leaseA);
     check(!leaseA && moved, "move transfers a lease, not a second reader");
     leaseB = std::move(moved);
-    check(!moved && leaseB.context() == &one, "move assignment releases previous destination lease");
+    check(!moved && leaseB.context() == &one,
+          "move assignment releases previous destination lease");
     check(slots.close(b), "close B");
     check(slots.reclaim(b).context == &two, "B has no phantom reader after move assignment");
     check(slots.close(a), "close A");
@@ -164,7 +167,8 @@ void boundedCapacityAndFreshReuse() {
         cookies[i] = slots.publish(&bodies[i]);
         check(cookies[i].valid(), "each bounded slot can be allocated once");
     }
-    check(!slots.publish(&extra).valid(), "capacity exhaustion is explicit, not an unbounded anchor leak");
+    check(!slots.publish(&extra).valid(),
+          "capacity exhaustion is explicit, not an unbounded anchor leak");
     check(slots.close(cookies[7]), "close a non-edge slot");
     check(slots.reclaim(cookies[7]).context == &bodies[7], "free one bounded slot");
     const auto reused = slots.publish(&extra);
@@ -191,7 +195,8 @@ void callbackPathDoesNotAllocate() {
         callback(slots, cookie);
     }
     countAllocations = false;
-    check(allocations == 0 && body.touches == 10000, "admission/lease leave never calls ordinary new");
+    check(allocations == 0 && body.touches == 10000,
+          "admission/lease leave never calls ordinary new");
     check(slots.close(cookie), "close allocation probe");
     check(slots.reclaim(cookie).context == &body, "reclaim allocation probe");
 }
@@ -211,12 +216,15 @@ void operator delete(void *pointer) noexcept { std::free(pointer); }
 void operator delete[](void *pointer) noexcept { std::free(pointer); }
 
 int main(int argc, char **argv) {
-    finetune::test::NativeTestReport report(
-        argc, argv, "Tests/NativeRuntimeTests/CallbackSlotsTests.cpp");
+    finetune::test::NativeTestReport report(argc, argv,
+                                            "Tests/NativeRuntimeTests/CallbackSlotsTests.cpp");
     if (!report.ready()) {
         return EXIT_FAILURE;
     }
-    struct Unit { const char *id; void (*run)(); };
+    struct Unit {
+        const char *id;
+        void (*run)();
+    };
     const Unit units[]{
         {"cookiePointerRoundTrip", cookiePointerRoundTrip},
         {"firstCallbackAndClosedEntry", firstCallbackAndClosedEntry},
@@ -233,9 +241,11 @@ int main(int argc, char **argv) {
         const int before = failures;
         unit.run();
         results[i] = {unit.id, before == failures};
-        std::printf("%s NativeRuntime.CallbackSlots.%s\n", before == failures ? "PASS" : "FAIL", unit.id);
+        std::printf("%s NativeRuntime.CallbackSlots.%s\n", before == failures ? "PASS" : "FAIL",
+                    unit.id);
     }
-    std::printf("Native callback slot contracts: %d failures, %zu named cases\n", failures, std::size(units));
+    std::printf("Native callback slot contracts: %d failures, %zu named cases\n", failures,
+                std::size(units));
     const bool reported = report.finish(results);
     return failures == 0 && reported ? EXIT_SUCCESS : EXIT_FAILURE;
 }

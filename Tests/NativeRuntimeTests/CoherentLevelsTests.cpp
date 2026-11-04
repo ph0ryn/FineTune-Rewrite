@@ -8,8 +8,8 @@
 using finetune::runtime::CoherentLevels;
 
 int main(int argc, char **argv) {
-    finetune::test::NativeTestReport report(
-        argc, argv, "Tests/NativeRuntimeTests/CoherentLevelsTests.cpp");
+    finetune::test::NativeTestReport report(argc, argv,
+                                            "Tests/NativeRuntimeTests/CoherentLevelsTests.cpp");
     if (!report.ready()) {
         return 1;
     }
@@ -19,22 +19,26 @@ int main(int argc, char **argv) {
     auto expect = [&](bool condition, const char *id) {
         results[recorded++] = {id, condition};
         std::printf("%s NativeRuntime.Levels.%s\n", condition ? "PASS" : "FAIL", id);
-        if (!condition) ++failures;
+        if (!condition)
+            ++failures;
     };
     CoherentLevels levels({1, 0.25F, false, 0.5F});
     FTNativeLevels observed{};
     expect(levels.tryRead(observed) && observed.revision == 1 && observed.target_gain == 0.25F &&
-               observed.loudness_volume == 0.5F && !observed.muted, "initialSavedTuple");
+               observed.loudness_volume == 0.5F && !observed.muted,
+           "initialSavedTuple");
     expect(levels.publish({3, 0.75F, true, 0.125F}) && !levels.publish({2, 1, false, 1}) &&
-               levels.tryRead(observed) && observed.revision == 3 && observed.target_gain == 0.75F &&
-               observed.muted && observed.loudness_volume == 0.125F, "staleTupleCannotRollbackGainMute");
+               levels.tryRead(observed) && observed.revision == 3 &&
+               observed.target_gain == 0.75F && observed.muted &&
+               observed.loudness_volume == 0.125F,
+           "staleTupleCannotRollbackGainMute");
 
     CoherentLevels stressed({1, 0.125F, true, 0.25F});
     std::atomic<bool> done{false};
     std::thread producer([&] {
         for (uint64_t revision = 2; revision < 100000; ++revision) {
-            stressed.publish({revision, float(revision % 4) * 0.125F,
-                              (revision % 2) != 0, float(revision % 5) * 0.25F});
+            stressed.publish({revision, float(revision % 4) * 0.125F, (revision % 2) != 0,
+                              float(revision % 5) * 0.25F});
         }
         done.store(true, std::memory_order_release);
     });
