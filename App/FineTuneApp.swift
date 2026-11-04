@@ -1,11 +1,14 @@
-import SwiftUI
+import AppKit
 
 @main
-struct FineTuneApp: App {
-  var body: some Scene {
-    Settings {
-      Text("FineTune Rewrite")
-        .padding()
-    }
+@MainActor
+struct FineTuneApp {
+  static func main() {
+    let application = NSApplication.shared
+    let host = ApplicationHost()
+    application.delegate = host
+    application.setActivationPolicy(.accessory)
+    application.run()
+    withExtendedLifetime(host) {}
   }
 }
