@@ -21,6 +21,9 @@ struct AudioProcessGrouper {
     }
     var applications: [pid_t: ProcessApplicationMetadata] = [:]
     for app in try metadata.applications() {
+      // AppKit explicitly returns -1 for applications without an OS process. They cannot own
+      // HAL objects; this documented sentinel is not an invalid process-bearing record.
+      if app.pid == -1 { continue }
       guard app.pid > 0, applications[app.pid] == nil else {
         throw AudioObservationFailure(
           message: "Application metadata has an invalid or duplicate process identity.")

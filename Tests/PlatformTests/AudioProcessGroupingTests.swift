@@ -35,6 +35,82 @@ struct AudioProcessGroupingTests {
     }
   }
 
+  @Test(
+    "AppKit's documented no-PID application does not reject an unrelated HAL process frame",
+    arguments: [false, true])
+  func noPIDWorkspaceEntryDoesNotRejectFrame(running: Bool) throws {
+    let source = ProcessObservationFixture()
+    // Minimized read-only OS sample: a .app/accessory workspace entry had PID -1 while
+    // HAL object 99/PID 884 was valid and inactive. `true` is controlled test activity,
+    // not evidence of live playback. Display metadata is anonymized.
+    source.metadata.apps = [
+      observationApp(pid: -1, name: "Unbound App", bundle: "Com.Unbound"),
+      observationApp(pid: 884),
+    ]
+    source.inventory.processes = [observationProcess(99, pid: 884, running: running)]
+
+    source.monitor.refresh()
+
+    #expect(source.monitor.observation.health == .healthy)
+    #expect(source.monitor.lastError == nil)
+    #expect(source.monitor.activeApps.count == (running ? 1 : 0))
+    if running {
+      let app = try #require(source.monitor.activeApps.only)
+      #expect(app.id == 884)
+      #expect(app.processObjectIDs == [99])
+      #expect(app.processRevision > 0)
+      #expect(
+        try source.monitor.resolveApp(
+          identifier: "Com.Player", processRevision: app.processRevision).processObjectIDs == [99])
+    }
+  }
+
+  @Test("Malformed and duplicate process-bearing application metadata still fail closed")
+  func invalidApplicationMetadataStillFailsClosed() throws {
+    let source = ProcessObservationFixture()
+    source.monitor.refresh()
+    let good = try #require(source.monitor.activeApps.only)
+    let malformed = [
+      [observationApp(), observationApp(pid: 0)],
+      [observationApp(), observationApp(pid: -2)],
+      [observationApp(), observationApp(name: "Conflicting App", bundle: "Com.Other")],
+    ]
+    for apps in malformed {
+      source.metadata.apps = apps
+      source.monitor.refresh()
+      #expect(
+        source.monitor.observation.health
+          == .failed("Application metadata has an invalid or duplicate process identity."))
+      #expect(source.monitor.activeApps.only?.processObjectIDs == good.processObjectIDs)
+      #expect(source.monitor.activeApps.only?.processRevision == good.processRevision)
+      #expect(throws: (any Error).self) {
+        try source.monitor.resolveApp(
+          identifier: good.persistenceIdentifier, processRevision: good.processRevision)
+      }
+    }
+  }
+
+  @Test("AppKit's no-PID sentinel never legitimizes an invalid HAL process binding")
+  func invalidHALBindingStillFailsClosed() throws {
+    let source = ProcessObservationFixture()
+    source.monitor.refresh()
+    let good = try #require(source.monitor.activeApps.only)
+    for process in [
+      observationProcess(11, pid: -1), observationProcess(0, pid: 101),
+      observationProcess(10, pid: 101),
+    ] {
+      source.inventory.processes = [observationProcess(10, pid: 100), process]
+      source.monitor.refresh()
+      #expect(source.monitor.lastError != nil)
+      #expect(source.monitor.activeApps.only?.processObjectIDs == good.processObjectIDs)
+      #expect(source.monitor.activeApps.only?.processRevision == good.processRevision)
+      #expect(throws: (any Error).self) {
+        try source.monitor.resolveApp(
+          identifier: good.persistenceIdentifier, processRevision: good.processRevision)
+      }
+    }
+  }
+
   @Test("Chrome/Electron parent fallback and WebKit responsibility share owner metadata")
   func ownerProjection() throws {
     for (name, responsible) in [("Chrome", false), ("Electron", false), ("WebKit", true)] {

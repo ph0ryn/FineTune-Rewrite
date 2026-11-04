@@ -40,6 +40,7 @@ struct AudioProcessRecord {
 }
 
 struct ProcessApplicationMetadata {
+  /// AppKit's documented -1 means this application has no OS process, not a HAL PID.
   let pid: pid_t
   let name: String?
   let bundleID: String?
