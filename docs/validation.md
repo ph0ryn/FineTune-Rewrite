@@ -10,6 +10,10 @@
 **unitの成功、製品consumerの接続、実機動作、配布可能性は別の判定です。**
 未実装のruntimeを単なる実機未検証と言い換えず、componentがあるだけで機能完成ともしません。
 
+現在は製品RootからUI・同じController/store・機器/process観測・入出力policy・実Native runtime・AutoEQ cacheへ接続されています。
+実装接続のsource review、少数composition unit、Swift factory契約、C++/fake-HAL実行、実音声はそれぞれ別の証拠です。
+実行件数と最終gateの判定は[移植監査](<test-migration.md>)で管理し、この文書の実装説明や一部suiteの成功を全製品の合格へ読み替えません。
+
 ## 試験のpyramid
 
 ### 1. Pure unit
@@ -45,8 +49,8 @@ just check
 ```
 
 [Justfile](<../Justfile>)はformat lint、監査器のmutation tests、debug/releaseのpackage build・unit/component、
-offline DSP・移植監査を実行します。App bundle buildは含めません。
-通常チェックはアプリ起動・音声取得/再生・権限要求・本物の設定移行・実機音量変更を行いません。
+offline DSP・native所有/levels/fake-HAL・移植監査を実行します。App bundle buildは含めません。
+通常チェックは製品アプリ起動・音声取得/再生・権限の承認要求（capture/TCC prompt等）・本物の設定移行・実機音量変更を行いません。
 
 個別実行:
 
@@ -54,19 +58,27 @@ offline DSP・移植監査を実行します。App bundle buildは含めませ�
 just audit-tests
 just test
 just test-dsp
+just test-native
 just audit-upstream
 just test release
 just test-dsp release
+just test-native release
 just audit-upstream release
 ```
 
 source snapshotはテスト直前に取得し、同じconfigurationのfreshなイベントと照合します。
 ソースを変更したら既存イベントを成功証拠として再利用せず、再実行します。
 [監査器](<../scripts/auditUpstreamTests.py>)の`--static-only`はreview/静的照合専用で、runtime gate成功ではありません。
-手順・JSONL/XMLの読み方・many-to-many対応・独立reviewは[テスト移植](<test-migration.md>)にまとめます。
+手順・many-to-many対応・独立reviewは[テスト移植](<test-migration.md>)にまとめます。
+
+- Swift JSONLではcompleteなrunEnded、issue/skipと実際のinvocationを確認します。parameterized declaration一つと実行row複数を区別します。
+- XMLは宣言単位の集約であり、JSONLの展開呼出数ではありません。両modeを別々に照合します。
+- C++ reportのnamed unit・invocation・診断用check counterも別の数です。六reportのcompleteと実行入力を確認します。
+- 元testの静的棚卸し・A/B/C分類・独自D・新Swift/CPP実行数を加算して、総成功数を作りません。
 
 CI設定があることと、CIが実際にpassしたことは区別します。
-ローカルのmacOS/Xcode/Swift版、CI環境、deployment targetの実機結果もそれぞれ記録します。
+ローカルはmacOS27/Xcode27.2/SDK27.2/Swift6.4.2/arm64、[CI設定](<../.github/workflows/check.yml>)はmacOS26/Xcode26.6/SDK26.5です。
+deployment target15.4での実機結果、両modeの同一入力証拠、別構成のsanitizer結果もそれぞれ分離します。
 
 ## DSPとnative境界
 
@@ -81,7 +93,14 @@ C++ named unitへ移した原作シナリオは、Swift JSONLとは別のnative�
 元Swift methodが消えたことだけで欠落と判定せず、入力・許容差・新unitの実行結果をreviewします。
 数式の出典・ISO資料の確認限界・sanitizer結果は[数値互換記録](<../Tools/DSPTests/Compatibility.md>)を参照してください。
 
-allocation検出やASan/UBSanの成功は、実機callbackのdeadline・lock/wait・ARC・concurrent handoffをすべて証明しません。
+記録済みのC++単独再検証はDebug、`-O2 -DNDEBUG`のRelease、ASan+UBSanの三構成で、各49 named unit/6654 invocationです。
+実productionを使うDSP・Stages・fake HAL・Callback Slots・Coherent Levels・C no-capture boundaryの六プログラムが対象です。
+実行前のsymbol/link検査でphysical SystemHalを除外した証拠であり、Root・Swift factory・実OSの経路全体の合格ではありません。
+Stage/HALの対応するRelease false-checkは失敗を検出しますが、非対応の他CLIまで検証済みとはしません。
+
+計測したStage/HAL callbackのordinary/aligned C++ new/deleteは0、HALのowned fake OS resourceも0です。
+他suiteで公開していないcounterを0と補完せず、全C malloc/free・CF/OS allocationの不在を主張しません。
+allocation検出やASan/UBSanの成功は、実機callbackのdeadline・lock/wait・ARC・全concurrent handoff・PACを証明しません。
 停止/quiescent前提の所有契約を、稼働中交換の安全性へ読み替えません。
 
 ## 実音声を確認するときの安全条件
@@ -89,20 +108,43 @@ allocation検出やASan/UBSanの成功は、実機callbackのdeadline・lock/wai
 実行前に、source app・output device・音量上限・開始/停止・録音保存の有無・失敗時の復帰を明示します。
 ユーザーの許可なしに、音声を取得/再生したり、システム音量・default device・権限設定を変更しません。
 
-必要なproduction runtimeが実装された後、条件に応じて次を分けて確認します。
+production runtimeは実装されていますが、実音声の取得・再生・TCC承認は今回実施していません。必要な仮説に応じて次を分けて確認します。
 
 - 1 app → 1 outputの開始/停止と、部分失敗時のsilence・資源回収
 - format/sample rate/channel map・aggregate・default変更・切断/再接続
 - 初音・idle後の短音・長時間稼働・sleep/wakeと権限の取消/復帰
 - software/hardware/DDC/Bluetoothなどbackend別のvolume/muteと保存復元
 
-AudioProbeを追加する場合もproduction nativeを共有するconsumerに留め、検証専用の別音声実装を作りません。
-これらは必要な仮説の限定観測であり、機能ごとに巨大E2Eを追加する要件ではありません。
+### 既存AudioProbeの操作範囲
+
+[AudioProbe](<../Tools/AudioProbe/main.swift>)は同じproduction Nativeを使うconsumerです。別の検証専用音声実装ではありません。
+
+```bash
+xcrun swift run --jobs 2 AudioProbe --help
+```
+
+`--help`と不正引数の処理はproducer構築前です。引数省略/`--list`は実device/processのread-only discovery、`--describe`は指定outputのmetadata読取です。
+これらの観測はcaptureしませんが、OSへ触れないunitとは区別します。
+`--capture`では`--app`・`--process-revision`・`--output`・`--seconds`を明示し、現在のapp/process bindingを使います。
+時間は(0,30]秒でprepareを含むdeadlineがあり、cleanup待ちの上限は追加2秒です。blocked OSやPENDINGを安全解放済みとは扱いません。
+source appはtap中mute、EQ/AutoEQ/loudnessは無効、`--gain`は0…1で既定unityです。音量の安全確認を省略しません。
+main usage description・armed・first-appliedは権限許可の証明ではなく、失敗時は診断と終了結果を確認します。
+
+これらは事前許可を得た限定観測であり、通常gateに追加せず、機能ごとに巨大E2Eを追加する要件にもなりません。
 
 ## 製品組立と配布
 
-Appのfactory/依存と少数composition testで、表示・Control・store・native portの接続と停止/flush lifecycleを確かめます。
-表示componentの成功だけで、Mixer・Settings・URL・AutoEQ import・routingなどの製品consumer完成とはしません。
+実Graph/表示model/Host/lifecycleと外部portを使うcomposition testで、同じControl・store・nativeへの接続を確かめます。
+観測health、default policy、await後の最新payload、early URL、input停止・repeat取消、stop/flushなどは公開結果を検証します。
+ただしfake-port呼出0は、実Root起動のglobally OS-inert証明ではありません。Root constructorには設定disk load/backupとnon-prompt AX trust queryがあります。
+profile repository/storeのconstructorはURL検証/依存保存だけで、local disk復元はservice開始時です。
+Settingsの同一VM参照をsourceで確認することと、実NSWindowのdeallocationを計測することも別です。
+
+新規/欠損設定のcapture希望はfalse、保存trueはdurable wishとして新しいsessionへ渡します。保存値をOS permissionや古いsession tokenと混同しません。
+main capture metadataがなければSwiftPM版AppはNative前に明示unavailableです。
+[App plist](<../Config/AppInfo.plist>)と[Probe専用plist](<../Tools/AudioProbe/Info.plist>)、[限定linker設定](<../Package.swift>)を分け、library/test hostへその設定を継承させません。
+built metadata検査、実権限、物理HALの動作は別の確認です。
+停止後も残すweak passive cleanup診断はOS/input observerの例外であり、per-route retired ACKやhistoryからglobal pool drainを証明しません。
 
 `just build-app`は明示opt-inの署名無効開発bundle buildです。
 XcodeのbuildだけでもLaunchServices/execution-policyへbundleを登録する場合があるため、通常チェックから除外します。

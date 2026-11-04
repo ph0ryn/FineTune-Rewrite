@@ -1,9 +1,10 @@
-# FineTune-Rewrite アーキテクチャ設計案
+# FineTune-Rewrite アーキテクチャ
 
-## 設計の位置付け
+## 設計意図・現実装・未検証を分ける
 
-初期の設計案に基づく、構成・責務・依存・実行時の所有権の設計案である。実装済み・検証済みの構成を示すものではない。
-現在の実装状況と開発手順は[README](<../README.md>)、試験対象と確認条件は[検証方針](<validation.md>)、作業の前提と参照基準は[開発ガイド](<../AGENTS.md>)で扱う。
+初期の設計案を出発点に、構成・責務・依存・実行時の所有権を整理する。
+初期の設計案を検証済み仕様とは扱わず、以下の責務境界、現在接続されている実装、実機で未確認の事項を区別する。
+実装状況と開発手順は[README](<../README.md>)、試験対象・証拠と確認条件は[検証方針](<validation.md>)、作業の前提は[開発ガイド](<../AGENTS.md>)で扱う。
 
 ## 責務と依存の境界
 
@@ -12,11 +13,11 @@
 | App | SwiftUI／AppKitによる表示・操作受付と依存の組み立て | UI独自の経路判断・音量解釈 |
 | FineTuneDomain | OSに依存しない値・識別・音量の意味・経路選択ルール | OS・UI・native実装とOSの生のハンドル |
 | FineTuneControl | 操作の受付、状態更新、変更計画、要求の世代管理、外部操作のprotocol | 具体的な機器操作・保存方法・Platform実装 |
-| FineTunePlatform | macOS監視・永続化・設定移行・機器操作・native実装へのadapter | 各adapterの責務を統括する巨大な管理層 |
+| FineTunePlatform | macOS監視・明示directoryの永続化・機器操作・native実装へのadapter | 各adapterの責務を統括する巨大な管理層 |
 | NativeAudio | tap・aggregate・IOProc、音声経路の実行・交換・資源管理 | 出力優先順位などの製品仕様の判断 |
 | AudioDSP | 音声処理の計算と処理履歴 | Core Audioの機器操作・Foundation・UI |
 
-コード上の依存方向は次の案とする。ライブラリの具体的な宣言は[ビルド設定](<../Package.swift>)を正本とする。
+コード上の依存方向を次に示す。ライブラリの具体的な宣言は[ビルド設定](<../Package.swift>)を正本とする。
 
 ```text
 App             → FineTuneControl, FineTunePlatform
@@ -34,12 +35,12 @@ aggregateやコールバックの構成はDomain・保存設定・UIの前提に
 
 ## 言語とビルドの分担
 
-| 領域 | 言語・管理単位の案 |
+| 領域 | 言語・管理単位 |
 | --- | --- |
 | UI・仕様判断・制御 | Swift 6 |
 | macOSとの接続 | Swift中心。native側で必要なOS API接続だけObjective-C++ |
 | 音声コールバック・DSP・音声資源の寿命管理 | C++20 |
-| アプリのbundle・署名・権限・リソース・UIテスト・配布 | Xcodeアプリプロジェクト |
+| アプリのbundle・main metadata・リソース、署名・配布の設定 | Xcodeアプリプロジェクト |
 | ライブラリの依存・テスト・検証用プログラム | ローカルSwift Package |
 
 フォルダ分けだけでなくbuild targetで依存方向を表し、SwiftとC-familyのtargetを分けて所有権と依存を明示する。
@@ -47,7 +48,7 @@ C++を選ぶ意図は、音声処理中に触れるメモリと実行する処�
 
 ## Swiftとnativeの公開境界
 
-C++の型や所有権をSwift側へ広げないため、小さなC形式のAPIを公開境界とする案である。
+C++の型や所有権をSwift側へ広げず、小さなC形式のAPIを公開境界とする。
 
 - 公開する値はopaque handle、固定幅の数値、単純な構造体、ポインタと要素数、明示的な結果コードを基本とする。
 - C++のクラス・STLコンテナ・Objective-Cオブジェクトを公開せず、C++例外を境界の外へ出さない。
@@ -59,7 +60,7 @@ C++の型や所有権をSwift側へ広げないため、小さなC形式のAPI�
 
 ## 状態の所有と操作経路
 
-| 状態・資源 | 所有者の案 |
+| 状態・資源 | 所有する境界 |
 | --- | --- |
 | ユーザーの希望、観測したOS状態、変更要求の世代 | SwiftのControl |
 | UI表示用snapshot | MainActor上の表示モデル |
@@ -73,7 +74,35 @@ C++の型や所有権をSwift側へ広げないため、小さなC形式のAPI�
 永続的なアプリの識別と、現在のプロセス・OSの実行時オブジェクトも区別する。
 
 UI・キー操作・URLなどの入口をControlの共通の操作へ通し、各入口が独自に保存や音声実装への反映を行わない。
-UIの百分率、PCMの倍率、dB補正、機器側の音量を混同せず、設定移行では保存値の意味を維持する。
+UIの百分率、PCMの倍率、dB補正、機器側の音量を混同せず、保存値の意味を維持する。
+
+## 現在の製品組立
+
+[ProductionRoot](<../App/Bootstrap/productionRoot.swift>)が一つのSettingsManager、機器/process producer、機器操作model、入出力policy、Native runtimeを保持し、
+[ApplicationGraph](<../App/Bootstrap/applicationGraph.swift>)へ同じ依存を渡す。EngineとControllerはその観測を使い、AutoEQ repository/cacheも共通である。
+Mixer・Settingsのread/action、キー操作、URLはこの同じControl/storeへ接続する。Settingsのread closureも同じ表示modelを参照し、Rootの別コピーを作らない。
+表示snapshotはpure projectionであり、Rootに第二の経路planner・設定集合・download registryを持たせない。
+
+- **希望と実観測:** default追従に使うpolicy承認済みUIDは、物理的に観測したOS default UIDと別である。復帰write失敗でもOS観測を偽装せず、固定先・追従の希望を維持する。
+- **観測の健全性:** inventory未開始、discovery失敗、input/outputそれぞれのdefault読取失敗を扱う。last-good UIDをhealthy-currentへ補完しない。失敗中は新prepareやpolicy writeを抑え、利用可能な旧routeは保持できるが、Nativeでbinding無効が確定したrouteは閉じて回収する。
+- **非同期の適用:** prepare前のpayloadを有効化時まで固定しない。各await後に世代・binding・default追従先を確認し、start/commitでは現在の設定からstateを作り直す。request受理、armed、commit、first-appliedは別の観測である。
+- **Processの識別:** shared producerのprocess revision照合と、Nativeが行うCoreAudio process object→PID再検証は別である。revision一致だけでOS上の同一processを保証しない。
+
+### Lifecycleと構築時の副作用
+
+[coordinator](<../App/Bootstrap/lifecycleCoordinator.swift>)がstart/stop・sleep/wake・session状態・quit/flushを所有する。
+one-shot observationはsuspended中も同じ世代で再登録するが、running時だけ通常のeffectを実行する。
+wakeでは現在のdefault読取healthとEngine観測を先に取り込み、policyをrebaseし、最後にcaptureを再開する。
+input停止はmedia keysだけでなくglobal shortcutsの登録解除とrepeat task取消に及び、suspend/stop中は保持されたRegistry callbackも効果を持たない。
+coordinatorの世代付き観測callbackはstop/restart後に旧世代を拒否する。Registry再start後のforeign retained callbackや、OSのqueued key-up順は未測定である。
+
+製品Rootのconstructorはglobally OS-inertではない。設定のdisk load/不正file backupと、non-prompt Accessibility trust queryがある。
+profile repository/storeのconstructorは依存保存とURL検証のみで、local profileのdisk復元はservice開始時に行う。
+Graph/VMの注入portを使う0-call unitは、実Root起動の0 I/O保証やNSWindow解放の実測ではない。
+
+capture希望は新規・欠損設定でfalse、保存済みtrueはdurableな希望である。Controlは新sessionを作り、保存tokenを再使用しない。
+main executableのusage descriptionと保存希望はOS grantではなく、metadata欠損時はNative前にfail closedする。
+SwiftPM版App、Xcode App、独立Probeのmain metadataは区別する。
 
 ## 経路変更と音声資源の寿命
 
@@ -101,10 +130,22 @@ tapなどの生成・停止・破棄やObjective-Cのオブジェクト操作は
 
 コールバック構成に応じて受け渡し方式を選び、実際の読み手の数に合わないqueueの共有をしない。
 単一の読み手を前提とした方式を、複数機器のコールバックでそのまま共有しない。
-具体的な同期・回収アルゴリズムは、この文書では確定しない。
+現実装はcallback slotの参照終了を確認し、native-owned stateを非リアルタイム側で回収する。
+同期処理の正本は[Native runtime](<../Sources/NativeAudio/Runtime/>)に置き、ここへAPIやalgorithm全体を複製しない。
 
-## 未決の設計選択
+### 現在のNative経路と回収結果
 
-aggregateの構成、チャンネル対応、経路の切り替え方式、初音とidle時の動作は未決である。
-音声出力の構成には、出力チャンネルを明示的に扱うaggregate方式と、出力ごとに独立した経路を持つ方式が候補となる。
-方式選択に必要な実機での確認条件と検証順序は[検証方針](<validation.md>)で扱う。
+app×outputの各routeがtap・private aggregate・IOProc・DSP資源を所有する。
+初期対応は同じsample rateのFloat32 stereoと明示的なchannel/format certificateに制限し、未対応機器を黙示変換で隠さない。
+source appをtap中muteする方式を使うが、実機での音響的な連続性を確認したものではない。
+
+回収PENDINGは既存の20ms pollで実際のreader/aggregate条件を再確認する。FAILEDはownerをretainして報告し、自動failure retryを止める。
+20ms経過による安全freeではない。あるrouteのretired ACKや残ったhistory diagnosticから、private pool全体のdrainやglobal orphan0を推論しない。
+通常のOS/input observerは停止するが、single factoryのweakなpassive cleanup通知だけはstop後も表示modelへ残し、遅いfailureを取りこぼさない。
+この診断通知は新しいcapture・route操作・Rootの二重timerを開始せず、権限やglobal回収完了の証拠でもない。
+
+## 実機で未確認の事項
+
+上記の初期実装が存在することと、aggregate/channel対応・切替・初音・idle復帰が実機で十分かは別である。
+物理HALのsample rate/channel map、権限取消、sleep/wake、長時間稼働、callback deadline、実音声の正しさは未確認である。
+方式の適否を判断するための限定観測と安全条件は[検証方針](<validation.md>)で扱う。

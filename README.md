@@ -8,13 +8,21 @@ UI・操作・保存設定・外部連携の基本互換を保ち、不具合を
 
 ## 現在の範囲
 
-Domainの値・音量モデル、Controlの操作・状態、保存・OS adapter、AppのUI component、
-C ABI越しのoffline DSPを実装し、原作由来のunit/component testと新境界の独自テストで検証しています。
-原作は54 Swiftファイル・758テスト宣言・静的展開966呼出しですが、**同じ件数やテスト構造の再現は目的ではありません**。
-元の保証と新しいunitの対応・独立review・実行証拠を[移植台帳と監査手順](<docs/test-migration.md>)で管理します。
+Mixer・Settings・キー操作・`finetune:` URLを、同じControlと設定storeへ接続しています。
+製品Rootが機器・processの監視、入出力policy、機器操作、Native音声runtime、AutoEQ repository/cacheを組み立て、
+UIは同じ状態のsnapshotと共通commandを使います。offline DSPだけの試験台ではありません。
 
+| 区分 | 現在の範囲 |
+| --- | --- |
+| 実装・接続 | 製品Appの組立、表示と操作、保存、OS adapter、C ABI越しのtap/aggregate/IOProcと経路別DSP |
+| 自動検証 | 原作由来のunit/component、新境界の独自テスト、実production DSP/C ABIとfake HALの契約試験 |
+| 別途確認が必要 | 実音声・権限・物理機器、最小対応OS、callback deadline、署名・公証・配布 |
+
+**元と同じ件数やテスト構造の再現は目的ではありません。**
+元の保証と新unitの対応、独立review、configuration別の実行証拠・件数は[移植台帳と監査手順](<docs/test-migration.md>)で管理します。
 テストの成功は、原作用途をすべて置き換えられる製品、実機音声経路、リアルタイム安全性、署名・公証の完成を意味しません。
-未実装・未接続・未検証を区別し、実機を必要としない保証をE2Eへ膨らませません。
+未実装・未接続・未検証を区別し、今回の検証では実音声の取得・再生やTCC承認を行っていません。
+実機を必要としない保証をE2Eへ膨らませません。
 
 ## 構成
 
@@ -39,8 +47,8 @@ Swiftとnativeの公開境界はC形式です。C++型や所有権をSwift側へ
 - [just](https://just.systems/)、Python 3、`clang-format` **21.1.8**
 - Swift側はXcode付属の`swift format`、native側は[.clang-format](<.clang-format>)を使う
 
-ローカル検証環境はmacOS 27 / Xcode 27.2 / Swift 6.4.2 / arm64です。
-[CI](<.github/workflows/check.yml>)はmacOS 26 / Xcode 26.6を指定していますが、CIでの実行結果や最小対応OSでの動作確認とは別です。
+ローカル検証環境はmacOS 27 / Xcode 27.2 / SDK 27.2 / Swift 6.4.2 / arm64です。
+[CI](<.github/workflows/check.yml>)はmacOS 26 / Xcode 26.6 / SDK 26.5を指定していますが、CIでの実行結果や最小対応OSでの動作確認とは別です。
 製品のdeployment targetはmacOS 15.4です。
 
 ```bash
@@ -69,13 +77,15 @@ just build
 just audit-tests
 just test
 just test-dsp
+just test-native
 just audit-upstream
 just check
 ```
 
 [Justfile](<Justfile>)の`just check`は、format lint・監査器の独自テスト・debug/releaseのpackage build、
-unit/component test、offline DSP、移植監査を実行します。App bundle buildは通常チェックから外した明示opt-inです。
-`just test`のSwift Testing成功だけでは、対応表のreviewや実行欠落の監査まで完了しません。
+unit/component test、offline DSP、native所有・levels・fake-HAL試験、移植監査を実行します。
+App bundle buildは通常チェックから外した明示opt-inです。
+`just test`のSwift Testing成功だけでは、対応表のreviewや六つのnative reportを含む実行欠落の監査まで完了しません。
 
 scratchとXcode出力先を分離する場合:
 
@@ -114,6 +124,23 @@ open FineTune.xcodeproj
 通常の`just check`では実行せず、CIも使い捨てrunnerの別stepへ分離します。
 ビルド成功を、実ユーザー環境での音声取得・再生や機器操作の確認として扱いません。
 保存adapterも明示directoryを必須とし、原作の設定を暗黙に読み書きしません。
+実hostはApplication Support内の`FineTune-Rewrite`を使い、原作settingsの読取・移行は実施していません。
+
+製品Rootの構築は0 I/Oではありません。設定のdisk load・不正fileのbackup処理と、promptなしのAccessibility trust照会があります。
+一方、profile repository/storeの構築は依存保存・URL検証に留まり、local profileの復元はservice開始時です。
+注入portを使うGraph/表示modelのunit成功を、実Root起動の無副作用保証へ拡張しません。
+
+### CaptureとSwiftPMの制約
+
+新規・欠損設定のcapture希望はfalseです。保存済みtrueはユーザーの希望として保持し、Controlは新しいsessionを作ります。
+保存希望・session・main executableのusage descriptionは、OSの権限許可そのものではありません。
+main metadataがないSwiftPM版`FineTune`では、Nativeへ進む前にlive audioを明示unavailableとします。
+製品Appのmetadataは[App plist](<Config/AppInfo.plist>)で管理します。
+
+独立した[AudioProbe](<Tools/AudioProbe/main.swift>)は同じproduction Nativeを使い、専用targetにだけmain plistを埋め込みます。
+`--help`はproducer構築前に処理されますが、引数省略/`--list`と`--describe`は実OSのread-only観測です。
+`--capture`は対象app・process revision・output・時間を明示する実音声操作であり、通常チェックには含めません。
+音量・開始停止・許可・失敗時の復帰を合意してから使う[安全条件](<docs/validation.md#実音声を確認するときの安全条件>)を参照してください。
 
 ## 文書
 
