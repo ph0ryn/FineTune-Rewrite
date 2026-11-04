@@ -29,6 +29,77 @@ struct BluetoothDeviceBackendTests {
     backend.stop()
   }
 
+  @Test("A failed power read invalidates the previous on or off observation", arguments: [false, true])
+  func failedPowerRead(previouslyPowered: Bool) async {
+    let notifications = BluetoothNotificationFixture()
+    let transport = BluetoothFixtureTransport(
+      peers: [peer("a", "Headphones")], notifications: notifications)
+    await transport.setPowered(previouslyPowered)
+    let backend = BluetoothDeviceBackend(transport: transport, clock: .continuous)
+    backend.start()
+    await backend.refresh()
+    #expect(backend.isPoweredOn == previouslyPowered)
+
+    await transport.setSnapshotFailure(DeviceBackendError.osStatus(-5))
+    await backend.refresh()
+    #expect(backend.isPoweredOn == nil)
+    #expect(backend.pairedDevices.isEmpty)
+    #expect(backend.lastError != nil)
+
+    await transport.setSnapshotFailure(nil)
+    await transport.setPowered(true)
+    await backend.refresh()
+    #expect(backend.isPoweredOn == true)
+    #expect(backend.pairedDevices.map(\.id) == ["a"])
+    #expect(backend.lastError == nil)
+    backend.stop()
+  }
+
+  @Test("Startup and power notifications refresh without an explicit caller refresh")
+  func automaticPowerRefresh() async {
+    let notifications = BluetoothNotificationFixture()
+    let transport = BluetoothFixtureTransport(peers: [], notifications: notifications)
+    let backend = BluetoothDeviceBackend(transport: transport, clock: .continuous)
+    backend.start()
+    await waitForPower(backend, powered: true)
+    #expect(await transport.snapshotCalls == 1)
+
+    await transport.setPowered(false)
+    notifications.callbacks.last?()
+    await waitForPower(backend, powered: false)
+    await transport.setPowered(nil)
+    notifications.callbacks.last?()
+    await waitForPower(backend, powered: nil)
+    #expect(backend.lastError == nil)
+    backend.stop()
+  }
+
+  @Test("A failed power observation ends an in-flight request without publishing late SDK success")
+  func failedPowerReadDuringConnection() async {
+    let notifications = BluetoothNotificationFixture()
+    let transport = BluetoothFixtureTransport(
+      peers: [peer("a", "Headphones")], notifications: notifications)
+    let clock = DeviceBackendTestClock()
+    let backend = BluetoothDeviceBackend(
+      transport: transport, clock: DeviceBackendClock { try await clock.sleep(for: $0) })
+    backend.start()
+    await backend.refresh()
+    let request = Task { try await backend.connect(id: "a") }
+    await transport.waitForConnectCount(1)
+    await clock.waitForSleepCount(1)
+
+    await transport.setSnapshotFailure(DeviceBackendError.osStatus(-5))
+    await backend.refresh()
+    #expect(backend.isPoweredOn == nil)
+    #expect(backend.connectionPhases["a"] == .failed)
+    await transport.complete(id: "a")
+    await transport.waitForReturnCount(1)
+    await #expect(throws: DeviceBackendError.osStatus(-5)) { try await request.value }
+    #expect(backend.connectionPhases["a"] == .failed)
+    #expect(backend.isPoweredOn == nil)
+    backend.stop()
+  }
+
   @Test("Duplicate requests share one baseband operation and never claim an audio route")
   func duplicateConnect() async throws {
     let notifications = BluetoothNotificationFixture()
@@ -150,6 +221,18 @@ struct BluetoothDeviceBackendTests {
     BluetoothPeer(id: id, name: name, isAudioDevice: audio, isConnected: connected)
   }
 
+  private func waitForPower(_ backend: BluetoothDeviceBackend, powered: Bool?) async {
+    while backend.isPoweredOn != powered {
+      await withCheckedContinuation { continuation in
+        withObservationTracking {
+          _ = backend.isPoweredOn
+        } onChange: {
+          continuation.resume()
+        }
+      }
+    }
+  }
+
   private func waitForErrorClear(_ backend: BluetoothDeviceBackend, id: String) async {
     while backend.connectionErrors[id] != nil {
       await withCheckedContinuation { continuation in
@@ -178,7 +261,8 @@ private final class BluetoothNotificationFixture {
 private actor BluetoothFixtureTransport: BluetoothDeviceTransport {
   private let notifications: BluetoothNotificationFixture
   private var peers: [BluetoothPeer]
-  private var powered = true
+  private var powered: Bool? = true
+  private var snapshotError: (any Error)?
   private var pending: [String: [CheckedContinuation<Void, any Error>]] = [:]
   private var connectBarriers: [(Int, CheckedContinuation<Void, Never>)] = []
   private var returnBarriers: [(Int, CheckedContinuation<Void, Never>)] = []
@@ -193,10 +277,12 @@ private actor BluetoothFixtureTransport: BluetoothDeviceTransport {
 
   func snapshot() async throws -> BluetoothTransportSnapshot {
     snapshotCalls += 1
+    if let snapshotError { throw snapshotError }
     return BluetoothTransportSnapshot(isPoweredOn: powered, peers: peers)
   }
 
-  func setPowered(_ value: Bool) { powered = value }
+  func setPowered(_ value: Bool?) { powered = value }
+  func setSnapshotFailure(_ error: (any Error)?) { snapshotError = error }
 
   func connect(id: String) async throws {
     connectIDs.append(id)

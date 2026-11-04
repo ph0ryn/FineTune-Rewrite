@@ -121,6 +121,11 @@ public final class BluetoothDeviceBackend {
       return
     } catch {
       guard isRunning, generation == epoch, refreshGeneration == ticket else { return }
+      isPoweredOn = nil
+      knownPeers.removeAll()
+      for (id, attempt) in attempts {
+        finish(id: id, token: attempt.token, result: .failure(error))
+      }
       lastError = error
       lastErrorDeviceID = nil
     }
