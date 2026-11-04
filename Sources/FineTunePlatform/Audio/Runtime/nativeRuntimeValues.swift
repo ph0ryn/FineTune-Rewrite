@@ -123,12 +123,21 @@ func nativeRoutePhase(_ phase: FTNativePhase) -> AudioRoutePhase {
 func nativeRouteObservation(
   key: AudioRouteKey, snapshot: FTNativeRouteSnapshot, phase: AudioRoutePhase? = nil
 ) -> AudioRouteObservation {
-  AudioRouteObservation(
-    key: key, phase: phase ?? nativeRoutePhase(snapshot.phase),
+  let observedPhase = phase ?? nativeRoutePhase(snapshot.phase)
+  // Callback counts include disabled/empty taps. First-applied requires a processed, permitted
+  // buffer; the peak is its latest observed post-output amplitude, not a freshness guarantee.
+  let hasPeak =
+    snapshot.phase == FT_NATIVE_FIRST_APPLIED && snapshot.applied_revision > 0
+    && snapshot.callback_count > 0 && snapshot.failure.kind == FT_NATIVE_NO_FAILURE
+    && snapshot.cleanup_failure.kind == FT_NATIVE_NO_FAILURE
+    && observedPhase != .retiring && observedPhase != .retired && observedPhase != .failed
+    && snapshot.peak.isFinite && snapshot.peak >= 0
+  return AudioRouteObservation(
+    key: key, phase: observedPhase,
     acceptedRevision: snapshot.accepted_revision == 0 ? nil : snapshot.accepted_revision,
     appliedRevision: snapshot.applied_revision == 0 ? nil : snapshot.applied_revision,
     failure: snapshot.failure.kind == FT_NATIVE_NO_FAILURE
       ? nil : nativeRouteFailure(snapshot.failure),
     cleanupFailure: snapshot.cleanup_failure.kind == FT_NATIVE_NO_FAILURE
-      ? nil : nativeRouteFailure(snapshot.cleanup_failure))
+      ? nil : nativeRouteFailure(snapshot.cleanup_failure), peakLevel: hasPeak ? snapshot.peak : nil)
 }

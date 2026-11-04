@@ -106,11 +106,14 @@ public struct AudioRouteObservation: Equatable, Sendable {
   public let appliedRevision: UInt64?
   public let failure: AudioRouteFailure?
   public let cleanupFailure: AudioRouteFailure?
+  /// Latest observed post-output amplitude, not a freshness or permission guarantee.
+  /// Nil until a permitted buffer was processed, or when the observation is unavailable.
+  public let peakLevel: Float?
 
   public init(
     key: AudioRouteKey, phase: AudioRoutePhase, acceptedRevision: UInt64? = nil,
     appliedRevision: UInt64? = nil, failure: AudioRouteFailure? = nil,
-    cleanupFailure: AudioRouteFailure? = nil
+    cleanupFailure: AudioRouteFailure? = nil, peakLevel: Float? = nil
   ) {
     self.key = key
     self.phase = phase
@@ -118,6 +121,7 @@ public struct AudioRouteObservation: Equatable, Sendable {
     self.appliedRevision = appliedRevision
     self.failure = failure
     self.cleanupFailure = cleanupFailure
+    self.peakLevel = peakLevel
   }
 }
 

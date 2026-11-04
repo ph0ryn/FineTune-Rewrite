@@ -301,12 +301,16 @@ extension AudioController {
     } else {
       phase = incoming.phase
     }
+    let failure = incoming.failure ?? prior?.failure
+    let cleanupFailure = incoming.cleanupFailure ?? prior?.cleanupFailure
+    let hasPeak =
+      (phase == .committed || phase == .firstApplied) && failure == nil && cleanupFailure == nil
     let merged = AudioRouteObservation(
       key: incoming.key, phase: phase,
       acceptedRevision: maxRevision(prior?.acceptedRevision, incoming.acceptedRevision),
       appliedRevision: maxRevision(prior?.appliedRevision, incoming.appliedRevision),
-      failure: incoming.failure ?? prior?.failure,
-      cleanupFailure: incoming.cleanupFailure ?? prior?.cleanupFailure)
+      failure: failure, cleanupFailure: cleanupFailure,
+      peakLevel: hasPeak ? incoming.peakLevel : nil)
     routeObservations[incoming.key] = merged
     if let error = merged.failure ?? merged.cleanupFailure {
       armWaiters.removeValue(forKey: incoming.key)?.resume(throwing: error)
