@@ -122,8 +122,8 @@ struct MediaKeyMonitorLifecycleTests {
                 deviceName: "Test Device",
                 currentVolume: currentVolume,
                 currentMute: false,
-                setVolume: { _, v in currentVolume = v },
-                setMute: { _, _ in }
+                setVolume: { _, v in currentVolume = v; return true },
+                setMute: { _, _ in true }
             )
         }
         #expect(hud.showCallCount == 10)

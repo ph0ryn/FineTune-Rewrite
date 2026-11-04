@@ -76,8 +76,8 @@ struct MediaKeyMonitorHandlerTests {
             deviceName: "Test Device",
             currentVolume: 0.5,
             currentMute: false,
-            setVolume: { _, v in writtenVolume = v },
-            setMute: { _, _ in }
+            setVolume: { _, v in writtenVolume = v; return true },
+            setMute: { _, _ in true }
         )
         let nextSlider = sqrt(Double(0.5)) + 1.0 / 16.0
         let expected = Float(nextSlider * nextSlider)
@@ -96,8 +96,8 @@ struct MediaKeyMonitorHandlerTests {
             deviceName: "Test Device",
             currentVolume: 0.5,
             currentMute: false,
-            setVolume: { _, v in writtenVolume = v },
-            setMute: { _, _ in }
+            setVolume: { _, v in writtenVolume = v; return true },
+            setMute: { _, _ in true }
         )
         let nextSlider = sqrt(Double(0.5)) - 1.0 / 16.0
         let expected = Float(nextSlider * nextSlider)
@@ -116,8 +116,8 @@ struct MediaKeyMonitorHandlerTests {
             deviceName: "Test Device",
             currentVolume: 1.0,
             currentMute: false,
-            setVolume: { _, v in writtenVolume = v },
-            setMute: { _, _ in }
+            setVolume: { _, v in writtenVolume = v; return true },
+            setMute: { _, _ in true }
         )
         #expect(writtenVolume == 1.0)
     }
@@ -134,8 +134,8 @@ struct MediaKeyMonitorHandlerTests {
             deviceName: "Test Device",
             currentVolume: 0.0,
             currentMute: false,
-            setVolume: { _, v in writtenVolume = v },
-            setMute: { _, _ in }
+            setVolume: { _, v in writtenVolume = v; return true },
+            setMute: { _, _ in true }
         )
         #expect(writtenVolume == 0.0)
     }
@@ -154,8 +154,8 @@ struct MediaKeyMonitorHandlerTests {
             deviceName: "Test Device",
             currentVolume: 0.5,
             currentMute: false,
-            setVolume: { _, v in writtenVolume = v },
-            setMute: { _, _ in }
+            setVolume: { _, v in writtenVolume = v; return true },
+            setMute: { _, _ in true }
         )
         let expected: Float = 0.5 + 1.0 / 16.0
         #expect(writtenVolume == expected)
@@ -173,8 +173,8 @@ struct MediaKeyMonitorHandlerTests {
             deviceName: "Test Device",
             currentVolume: 0.5,
             currentMute: false,
-            setVolume: { _, v in writtenVolume = v },
-            setMute: { _, _ in }
+            setVolume: { _, v in writtenVolume = v; return true },
+            setMute: { _, _ in true }
         )
         let expected: Float = 0.5 - 1.0 / 16.0
         #expect(writtenVolume == expected)
@@ -193,8 +193,8 @@ struct MediaKeyMonitorHandlerTests {
                 deviceName: "Test Device",
                 currentVolume: currentVolume,
                 currentMute: false,
-                setVolume: { _, v in currentVolume = v },
-                setMute: { _, _ in }
+                setVolume: { _, v in currentVolume = v; return true },
+                setMute: { _, _ in true }
             )
         }
         let expected: Float = 0.5 + 4.0 * (1.0 / 16.0)
@@ -214,8 +214,8 @@ struct MediaKeyMonitorHandlerTests {
                 deviceName: "Test Device",
                 currentVolume: currentVolume,
                 currentMute: false,
-                setVolume: { _, v in currentVolume = v },
-                setMute: { _, _ in }
+                setVolume: { _, v in currentVolume = v; return true },
+                setMute: { _, _ in true }
             )
         }
         #expect(currentVolume == 1.0)
@@ -237,8 +237,8 @@ struct MediaKeyMonitorHandlerTests {
                 deviceName: "Test Display",
                 currentVolume: 0.5,
                 currentMute: false,
-                setVolume: { _, _ in setVolumeCount += 1 },
-                setMute: { _, _ in }
+                setVolume: { _, _ in setVolumeCount += 1; return true },
+                setMute: { _, _ in true }
             )
         }
         #expect(setVolumeCount <= 3)
@@ -257,8 +257,8 @@ struct MediaKeyMonitorHandlerTests {
                 deviceName: "Test Display",
                 currentVolume: 0.5,
                 currentMute: false,
-                setVolume: { _, _ in setVolumeCount += 1 },
-                setMute: { _, _ in }
+                setVolume: { _, _ in setVolumeCount += 1; return true },
+                setMute: { _, _ in true }
             )
         }
         #expect(setVolumeCount == 3)
@@ -277,8 +277,8 @@ struct MediaKeyMonitorHandlerTests {
                 deviceName: "Test Device",
                 currentVolume: 0.5,
                 currentMute: false,
-                setVolume: { _, _ in setVolumeCount += 1 },
-                setMute: { _, _ in }
+                setVolume: { _, _ in setVolumeCount += 1; return true },
+                setMute: { _, _ in true }
             )
         }
         #expect(setVolumeCount == 4)
@@ -299,8 +299,8 @@ struct MediaKeyMonitorHandlerTests {
             deviceName: "Test Device",
             currentVolume: 0.5,
             currentMute: true,
-            setVolume: { _, v in writtenVolume = v },
-            setMute: { _, m in writtenMute = m }
+            setVolume: { _, v in writtenVolume = v; return true },
+            setMute: { _, m in writtenMute = m; return true }
         )
         let expected: Float = 0.5 + 1.0 / 16.0
         #expect(writtenMute == false)
@@ -319,8 +319,8 @@ struct MediaKeyMonitorHandlerTests {
             deviceName: "Test Device",
             currentVolume: 0.5,
             currentMute: false,
-            setVolume: { _, _ in },
-            setMute: { _, _ in setMuteCalls += 1 }
+            setVolume: { _, _ in true },
+            setMute: { _, _ in setMuteCalls += 1; return true }
         )
         #expect(setMuteCalls == 0)
     }
@@ -337,8 +337,8 @@ struct MediaKeyMonitorHandlerTests {
             deviceName: "Test Device",
             currentVolume: 0.5,
             currentMute: true,
-            setVolume: { _, _ in },
-            setMute: { _, m in writtenMute = m }
+            setVolume: { _, _ in true },
+            setMute: { _, m in writtenMute = m; return true }
         )
         #expect(writtenMute == false)
     }
@@ -356,8 +356,8 @@ struct MediaKeyMonitorHandlerTests {
             deviceName: "Test Device",
             currentVolume: 1.0 / 16.0,
             currentMute: false,
-            setVolume: { _, v in writtenVolume = v },
-            setMute: { _, m in writtenMute = m }
+            setVolume: { _, v in writtenVolume = v; return true },
+            setMute: { _, m in writtenMute = m; return true }
         )
         #expect(writtenVolume == 0)
         #expect(writtenMute == true)
@@ -375,8 +375,8 @@ struct MediaKeyMonitorHandlerTests {
             deviceName: "Test Device",
             currentVolume: 0.0,
             currentMute: true,
-            setVolume: { _, _ in },
-            setMute: { _, _ in setMuteCalls += 1 }
+            setVolume: { _, _ in true },
+            setMute: { _, _ in setMuteCalls += 1; return true }
         )
         #expect(setMuteCalls == 0)
     }
@@ -395,8 +395,8 @@ struct MediaKeyMonitorHandlerTests {
             deviceName: "Test Device",
             currentVolume: 0.5,
             currentMute: false,
-            setVolume: { _, _ in },
-            setMute: { _, m in writtenMute = m }
+            setVolume: { _, _ in true },
+            setMute: { _, m in writtenMute = m; return true }
         )
         #expect(writtenMute == true)
     }
@@ -413,8 +413,8 @@ struct MediaKeyMonitorHandlerTests {
             deviceName: "Test Device",
             currentVolume: 0.5,
             currentMute: true,
-            setVolume: { _, _ in },
-            setMute: { _, m in writtenMute = m }
+            setVolume: { _, _ in true },
+            setMute: { _, m in writtenMute = m; return true }
         )
         #expect(writtenMute == false)
     }
@@ -433,8 +433,8 @@ struct MediaKeyMonitorHandlerTests {
             deviceName: "Test Device",
             currentVolume: 0.5,
             currentMute: false,
-            setVolume: { _, _ in },
-            setMute: { _, _ in }
+            setVolume: { _, _ in true },
+            setMute: { _, _ in true }
         )
         #expect(hud.showCallCount == 1)
     }
@@ -450,8 +450,8 @@ struct MediaKeyMonitorHandlerTests {
             deviceName: "Test Device",
             currentVolume: 0.5,
             currentMute: false,
-            setVolume: { _, _ in },
-            setMute: { _, _ in }
+            setVolume: { _, _ in true },
+            setMute: { _, _ in true }
         )
         #expect(hud.showCallCount == 0)
     }
@@ -467,8 +467,8 @@ struct MediaKeyMonitorHandlerTests {
             deviceName: "Test Device",
             currentVolume: 0.5,
             currentMute: false,
-            setVolume: { _, _ in },
-            setMute: { _, _ in }
+            setVolume: { _, _ in true },
+            setMute: { _, _ in true }
         )
         #expect(hud.showCallCount == 1)
     }
@@ -482,20 +482,47 @@ struct MediaKeyMonitorHandlerTests {
         monitor.handleCore(
             event: .volumeUp(isRepeat: false), deviceID: deviceID, tier: .software,
             deviceName: "Software Device", currentVolume: softwareVolume, currentMute: false,
-            setVolume: { _, v in softwareVolume = v }, setMute: { _, _ in }
+            setVolume: { _, v in softwareVolume = v; return true }, setMute: { _, _ in true }
         )
 
         var hardwareVolume: Float = 0.5
         monitor.handleCore(
             event: .volumeUp(isRepeat: false), deviceID: deviceID, tier: .hardware,
             deviceName: "Hardware Device", currentVolume: hardwareVolume, currentMute: false,
-            setVolume: { _, v in hardwareVolume = v }, setMute: { _, _ in }
+            setVolume: { _, v in hardwareVolume = v; return true }, setMute: { _, _ in true }
         )
 
         #expect(abs(hardwareVolume - 0.5625) < 1e-5)
         let expectedSoftware = Float(pow(sqrt(0.5) + 1.0/16.0, 2))
         #expect(abs(softwareVolume - expectedSoftware) < 1e-5)
         #expect(softwareVolume != hardwareVolume)
+    }
+
+    @Test("Rejected requests suppress success feedback without rolling back earlier writes", arguments: [true, false])
+    func rejectedRequestSuppressesSuccess(_ rejectMute: Bool) {
+        let (monitor, hud, _, _) = makeMonitor()
+        let icon = RecordingMediaKeyIcon()
+        monitor.iconCoordinator = icon
+        var writes: [String] = []
+        var muted = true
+        var feedbackCalls = 0
+        monitor.handleCore(
+            event: .volumeUp(isRepeat: false), deviceID: 1, tier: .hardware,
+            deviceName: "Test Device", currentVolume: 0.5, currentMute: true,
+            setVolume: { _, _ in writes.append("gain"); return false },
+            setMute: { _, value in
+                writes.append("mute")
+                guard !rejectMute else { return false }
+                muted = value
+                return true
+            },
+            playFeedback: { _ in feedbackCalls += 1 }
+        )
+        #expect(writes == (rejectMute ? ["mute"] : ["mute", "gain"]))
+        #expect(muted == rejectMute)
+        #expect(feedbackCalls == 0)
+        #expect(hud.showCallCount == 0)
+        #expect(icon.flashes == 0)
     }
 
     // MARK: - Volume-feedback hook
@@ -507,7 +534,7 @@ struct MediaKeyMonitorHandlerTests {
         monitor.handleCore(
             event: .volumeUp(isRepeat: false), deviceID: 1, tier: .hardware,
             deviceName: "Test Device", currentVolume: 0.5, currentMute: false,
-            setVolume: { _, _ in }, setMute: { _, _ in },
+            setVolume: { _, _ in true }, setMute: { _, _ in true },
             playFeedback: { feedbackGain = $0 }
         )
         #expect(feedbackGain == 1.0)
@@ -521,7 +548,7 @@ struct MediaKeyMonitorHandlerTests {
         monitor.handleCore(
             event: .volumeUp(isRepeat: false), deviceID: 1, tier: .software,
             deviceName: "Test Device", currentVolume: 0.5, currentMute: false,
-            setVolume: { _, v in written = v }, setMute: { _, _ in },
+            setVolume: { _, v in written = v; return true }, setMute: { _, _ in true },
             playFeedback: { feedbackGain = $0 }
         )
         #expect(feedbackGain != nil)
@@ -535,7 +562,7 @@ struct MediaKeyMonitorHandlerTests {
         monitor.handleCore(
             event: .volumeDown(isRepeat: false), deviceID: 1, tier: .hardware,
             deviceName: "Test Device", currentVolume: 0.5, currentMute: false,
-            setVolume: { _, _ in }, setMute: { _, _ in },
+            setVolume: { _, _ in true }, setMute: { _, _ in true },
             playFeedback: { _ in feedbackCalls += 1 }
         )
         #expect(feedbackCalls == 1)
@@ -548,7 +575,7 @@ struct MediaKeyMonitorHandlerTests {
         monitor.handleCore(
             event: .muteToggle, deviceID: 1, tier: .hardware,
             deviceName: "Test Device", currentVolume: 0.5, currentMute: false,
-            setVolume: { _, _ in }, setMute: { _, _ in },
+            setVolume: { _, _ in true }, setMute: { _, _ in true },
             playFeedback: { _ in feedbackCalls += 1 }
         )
         #expect(feedbackCalls == 0)
@@ -563,7 +590,7 @@ struct MediaKeyMonitorHandlerTests {
             monitor.handleCore(
                 event: .volumeUp(isRepeat: true), deviceID: 1, tier: .ddc,
                 deviceName: "Test Display", currentVolume: 0.5, currentMute: false,
-                setVolume: { _, _ in setVolumeCalls += 1 }, setMute: { _, _ in },
+                setVolume: { _, _ in setVolumeCalls += 1; return true }, setMute: { _, _ in true },
                 playFeedback: { _ in feedbackCalls += 1 }
             )
         }
@@ -582,7 +609,7 @@ struct MediaKeyMonitorHandlerTests {
         monitor.handleCore(
             event: .volumeDown(isRepeat: false), deviceID: 1, tier: .hardware,
             deviceName: "Test Device", currentVolume: 1.0 / 16.0, currentMute: false,
-            setVolume: { _, _ in }, setMute: { _, m in writtenMute = m },
+            setVolume: { _, _ in true }, setMute: { _, m in writtenMute = m; return true },
             playFeedback: { _ in feedbackCalls += 1 }
         )
         #expect(writtenMute == true)
@@ -637,6 +664,12 @@ final class RecordingMediaKeyHUD: MediaKeyHUDPresenting {
 }
 
 @MainActor
+private final class RecordingMediaKeyIcon: MediaKeyIconFlashing {
+    private(set) var flashes = 0
+    func flashDevice() { flashes += 1 }
+}
+
+@MainActor
 private final class RecordingMediaKeyDevice {
     var gain: Float = 0.5
     var muted = true
@@ -645,20 +678,22 @@ private final class RecordingMediaKeyDevice {
     var snapshot: MediaKeyDeviceSnapshot {
         MediaKeyDeviceSnapshot(id: 11, tier: .hardware, name: "Fixture", gain: gain, muted: muted)
     }
-    func setVolume(_ id: AudioDeviceID, _ value: Float) {
+    func setVolume(_ id: AudioDeviceID, _ value: Float) -> Bool {
         gain = value
         volumeWrites.append((id, value))
+        return true
     }
-    func setMute(_ id: AudioDeviceID, _ value: Bool) {
+    func setMute(_ id: AudioDeviceID, _ value: Bool) -> Bool {
         muted = value
         muteWrites.append((id, value))
+        return true
     }
 }
 
 @Suite("Rewrite media-key composition boundaries")
 @MainActor
 struct MediaKeyCompositionBoundaryTests {
-    private func fixture(installationSucceeds: Bool = true) -> (
+    private func fixture(installationSucceeds: Bool = true, rejectGain: Bool = false) -> (
         monitor: MediaKeyMonitor, tap: TestMediaKeyTapInstaller, hud: RecordingMediaKeyHUD,
         status: MediaKeyStatus, device: RecordingMediaKeyDevice
     ) {
@@ -673,7 +708,12 @@ struct MediaKeyCompositionBoundaryTests {
             decoder: IOKitMediaKeyDecoder(), settingsManager: settings,
             accessibility: MockAccessibilityTrustProviding(isTrusted: true), hudController: hud,
             popupVisibility: PopupVisibilityService(), mediaKeyStatus: status, tapInstaller: tap,
-            readDevice: { device.snapshot }, writeVolume: device.setVolume, writeMute: device.setMute)
+            readDevice: { device.snapshot },
+            writeVolume: { id, gain in
+                guard !rejectGain else { return false }
+                return device.setVolume(id, gain)
+            },
+            writeMute: device.setMute)
         return (monitor, tap, hud, status, device)
     }
 
@@ -690,6 +730,23 @@ struct MediaKeyCompositionBoundaryTests {
         #expect(f.hud.shown.first?.slider == 0.5625)
         #expect(f.hud.shown.first?.muted == false)
         #expect(f.hud.swallowed == 1)
+        f.monitor.stop()
+    }
+
+    @Test("A rejected gain stays swallowed but never announces successful application")
+    func rejectedGainRemainsSwallowed() throws {
+        let f = fixture(rejectGain: true)
+        let icon = RecordingMediaKeyIcon()
+        f.monitor.iconCoordinator = icon
+        f.monitor.start()
+        let callback = try #require(f.tap.onData)
+        #expect(callback(0x00000A00, false, false))
+        #expect(f.hud.swallowed == 1)
+        #expect(f.device.muteWrites.first?.muted == false)
+        #expect(f.device.volumeWrites.isEmpty)
+        #expect(!f.device.muted)
+        #expect(f.hud.shown.isEmpty)
+        #expect(icon.flashes == 0)
         f.monitor.stop()
     }
 

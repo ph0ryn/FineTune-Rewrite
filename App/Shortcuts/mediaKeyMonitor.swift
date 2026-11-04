@@ -24,8 +24,8 @@ final class MediaKeyMonitor {
   private let mediaKeyStatus: MediaKeyStatus
   private let tapInstaller: any MediaKeyTapInstalling
   private let readDevice: () -> MediaKeyDeviceSnapshot?
-  private let writeVolume: (AudioDeviceID, Float) -> Void
-  private let writeMute: (AudioDeviceID, Bool) -> Void
+  private let writeVolume: (AudioDeviceID, Float) -> Bool
+  private let writeMute: (AudioDeviceID, Bool) -> Bool
   private let now: () -> UInt64
   private var planner = VolumeKeyPlanner()
   private var installed = false
@@ -42,8 +42,8 @@ final class MediaKeyMonitor {
     popupVisibility: PopupVisibilityService, mediaKeyStatus: MediaKeyStatus,
     tapInstaller: any MediaKeyTapInstalling,
     readDevice: @escaping () -> MediaKeyDeviceSnapshot?,
-    writeVolume: @escaping (AudioDeviceID, Float) -> Void,
-    writeMute: @escaping (AudioDeviceID, Bool) -> Void,
+    writeVolume: @escaping (AudioDeviceID, Float) -> Bool,
+    writeMute: @escaping (AudioDeviceID, Bool) -> Bool,
     now: @escaping () -> UInt64 = { DispatchTime.now().uptimeNanoseconds }
   ) {
     self.decoder = decoder
@@ -133,8 +133,8 @@ final class MediaKeyMonitor {
   func handleCore(
     event: MediaKeyEvent, deviceID: AudioDeviceID, tier: VolumeControlTier,
     deviceName: String, currentVolume: Float, currentMute: Bool,
-    setVolume: (AudioDeviceID, Float) -> Void,
-    setMute: (AudioDeviceID, Bool) -> Void,
+    setVolume: (AudioDeviceID, Float) -> Bool,
+    setMute: (AudioDeviceID, Bool) -> Bool,
     playFeedback: (Float) -> Void = { _ in }
   ) {
     guard
@@ -143,8 +143,8 @@ final class MediaKeyMonitor {
         step: settingsManager.appSettings.volumeHotkeyStep, nowNanoseconds: now()
       )
     else { return }
-    if let muted = change.mute { setMute(deviceID, muted) }
-    if let gain = change.gain { setVolume(deviceID, gain) }
+    if let muted = change.mute, !setMute(deviceID, muted) { return }
+    if let gain = change.gain, !setVolume(deviceID, gain) { return }
     if let feedback = change.feedbackGain { playFeedback(feedback) }
     if !popupVisibility.isVisible {
       hudController.show(
