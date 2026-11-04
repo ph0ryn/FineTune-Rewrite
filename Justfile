@@ -9,7 +9,7 @@ clang_format := env("CLANG_FORMAT", "clang-format")
 clang_format_version := "21.1.8"
 
 # Check formatting, unit/component/DSP tests and reviewed evidence in both configurations.
-check: lint audit-tests (build "debug") (test "debug") (test-dsp "debug") (audit-upstream "debug") (build "release") (test "release") (test-dsp "release") (audit-upstream "release")
+check: lint audit-tests (build "debug") (test "debug") (test-dsp "debug") (test-native "debug") (audit-upstream "debug") (build "release") (test "release") (test-dsp "release") (test-native "release") (audit-upstream "release")
 
 # Show the selected Xcode, Swift, Clang, macOS SDK, and native formatter.
 toolchain:
@@ -47,7 +47,14 @@ build configuration="debug":
 
 # Snapshot inputs, clear stale events, then record unit/component test evidence.
 test configuration="debug":
-  python3 scripts/auditUpstreamTests.py --capture-snapshot {{ quote(swift_scratch_path + "/test-source-snapshot-" + configuration + ".json") }} --events {{ quote(swift_scratch_path + "/test-events-" + configuration + ".jsonl") }} --cpp-events {{ quote(swift_scratch_path + "/test-dsp-results-" + configuration + ".json") }}
+  python3 scripts/auditUpstreamTests.py --capture-snapshot {{ quote(swift_scratch_path + "/test-source-snapshot-" + configuration + ".json") }} \
+    --events {{ quote(swift_scratch_path + "/test-events-" + configuration + ".jsonl") }} \
+    --cpp-events {{ quote(swift_scratch_path + "/test-dsp-results-" + configuration + ".json") }} \
+    --cpp-events {{ quote(swift_scratch_path + "/test-native-stage-results-" + configuration + ".json") }} \
+    --cpp-events {{ quote(swift_scratch_path + "/test-native-slot-results-" + configuration + ".json") }} \
+    --cpp-events {{ quote(swift_scratch_path + "/test-native-levels-results-" + configuration + ".json") }} \
+    --cpp-events {{ quote(swift_scratch_path + "/test-native-runtime-results-" + configuration + ".json") }} \
+    --cpp-events {{ quote(swift_scratch_path + "/test-native-hal-results-" + configuration + ".json") }}
   xcrun swift test --scratch-path {{ quote(swift_scratch_path) }} --jobs {{ quote(build_jobs) }} --configuration {{ quote(configuration) }} --xunit-output {{ quote(swift_scratch_path + "/test-results-" + configuration + ".xml") }} --event-stream-output-path {{ quote(swift_scratch_path + "/test-events-" + configuration + ".jsonl") }} --event-stream-version 0
 
 # Test the migration auditor's fail-closed source/event handling.
@@ -56,11 +63,27 @@ audit-tests:
 
 # Check reviewed guarantees, runtime cases and unchanged compiled inputs.
 audit-upstream configuration="debug":
-  python3 scripts/auditUpstreamTests.py --source-snapshot {{ quote(swift_scratch_path + "/test-source-snapshot-" + configuration + ".json") }} --events {{ quote(swift_scratch_path + "/test-events-" + configuration + ".jsonl") }} --cpp-events {{ quote(swift_scratch_path + "/test-dsp-results-" + configuration + ".json") }} --json-output {{ quote(swift_scratch_path + "/test-audit-" + configuration + ".json") }}
+  python3 scripts/auditUpstreamTests.py --source-snapshot {{ quote(swift_scratch_path + "/test-source-snapshot-" + configuration + ".json") }} \
+    --events {{ quote(swift_scratch_path + "/test-events-" + configuration + ".jsonl") }} \
+    --cpp-events {{ quote(swift_scratch_path + "/test-dsp-results-" + configuration + ".json") }} \
+    --cpp-events {{ quote(swift_scratch_path + "/test-native-stage-results-" + configuration + ".json") }} \
+    --cpp-events {{ quote(swift_scratch_path + "/test-native-slot-results-" + configuration + ".json") }} \
+    --cpp-events {{ quote(swift_scratch_path + "/test-native-levels-results-" + configuration + ".json") }} \
+    --cpp-events {{ quote(swift_scratch_path + "/test-native-runtime-results-" + configuration + ".json") }} \
+    --cpp-events {{ quote(swift_scratch_path + "/test-native-hal-results-" + configuration + ".json") }} \
+    --json-output {{ quote(swift_scratch_path + "/test-audit-" + configuration + ".json") }}
 
 # Run native DSP and public C ABI scenarios without audio devices.
 test-dsp configuration="debug":
   xcrun swift run --scratch-path {{ quote(swift_scratch_path) }} --jobs {{ quote(build_jobs) }} --configuration {{ quote(configuration) }} DSPTests --report {{ quote(swift_scratch_path + "/test-dsp-results-" + configuration + ".json") }}
+
+# Run named native ownership/levels and fake-HAL C boundary units, without physical audio.
+test-native configuration="debug":
+  xcrun swift run --scratch-path {{ quote(swift_scratch_path) }} --jobs {{ quote(build_jobs) }} --configuration {{ quote(configuration) }} NativeStageTests --report {{ quote(swift_scratch_path + "/test-native-stage-results-" + configuration + ".json") }}
+  xcrun swift run --scratch-path {{ quote(swift_scratch_path) }} --jobs {{ quote(build_jobs) }} --configuration {{ quote(configuration) }} NativeSlotTests --report {{ quote(swift_scratch_path + "/test-native-slot-results-" + configuration + ".json") }}
+  xcrun swift run --scratch-path {{ quote(swift_scratch_path) }} --jobs {{ quote(build_jobs) }} --configuration {{ quote(configuration) }} NativeLevelsTests --report {{ quote(swift_scratch_path + "/test-native-levels-results-" + configuration + ".json") }}
+  xcrun swift run --scratch-path {{ quote(swift_scratch_path) }} --jobs {{ quote(build_jobs) }} --configuration {{ quote(configuration) }} NativeRuntimeTests --report {{ quote(swift_scratch_path + "/test-native-runtime-results-" + configuration + ".json") }}
+  python3 scripts/testNativeHAL.py --configuration {{ quote(configuration) }} --scratch-path {{ quote(swift_scratch_path) }}
 
 # Opt in to unsigned Xcode bundling, which registers the app with macOS but never launches it.
 build-app configuration="debug":
