@@ -13,6 +13,10 @@ let package = Package(
     .library(name: "AudioDSP", targets: ["AudioDSP"]),
     .executable(name: "FineTune", targets: ["FineTune"]),
     .executable(name: "DSPTests", targets: ["DSPTests"]),
+    .executable(name: "NativeStageTests", targets: ["NativeStageTests"]),
+    .executable(name: "NativeSlotTests", targets: ["NativeSlotTests"]),
+    .executable(name: "NativeLevelsTests", targets: ["NativeLevelsTests"]),
+    .executable(name: "NativeRuntimeTests", targets: ["NativeRuntimeTests"]),
   ],
   dependencies: [
     .package(
@@ -51,6 +55,22 @@ let package = Package(
       dependencies: ["AudioDSP", "NativeAudio"],
       path: "Tools/DSPTests",
       sources: ["main.cpp", "LoudnessCompatibilityTests.cpp"]
+    ),
+    .executableTarget(
+      name: "NativeStageTests", dependencies: ["NativeAudio"],
+      path: "Tests/NativeStageTests", sources: ["main.cpp"]
+    ),
+    .executableTarget(
+      name: "NativeSlotTests", dependencies: ["NativeAudio"],
+      path: "Tests/NativeRuntimeTests", sources: ["CallbackSlotsTests.cpp"]
+    ),
+    .executableTarget(
+      name: "NativeLevelsTests", dependencies: ["NativeAudio"],
+      path: "Tests/NativeRuntimeTests", sources: ["CoherentLevelsTests.cpp"]
+    ),
+    .executableTarget(
+      name: "NativeRuntimeTests", dependencies: ["NativeAudio"],
+      path: "Tests/NativeRuntimeTests", sources: ["NativeRuntimeBoundaryTests.cpp"]
     ),
     .testTarget(
       name: "UpstreamCompatibilityTests",
