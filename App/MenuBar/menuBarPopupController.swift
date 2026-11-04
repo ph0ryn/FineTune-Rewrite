@@ -68,16 +68,25 @@ final class MenuBarPopupController: MenuBarPopupControlling {
 /// Keeps the hosted content transparent inside the actual glass surface, and publishes ideal size
 /// changes to NSPopover. No screen-sized viewport or scrolling participates in popup sizing.
 @MainActor
-final class MenuBarPopupContentController<Content: View>: NSViewController {
-  private let hosting: NSHostingController<Content>
+final class MenuBarPopupContentController: NSViewController {
+  private let content: AnyView
   private let sizeDidChange: (NSSize) -> Void
+  private lazy var hosting: NSHostingController<AnyView> = NSHostingController(
+    rootView: AnyView(
+      content.onGeometryChange(for: CGSize.self) {
+        $0.size
+      } action: { [weak self] size in
+        guard let self, self.isViewLoaded else { return }
+        self.publishContentSize(size)
+      }))
 
-  init(content: Content, sizeDidChange: @escaping (NSSize) -> Void) {
-    hosting = NSHostingController(rootView: content)
+  init<Content: View>(content: Content, sizeDidChange: @escaping (NSSize) -> Void) {
+    self.content = AnyView(content)
     self.sizeDidChange = sizeDidChange
     super.init(nibName: nil, bundle: nil)
     addChild(hosting)
-    hosting.sizingOptions = [.preferredContentSize]
+    // The fixed-size SwiftUI content reports its own live layout, not a controller notification.
+    hosting.sizingOptions = []
   }
 
   @available(*, unavailable)
@@ -98,18 +107,16 @@ final class MenuBarPopupContentController<Content: View>: NSViewController {
     }
     let size = hosting.sizeThatFits(
       in: NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude))
-    preferredContentSize = size
     view.setFrameSize(size)
     content.frame = view.bounds
     content.autoresizingMask = [.width, .height]
-    sizeDidChange(size)
+    publishContentSize(size)
   }
 
-  override func preferredContentSizeDidChange(for viewController: NSViewController) {
-    super.preferredContentSizeDidChange(for: viewController)
-    guard viewController === hosting, isViewLoaded else { return }
-    preferredContentSize = hosting.preferredContentSize
-    sizeDidChange(preferredContentSize)
+  private func publishContentSize(_ size: NSSize) {
+    guard preferredContentSize != size else { return }
+    preferredContentSize = size
+    sizeDidChange(size)
   }
 }
 
