@@ -18,6 +18,33 @@ unitで十分ならE2Eへ拡大せず、分割・統合・書換・高依存fixt
 元の保証から新unit/少数componentへのmany-to-many対応と、独立reviewによる十分性の説明が出口です。
 optionalな実機/E2Eを通常CIの前提にしません。
 
+## 確定した移植・実行結果
+
+固定版の原54ファイル・全758 ID/966展開数・全baseline fingerprintを保持し、
+**A550/B205/C3**の各保証対応と独自**D341台帳record**を独立reviewで確定しました。
+DはSwift/C++を含む保証の台帳件数であり、次の実行件数へ重ねて加算しません。
+
+| 完了したrequired gate | Debug | Release |
+| --- | --- | --- |
+| Swift Testing・7 products | 1055宣言 /1349有限入力呼出し | 1055宣言 /1349有限入力呼出し |
+| C++・6 programs | 49 named units /6654有限入力呼出し | 49 named units /6654有限入力呼出し |
+| 完全監査 | pass・errors0 | pass・errors0 |
+
+Swiftは各7組のrun開始/終了、全function/case開始/終了、XML1055宣言を照合し、
+issue/failure/error/skip・compiler warningは0です。C++は6つのpositive reportを同じsnapshotで照合しました。
+別のASan+UBSan実行も49/6654がpassし、対応する二つのRelease故障注入controlは意図どおりexit1でした。
+故障注入結果をrequired成功件数へ加算したり、通常試験の失敗を隠したりしていません。
+
+両configurationのbefore/after/current入力mapは283ファイルで一致しました。
+これはresource/build入力と一部過包含cacheを含む追跡集合であり、283個のコンパイル単位という意味ではありません。
+C++の保守的なsource inventory37とは別に、実`-MMD`和は**authored36＋外部境界用generated provider1**です。
+未参照umbrella header1件を実compiler依存と数えず、providerもDSP/runtime本体の代用品ではありません。
+SystemHalの実ObjC++ typecheckは別のDebug/Release各1 TUで確認し、incremental SDK進捗だけからfresh compileと推論していません。
+
+最後の登録では独立承認済み新D141宣言/180呼出しと、既存37 methodの理由付きFP差のみを追加照合しました。
+原baseline・分類・入力・数値期待を変えず、Bool callbackの成功stub適応、共有clock型名、強化したUI/status assertionsを個別に説明しています。
+通常の再現入口は下記の既存gateで、実機・App起動・OS権限・可聴音・RT deadlineの合格をこの結果へ含めません。
+
 ## 台帳の正本
 
 [永続manifest](<../Tests/UpstreamCompatibilityTests/migrationManifest.json>)に次を記録します。
@@ -150,11 +177,13 @@ metadataをoptionalにしただけで、通常の`swift test`が実機操作を�
 
 - 期待値・string内space・parameter input・helper・宣言の無断変更を失敗にする
 - 純粋なformatとmultiline実値不変を許容する
+- 有限literal collection1個/2個のCartesian展開と同sourceの純粋な`CaseIterable`を照合し、動的・曖昧な入力は拒否する
 - pending/自己review、理由・代替のない非可搬扱いを失敗にする
 - many-to-many統合により元の2宣言/3呼出しが新1unit/1呼出しになっても、review済みなら受け入れる
 - runtime欠落・重複・skip・issue・未完run・未知schema・stale report/変更済みsourceを失敗にする
 - Swift/C++のoptional-hardwareを既定の期待件数へ混ぜず、明示include・理由・reviewを要求する
 
+現在の監査器自身の試験は34件passです。
 監査器はCIを通すために再設計を拒否する装置ではなく、説明のない保証低下や証拠の取り違えを検出するものです。
 
 ## 保証しない範囲と由来

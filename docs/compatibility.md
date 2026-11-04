@@ -11,6 +11,15 @@
 [対応台帳](<../Tests/UpstreamCompatibilityTests/migrationManifest.json>)と[監査手順](<test-migration.md>)で追跡します。
 原作issue/PR由来の改良は、今回の移植へ追加しません。
 
+この固定版に対する移植・独立review・required実行監査は完了しました。
+元の分類は**A550/B205/C3**を維持し、新設計の追加保証は独自Dとして分けています。
+最終Debug/Releaseは各**Swift 1055宣言/1349呼出し（7 products）**と
+**C++ 49 named units/6654呼出し（6 programs）**がpassし、完全監査は両方errors0です。
+有限入力の展開と実function/case終了を照合した結果であり、元966との件数合わせではありません。
+[実行証拠の読み方と限界](<test-migration.md#確定した移植実行結果>)に詳細を記録します。
+これは注入可能なunit/componentと静的な製品consumer接続の受入れで、
+実機の音声・権限・OS event順序・GUI見た目・長時間/RT deadlineまで完了したという意味ではありません。
+
 ## 保持する意味
 
 - アプリ・機器のvolume/mute/boost、software sliderの意味、経路選択と保存希望
