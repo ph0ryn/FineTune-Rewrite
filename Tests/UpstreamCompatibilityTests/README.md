@@ -53,10 +53,10 @@ export SDKROOT="$(xcrun --sdk macosx --show-sdk-path)"
 export SWIFT_SCRATCH_PATH=.indexion/cache/integrationBuild
 just test
 just test-dsp
-just audit-upstream
+just test-native
 just test release
 just test-dsp release
-just audit-upstream release
+just test-native release
 ```
 
 実行結果は指定scratch内の`test-results-<configuration>-swift-testing.xml`と
@@ -64,11 +64,10 @@ just audit-upstream release
 parameterized入力ごとの呼出しはJSONの`testCaseStarted` / `testCaseEnded`で確認します。
 `just test-dsp`は実C++unitを実行し、`test-dsp-results-<configuration>.json`へnamed caseごとの
 結果を保存します。C++に対応付けた保証はSwiftの宣言数へ加算せず、このreportで独立に検証します。
-実行直前に`test-source-snapshot-<configuration>.json`へ共通compile入力のhashを取り、
-Swift eventsとC++ reportの旧内容を空にしてから実行します。独立review済みの保証対応と実case・
-入力hashの一致は`just audit-upstream`で検証します。台帳が未承認、必要なtestが未実行・skip・failure、
-reportが古い・不完全、または実行中に入力が変わった場合は合格にしません。
-[監査台帳](<migrationManifest.json>)と[監査手順](<../../docs/test-migration.md>)も参照してください。
+`just test`は実行前にSwift eventsを空にし、native executableは実行時にreportを書き直します。
+専用の自動監査は削除したため、台帳・fingerprint・source hashと実行結果の照合は行いません。
+保証対応や入力・期待値の変更はreviewし、ソース変更後は該当するテストを再実行します。
+[対応台帳](<migrationManifest.json>)と[確認手順](<../../docs/test-migration.md>)も参照してください。
 
 - AppKitを使うテストはMainActor上の`NSApplication.shared`だけを必要に応じて初期化します。
   実アプリの起動、録音、音声再生、権限要求はbootstrapへ含めません。

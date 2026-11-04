@@ -8,10 +8,10 @@
 
 現在のテスト移植では、原作54ファイル・758宣言・静的966呼出しを元の保証の参照母数として扱います。
 最終test数・元本文の一致そのものではなく、保証シナリオから新しいunit/componentへの対応と独立reviewを出口にします。
-[対応台帳](<../Tests/UpstreamCompatibilityTests/migrationManifest.json>)と[監査手順](<test-migration.md>)で追跡します。
+[対応台帳](<../Tests/UpstreamCompatibilityTests/migrationManifest.json>)と[確認手順](<test-migration.md>)で追跡します。
 原作issue/PR由来の改良は、今回の移植へ追加しません。
 
-この固定版に対する移植・独立review・required実行監査は完了しました。
+この固定版に対する移植時の独立review・実行監査は完了しました。以下は専用監査の削除前の記録で、現在の`just check`で監査を再実行するものではありません。
 元の分類は**A550/B205/C3**を維持し、新設計の追加保証は独自Dとして分けています。
 最終Debug/Releaseは各**Swift 1055宣言/1349呼出し（7 products）**と
 **C++ 49 named units/6654呼出し（6 programs）**がpassし、完全監査は両方errors0です。

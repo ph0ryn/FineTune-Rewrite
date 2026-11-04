@@ -1,4 +1,4 @@
-# 原作テストの保証対応と監査
+# 原作テストの保証対応と確認
 
 ## 目的と母数
 
@@ -20,11 +20,14 @@ optionalな実機/E2Eを通常CIの前提にしません。
 
 ## 確定した移植・実行結果
 
+この節は専用の自動監査を削除する前に確定した移植時の記録です。
+現在の`just check`は以下の完全監査を再実行しません。
+
 固定版の原54ファイル・全758 ID/966展開数・全baseline fingerprintを保持し、
 **A550/B205/C3**の各保証対応と独自**D341台帳record**を独立reviewで確定しました。
 DはSwift/C++を含む保証の台帳件数であり、次の実行件数へ重ねて加算しません。
 
-| 完了したrequired gate | Debug | Release |
+| 移植時に完了した検証 | Debug | Release |
 | --- | --- | --- |
 | Swift Testing・7 products | 1055宣言 /1349有限入力呼出し | 1055宣言 /1349有限入力呼出し |
 | C++・6 programs | 49 named units /6654有限入力呼出し | 49 named units /6654有限入力呼出し |
@@ -43,7 +46,7 @@ SystemHalの実ObjC++ typecheckは別のDebug/Release各1 TUで確認し、incre
 
 最後の登録では独立承認済み新D141宣言/180呼出しと、既存37 methodの理由付きFP差のみを追加照合しました。
 原baseline・分類・入力・数値期待を変えず、Bool callbackの成功stub適応、共有clock型名、強化したUI/status assertionsを個別に説明しています。
-通常の再現入口は下記の既存gateで、実機・App起動・OS権限・可聴音・RT deadlineの合格をこの結果へ含めません。
+実機・App起動・OS権限・可聴音・RT deadlineの合格をこの結果へ含めません。
 
 ## 台帳の正本
 
@@ -69,122 +72,59 @@ SystemHalの実ObjC++ typecheckは別のDebug/Release各1 TUで確認し、incre
 B/Cを承認済みの再設計へ移した場合、元methodがないだけで欠落と判定しません。
 一方、理由のない削除、入力削減、許容差緩和、skip、known-issue隠蔽でpassを作りません。
 
-## 静的照合の役割
+## 現在の確認手順
 
-[監査器](<../scripts/auditUpstreamTests.py>)はPython標準libraryと選択Xcodeの`xcrun swift format`を使います。
-原作sourceは固定SHA256を棚卸しと照合した後に解析し、758 IDs/966展開数の一致を独立確認しました。
-大きな元本文やproduction実装はmanifestへ埋め込みません。
-
-fingerprint方式は`swift-format-lexical-v1`です。
-元棚卸しのraw/token hashと同一アルゴリズムだとは扱いません。
-同じformatterで正規化してからcomment・純粋な整形を除く字句を照合し、string内の意味のあるspace、数値、引数を保護します。
-multiline literalの実値を変えないindentationや、整形上の末尾commaは許容します。
-helper/fixtureの変更もfile単位のreview済みsnapshotで検出します。
-
-これは**改変検知**であり、hash一致だけで保証の十分性を証明するものではありません。
-B/Cでは元本文への一致ではなく、review済みの新unitを守ります。
-toolchain変更でhashが変わった場合も、期待値を自動採用せず差分の意味を確認します。
-
-review前のseedや自己申告をapprovedへ自動昇格しません。
-manifestがpendingなら、実行がGreenでも最終監査は失敗します。
-静的確認だけを行う場合:
-
-```bash
-python3 scripts/auditUpstreamTests.py --static-only
-```
-
-このmodeはruntime未確認を明示するpartial checkであり、移植完了の証拠にはなりません。
-
-## 実行証拠
+専用の自動監査器とそのmutation/snapshot testsは削除しました。
+台帳は出自・保証対応・移植時のreview記録として残しますが、現在のソースと実行結果を自動照合するgateではありません。
+台帳の承認状態、fingerprint、必要なunitの欠落、source hashとreportの鮮度の横断照合も行いません。
 
 通常の入口は[Justfile](<../Justfile>)です。
 
 ```bash
-just audit-tests
 just test
 just test-dsp
-just audit-upstream
+just test-native
 just test release
 just test-dsp release
-just audit-upstream release
+just test-native release
+just check
 ```
 
-`just check`はlint/buildと両configurationの上記gateをまとめます。
+`just check`はformat lint・package buildと両configurationの上記テストをまとめます。
+各runnerの非ゼロ終了はチェック失敗として扱います。
 Xcode App bundle buildはLaunchServices等への登録副作用を分離するため含めず、明示opt-inとdisposable CI stepに分けます。
 
-### Source snapshotとfreshなreport
+### 変更時のreview
 
-テスト前にcompiled source・fixture・build設定をhashし、指定した古いevents artifactを空にします。
-テスト後に同一snapshotであることとreportの鮮度を検証します。
-review manifestや文書はcompile入力でないため、実行後に承認を書き込めます。
-production/test sourceを変えた場合は再実行が必要です。
+- 元の保証に対応する新unitの入力・期待値・許容差を確認し、分割・統合や非可搬化の理由を台帳へ記録する
+- fixture/helperの変更も含めてreviewし、期待値や入力削減を単なるformat変更へ混ぜない
+- pendingや自己reviewを独立承認へ自動昇格しない
+- production/test sourceを変更したら、同じconfigurationの該当テストを再実行する。古いreportを現在の成功証拠として再利用しない
 
-SwiftとC++を同じsource snapshotへ対応付ける低水準手順:
+台帳に残る`swift-format-lexical-v1` fingerprintは、移植時にformatterで正規化した字句の改変検知用記録です。
+hash一致だけで保証の十分性を証明するものではなく、現在の手順では再生成・照合しません。
 
-```bash
-python3 scripts/auditUpstreamTests.py \
-  --capture-snapshot .build/test-source-snapshot-debug.json \
-  --events .build/test-events-debug.jsonl \
-  --cpp-events .build/test-dsp-results-debug.json
-xcrun swift test --jobs 2 --configuration debug \
-  --event-stream-output-path .build/test-events-debug.jsonl \
-  --event-stream-version 0 --xunit-output .build/test-results-debug.xml
-xcrun swift run --jobs 2 --configuration debug DSPTests \
-  --report .build/test-dsp-results-debug.json
-python3 scripts/auditUpstreamTests.py \
-  --source-snapshot .build/test-source-snapshot-debug.json \
-  --events .build/test-events-debug.jsonl \
-  --cpp-events .build/test-dsp-results-debug.json \
-  --json-output .build/test-audit-debug.json
-```
+### 実行結果の読み方
 
-C++へ移したunitがあるconfigurationでは、同じrunでnative named reportも生成・監査します。
-Swift JSONLの件数へC++の成功を混ぜず、元保証→C++ ID/入力/許容差→実行結果を別に対応付けます。
-report schema 1は`complete: true`と、全required caseの`id`・`status: passed`・正の`invocations`を要求します。
-途中終了、失敗、欠落、重複、未知case、未知schemaを成功にせず、失敗の実測値等は追加診断fieldとして保持できます。
-`invocations`は実際に実行した入力case数で、assertion/check数とは区別します。後者は`checks`等の追加診断fieldへ保持できます。
+SwiftのJSONL・XMLと六つのnative JSON reportをconfiguration別にscratchへ保存します。
+source snapshotと監査JSONは生成しません。実際のproduct/report pathsは[Justfile](<../Justfile>)を管理元とします。
 
-`--cpp-events`は既存のrepeatable引数です。同じconfigurationで生成した全native suiteのreportを、
-captureとauditの**両方**へ同じ集合で渡します。たとえば`--cpp-events DSP.json --cpp-events STAGES.json --cpp-events SLOTS.json`です。
-全reportを開始時にresetし、freshness・`complete`・全caseの一意性を横断確認するため、別reportへの二重登録も失敗にします。
-上の低level例はDSP reportの形を示すもので、追加required suiteを省略した完全gateではありません。
-実際のproduct/report pathsは[Justfile](<../Justfile>)を管理元とし、stage/slot/level等のrequired reportも漏れなく収集します。
-source snapshotにはTools内のSwift/native sourceやresourceも含め、review用の適応metadataだけを除きます。
-
-### JSONL・XMLの読み方
-
+- `just test`は開始時にSwift JSONLを空にする。native executableは起動時にreportを書き直すが、build失敗で起動しなかった旧reportを成功証拠にしない
 - Swift Testing JSONL version 0の`test` descriptorと`testStarted`/`testEnded`を対応させる
 - parameterizedでは`testCaseStarted`/`testCaseEnded`の異なるcase IDを数え、宣言数と分ける
-- 全required新unitのstart/end、期待した入力数、重複なし、issue/skipなし、完了した`runEnded`を要求する
-- 複数test productのrunを同一streamで受ける。欠けたproductやtruncated/未知schemaを成功扱いしない
-- debug/releaseを一つのevents引数へ混ぜない。同じunitの二重実行になるためconfiguration別に監査する
+- 必要なunitの実行、期待した入力数、issue/skipの有無、完了した`runEnded`を確認する
+- native report schema 1の`complete: true`、各caseの`id`・`status: passed`・正の`invocations`を確認する
+- C++の`invocations`は実際に実行した入力case数で、診断用の`checks`とは区別する
+- Swiftの宣言数へC++の成功を混ぜず、元保証→新unit/入力/許容差→実行結果を別に対応付ける
+- debug/releaseを混ぜず、途中終了・欠落・重複・不完全なreportを成功扱いしない
 
 SwiftPMのXCTest `Executed 0 tests` preambleは、Swift Testingが0件という意味ではありません。
 Swift Testing用XMLは`test-results-<configuration>-swift-testing.xml`で、XMLのtestcase数だけでは入力展開の完了を示せません。
-JSONL・source snapshot・監査JSONと合わせて読みます。
+JSONLと併せて読みます。元966への固定比較や、欠落を覆う総数だけの比較は行いません。
 
-最終required件数は、review済みmanifestの**新しい対応先**から導出します。
-元966への固定比較や、欠落を覆う総数だけの比較は行いません。
-optional-hardwareにはSwift/C++を問わず明示理由とreviewが必要で、通常CIの期待件数から除外します。
-明示的に確認するrunだけ`--include-optional-hardware`で要求し、未実施をpassへ加えません。
-このflagは**証拠の要求範囲**を選ぶもので、SwiftPMやnative runnerの実行filterではありません。
+optional-hardwareにはSwift/C++を問わず明示理由とreviewが必要で、未実施をpassへ加えません。
 実機操作を伴うtestは既定test targetに入れず、別package/明示manual runnerへ隔離してください。
 metadataをoptionalにしただけで、通常の`swift test`が実機操作を止めてくれるとは扱いません。
-
-## 監査器自身の試験
-
-[mutation/snapshot tests](<../Tests/MigrationAuditTests/test_auditUpstreamTests.py>)は次を検証します。
-
-- 期待値・string内space・parameter input・helper・宣言の無断変更を失敗にする
-- 純粋なformatとmultiline実値不変を許容する
-- 有限literal collection1個/2個のCartesian展開と同sourceの純粋な`CaseIterable`を照合し、動的・曖昧な入力は拒否する
-- pending/自己review、理由・代替のない非可搬扱いを失敗にする
-- many-to-many統合により元の2宣言/3呼出しが新1unit/1呼出しになっても、review済みなら受け入れる
-- runtime欠落・重複・skip・issue・未完run・未知schema・stale report/変更済みsourceを失敗にする
-- Swift/C++のoptional-hardwareを既定の期待件数へ混ぜず、明示include・理由・reviewを要求する
-
-現在の監査器自身の試験は34件passです。
-監査器はCIを通すために再設計を拒否する装置ではなく、説明のない保証低下や証拠の取り違えを検出するものです。
 
 ## 保証しない範囲と由来
 

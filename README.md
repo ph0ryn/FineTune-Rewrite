@@ -19,7 +19,7 @@ UIは同じ状態のsnapshotと共通commandを使います。offline DSPだけ�
 | 別途確認が必要 | 実音声・権限・物理機器、最小対応OS、callback deadline、署名・公証・配布 |
 
 **元と同じ件数やテスト構造の再現は目的ではありません。**
-元の保証と新unitの対応、独立review、configuration別の実行証拠・件数は[移植台帳と監査手順](<docs/test-migration.md>)で管理します。
+元の保証と新unitの対応、独立review、移植時の実行記録は[移植台帳と確認手順](<docs/test-migration.md>)で管理します。
 テストの成功は、原作用途をすべて置き換えられる製品、実機音声経路、リアルタイム安全性、署名・公証の完成を意味しません。
 未実装・未接続・未検証を区別し、今回の検証では実音声の取得・再生やTCC承認を行っていません。
 実機を必要としない保証をE2Eへ膨らませません。
@@ -44,7 +44,7 @@ Swiftとnativeの公開境界はC形式です。C++型や所有権をSwift側へ
 
 - macOS、Xcode Command Line Tools、C++20対応Clang
 - Swift 6言語モード。package tools-versionは6.0ですが、互換テストの`-default-isolation MainActor`にはSwift compiler 6.2以降が必要
-- [just](https://just.systems/)、Python 3、`clang-format` **21.1.8**
+- [just](https://just.systems/)、`clang-format` **21.1.8**
 - Swift側はXcode付属の`swift format`、native側は[.clang-format](<.clang-format>)を使う
 
 ローカル検証環境はmacOS 27 / Xcode 27.2 / SDK 27.2 / Swift 6.4.2 / arm64です。
@@ -74,18 +74,16 @@ xcrun swift --version
 ```bash
 just lint
 just build
-just audit-tests
 just test
 just test-dsp
 just test-native
-just audit-upstream
 just check
 ```
 
-[Justfile](<Justfile>)の`just check`は、format lint・監査器の独自テスト・debug/releaseのpackage build、
-unit/component test、offline DSP、native所有・levels・fake-HAL試験、移植監査を実行します。
+[Justfile](<Justfile>)の`just check`は、format lint・debug/releaseのpackage build、
+unit/component test、offline DSP、native所有・levels・fake-HAL試験を実行します。
 App bundle buildは通常チェックから外した明示opt-inです。
-`just test`のSwift Testing成功だけでは、対応表のreviewや六つのnative reportを含む実行欠落の監査まで完了しません。
+移植台帳とソース・実行結果を照合する専用の自動監査は含めません。保証対応の変更はreviewで確認します。
 
 scratchとXcode出力先を分離する場合:
 
@@ -96,8 +94,8 @@ BUILD_JOBS=2 just check
 ```
 
 既定値はSwiftPMが`.build`、Xcodeが`DerivedData`、並列build数が2です。
-source snapshot・JSONL・XML・監査JSONをconfiguration別にscratchへ保存します。
-その形式と失敗条件は[移植監査](<docs/test-migration.md>)、全体の保証境界は[検証方針](<docs/validation.md>)を参照してください。
+SwiftのJSONL・XMLとnativeのJSON reportをconfiguration別にscratchへ保存します。
+結果の読み方と台帳の確認手順は[テスト移植](<docs/test-migration.md>)、全体の保証境界は[検証方針](<docs/validation.md>)を参照してください。
 
 formatを適用する場合:
 
@@ -106,7 +104,7 @@ just format
 ```
 
 原作由来の期待値や入力をformat変更へ紛れ込ませません。
-機械監査は純粋な整形と意味のあるliteral変更を区別し、review済みの再設計を元の本文へ戻すことは要求しません。
+reviewでは純粋な整形と意味のあるliteral変更を区別し、承認済みの再設計を元の本文へ戻すことは要求しません。
 
 ## macOS App
 
@@ -119,7 +117,7 @@ just build-app release
 open FineTune.xcodeproj
 ```
 
-[bundle build script](<scripts/buildApp.sh>)は署名・公証・起動・権限要求を行いませんが、
+ルートの[build.sh](<build.sh>)は`bash build.sh [debug|release]`でも直接実行できます。署名・公証・起動・権限要求は行いませんが、
 **Xcodeのbundle build自体がLaunchServices/execution-policyへ開発bundleを登録する場合があります。**
 通常の`just check`では実行せず、CIも使い捨てrunnerの別stepへ分離します。
 ビルド成功を、実ユーザー環境での音声取得・再生や機器操作の確認として扱いません。
@@ -147,7 +145,7 @@ main metadataがないSwiftPM版`FineTune`では、Nativeへ進む前にlive aud
 - [開発ガイド](<AGENTS.md>): 作業範囲・参照基準・責務境界
 - [アーキテクチャ](<docs/architecture.md>): 層分離・所有権・リアルタイム境界の設計意図
 - [互換方針](<docs/compatibility.md>): 振る舞い・保存・外部操作と今回の延期事項
-- [テスト移植](<docs/test-migration.md>): 元の保証から新unitへの対応・独立review・監査方法
+- [テスト移植](<docs/test-migration.md>): 元の保証から新unitへの対応・独立review・確認方法
 - [検証方針](<docs/validation.md>): unit/component・限定実機・配布の保証境界
 
 ## ライセンス

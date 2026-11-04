@@ -12,7 +12,7 @@
 
 現在は製品RootからUI・同じController/store・機器/process観測・入出力policy・実Native runtime・AutoEQ cacheへ接続されています。
 実装接続のsource review、少数composition unit、Swift factory契約、C++/fake-HAL実行、実音声はそれぞれ別の証拠です。
-実行件数と最終gateの判定は[移植監査](<test-migration.md>)で管理し、この文書の実装説明や一部suiteの成功を全製品の合格へ読み替えません。
+移植時の実行記録と現在の確認手順は[テスト移植](<test-migration.md>)で管理し、この文書の実装説明や一部suiteの成功を全製品の合格へ読み替えません。
 
 ## 試験のpyramid
 
@@ -48,28 +48,25 @@ optional hardware/E2E証拠は、未実施のままunitのpassへ合算しませ
 just check
 ```
 
-[Justfile](<../Justfile>)はformat lint、監査器のmutation tests、debug/releaseのpackage build・unit/component、
-offline DSP・native所有/levels/fake-HAL・移植監査を実行します。App bundle buildは含めません。
+[Justfile](<../Justfile>)はformat lint、debug/releaseのpackage build・unit/component、
+offline DSP・native所有/levels/fake-HALを実行します。App bundle buildは含めません。
 通常チェックは製品アプリ起動・音声取得/再生・権限の承認要求（capture/TCC prompt等）・本物の設定移行・実機音量変更を行いません。
 
 個別実行:
 
 ```bash
-just audit-tests
 just test
 just test-dsp
 just test-native
-just audit-upstream
 just test release
 just test-dsp release
 just test-native release
-just audit-upstream release
 ```
 
-source snapshotはテスト直前に取得し、同じconfigurationのfreshなイベントと照合します。
+SwiftのXML/JSONLとnativeのreportをconfiguration別に保存します。
+移植台帳・fingerprint・source hashと実行結果の専用自動照合は行いません。
 ソースを変更したら既存イベントを成功証拠として再利用せず、再実行します。
-[監査器](<../scripts/auditUpstreamTests.py>)の`--static-only`はreview/静的照合専用で、runtime gate成功ではありません。
-手順・many-to-many対応・独立reviewは[テスト移植](<test-migration.md>)にまとめます。
+台帳の確認手順・many-to-many対応・独立reviewは[テスト移植](<test-migration.md>)にまとめます。
 
 - Swift JSONLではcompleteなrunEnded、issue/skipと実際のinvocationを確認します。parameterized declaration一つと実行row複数を区別します。
 - XMLは宣言単位の集約であり、JSONLの展開呼出数ではありません。両modeを別々に照合します。

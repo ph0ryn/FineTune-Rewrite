@@ -2,7 +2,7 @@
 set -euo pipefail
 
 if (( $# > 2 )); then
-  printf 'Usage: bash scripts/buildApp.sh [debug|release] [derived-data-path]\n' >&2
+  printf 'Usage: bash build.sh [debug|release] [derived-data-path]\n' >&2
   exit 64
 fi
 
@@ -13,7 +13,7 @@ case "${1:-debug}" in
 esac
 
 derived_data="${2:-DerivedData}"
-project="$(dirname "${BASH_SOURCE[0]}")/../FineTune.xcodeproj"
+project="$(dirname "${BASH_SOURCE[0]}")/FineTune.xcodeproj"
 
 # Opt-in only: Xcode registers macOS app bundles even when signing is disabled.
 # Never launch the app, request permissions, or update signing accounts here.

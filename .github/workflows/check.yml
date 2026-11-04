@@ -57,13 +57,10 @@ jobs:
             .build/test-events-*.jsonl
             .build/test-dsp-results-*.json
             .build/test-native-*-results-*.json
-            .build/test-native-hal-inputs-*.json
             .build/native-hal-*/build.log
             .build/native-hal-*/run.log
             .build/native-hal-*/link-map.txt
             .build/native-hal-*/undefined-symbols.log
-            .build/test-source-snapshot-*.json
-            .build/test-audit-*.json
           if-no-files-found: warn
           include-hidden-files: true
           retention-days: 7

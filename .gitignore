@@ -1,6 +1,5 @@
 .DS_Store
 .build/
-__pycache__/
 .swiftpm/
 DerivedData/
 *.xcuserstate
