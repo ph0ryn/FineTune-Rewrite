@@ -110,9 +110,14 @@ struct DeviceVolumeOverrideTests {
 /// Minimal AudioDeviceProviding mock for tests — only exercises the UID↔ID
 /// lookup used by MockDeviceVolumeProviding. Not comprehensive beyond that.
 @MainActor
-final class MockAudioDeviceMonitor: AudioDeviceProviding {
+final class MockAudioDeviceMonitor: AudioDeviceObservationProviding {
     var outputDevices: [AudioDevice] = []
     var inputDevices: [AudioDevice] = []
+    var onObservationChanged: (() -> Void)?
+    var observation: AudioDeviceObservationSnapshot {
+        AudioDeviceObservationSnapshot(outputDevices: outputDevices, inputDevices: inputDevices,
+                                       health: .healthy, revision: 1)
+    }
     var onDeviceDisconnected: ((_ uid: String, _ name: String) -> Void)?
     var onDeviceConnected: ((_ uid: String, _ name: String) -> Void)?
     var onInputDeviceDisconnected: ((_ uid: String, _ name: String) -> Void)?
