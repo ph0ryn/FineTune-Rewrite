@@ -7,74 +7,75 @@
 // FineTuneTests/SettingsManagerAppSettingsBindingTests.swift
 import Foundation
 import Testing
+
 @testable import FineTune
 
 @MainActor
 @Suite("SettingsManager.appSettings — direct binding setter")
 struct SettingsManagerAppSettingsBindingTests {
 
-    @Test("Direct assignment to appSettings persists the new value")
-    func directAssignmentPersists() async {
-        let manager = makeIsolatedBindingSettingsManager()
-        var newSettings = manager.appSettings
-        newSettings.defaultNewAppVolume = 0.42
-        newSettings.lockInputDevice = true
+  @Test("Direct assignment to appSettings persists the new value")
+  func directAssignmentPersists() async {
+    let manager = makeIsolatedBindingSettingsManager()
+    var newSettings = manager.appSettings
+    newSettings.defaultNewAppVolume = 0.42
+    newSettings.lockInputDevice = true
 
-        manager.appSettings = newSettings
+    manager.appSettings = newSettings
 
-        #expect(manager.appSettings.defaultNewAppVolume == 0.42)
-        #expect(manager.appSettings.lockInputDevice == true)
-    }
+    #expect(manager.appSettings.defaultNewAppVolume == 0.42)
+    #expect(manager.appSettings.lockInputDevice == true)
+  }
 
-    @Test("Direct assignment forwards launch-at-login change to LaunchAtLoginService")
-    func directAssignmentForwardsLaunchAtLogin() async {
-        let manager = makeIsolatedBindingSettingsManager()
-        var newSettings = manager.appSettings
-        let original = newSettings.launchAtLogin
-        newSettings.launchAtLogin = !original
+  @Test("Direct assignment forwards launch-at-login change to LaunchAtLoginService")
+  func directAssignmentForwardsLaunchAtLogin() async {
+    let manager = makeIsolatedBindingSettingsManager()
+    var newSettings = manager.appSettings
+    let original = newSettings.launchAtLogin
+    newSettings.launchAtLogin = !original
 
-        manager.appSettings = newSettings
+    manager.appSettings = newSettings
 
-        // Behavioral assertion: the setter ran updateAppSettings's full side-effect path.
-        // We verify by reading back the persisted toggle — the side-effect plumbing
-        // is covered by existing updateAppSettings tests, so we only need to confirm
-        // the new setter doesn't bypass it.
-        #expect(manager.appSettings.launchAtLogin == !original)
-    }
+    // Behavioral assertion: the setter ran updateAppSettings's full side-effect path.
+    // We verify by reading back the persisted toggle — the side-effect plumbing
+    // is covered by existing updateAppSettings tests, so we only need to confirm
+    // the new setter doesn't bypass it.
+    #expect(manager.appSettings.launchAtLogin == !original)
+  }
 
-    @Test("Direct assignment is equivalent to updateAppSettings for the same input")
-    func directAssignmentEquivalentToUpdate() async {
-        let managerA = makeIsolatedBindingSettingsManager()
-        let managerB = makeIsolatedBindingSettingsManager()
+  @Test("Direct assignment is equivalent to updateAppSettings for the same input")
+  func directAssignmentEquivalentToUpdate() async {
+    let managerA = makeIsolatedBindingSettingsManager()
+    let managerB = makeIsolatedBindingSettingsManager()
 
-        var modified = managerA.appSettings
-        modified.defaultNewAppVolume = 0.7
-        modified.mediaKeyControlEnabled = true
-        modified.showDeviceDisconnectAlerts = false
+    var modified = managerA.appSettings
+    modified.defaultNewAppVolume = 0.7
+    modified.mediaKeyControlEnabled = true
+    modified.showDeviceDisconnectAlerts = false
 
-        managerA.appSettings = modified
-        managerB.updateAppSettings(modified)
+    managerA.appSettings = modified
+    managerB.updateAppSettings(modified)
 
-        #expect(managerA.appSettings == managerB.appSettings)
-    }
+    #expect(managerA.appSettings == managerB.appSettings)
+  }
 }
 
 // Test-only ServiceManagement boundary. Never registers the real app for login.
 @MainActor
 final class TestLaunchAtLoginService: LaunchAtLoginService {
-    private(set) var isEnabled = false
-    private(set) var requests: [Bool] = []
+  private(set) var isEnabled = false
+  private(set) var requests: [Bool] = []
 
-    func setEnabled(_ enabled: Bool) throws {
-        requests.append(enabled)
-        isEnabled = enabled
-    }
+  func setEnabled(_ enabled: Bool) throws {
+    requests.append(enabled)
+    isEnabled = enabled
+  }
 }
 
 @MainActor
 private func makeIsolatedBindingSettingsManager() -> SettingsManager {
-    SettingsManager(
-        directory: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString),
-        launchAtLoginService: TestLaunchAtLoginService()
-    )
+  SettingsManager(
+    directory: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString),
+    launchAtLoginService: TestLaunchAtLoginService()
+  )
 }

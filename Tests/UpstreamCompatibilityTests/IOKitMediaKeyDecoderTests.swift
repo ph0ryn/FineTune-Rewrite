@@ -19,90 +19,91 @@
 //   BRIGHTNESS (keyType=2, unknown): down=134656
 
 import Testing
+
 @testable import FineTune
 
 @Suite("IOKitMediaKeyDecoder — HID bitfield decoding")
 struct IOKitMediaKeyDecoderTests {
-    let decoder = IOKitMediaKeyDecoder()
+  let decoder = IOKitMediaKeyDecoder()
 
-    // MARK: - Volume Up
+  // MARK: - Volume Up
 
-    @Test("SOUND_UP key-down (data1=2560) decodes to volumeUp(isRepeat:false)")
-    func soundUpDown() {
-        let result = decoder.decode(data1: 0x00000A00)  // 2560
-        #expect(result == .volumeUp(isRepeat: false))
-    }
+  @Test("SOUND_UP key-down (data1=2560) decodes to volumeUp(isRepeat:false)")
+  func soundUpDown() {
+    let result = decoder.decode(data1: 0x0000_0A00)  // 2560
+    #expect(result == .volumeUp(isRepeat: false))
+  }
 
-    @Test("SOUND_UP auto-repeat (data1=2561) decodes to volumeUp(isRepeat:true)")
-    func soundUpRepeat() {
-        let result = decoder.decode(data1: 0x00000A01)  // 2561
-        #expect(result == .volumeUp(isRepeat: true))
-    }
+  @Test("SOUND_UP auto-repeat (data1=2561) decodes to volumeUp(isRepeat:true)")
+  func soundUpRepeat() {
+    let result = decoder.decode(data1: 0x0000_0A01)  // 2561
+    #expect(result == .volumeUp(isRepeat: true))
+  }
 
-    @Test("SOUND_UP key-up (data1=2816) decodes to nil (not a key-down)")
-    func soundUpKeyUp() {
-        let result = decoder.decode(data1: 0x00000B00)  // 2816
-        #expect(result == nil)
-    }
+  @Test("SOUND_UP key-up (data1=2816) decodes to nil (not a key-down)")
+  func soundUpKeyUp() {
+    let result = decoder.decode(data1: 0x0000_0B00)  // 2816
+    #expect(result == nil)
+  }
 
-    // MARK: - Volume Down
+  // MARK: - Volume Down
 
-    @Test("SOUND_DOWN key-down (data1=68096) decodes to volumeDown(isRepeat:false)")
-    func soundDownDown() {
-        let result = decoder.decode(data1: 0x00010A00)  // 68096
-        #expect(result == .volumeDown(isRepeat: false))
-    }
+  @Test("SOUND_DOWN key-down (data1=68096) decodes to volumeDown(isRepeat:false)")
+  func soundDownDown() {
+    let result = decoder.decode(data1: 0x0001_0A00)  // 68096
+    #expect(result == .volumeDown(isRepeat: false))
+  }
 
-    @Test("SOUND_DOWN auto-repeat (data1=68097) decodes to volumeDown(isRepeat:true)")
-    func soundDownRepeat() {
-        let result = decoder.decode(data1: 0x00010A01)  // 68097
-        #expect(result == .volumeDown(isRepeat: true))
-    }
+  @Test("SOUND_DOWN auto-repeat (data1=68097) decodes to volumeDown(isRepeat:true)")
+  func soundDownRepeat() {
+    let result = decoder.decode(data1: 0x0001_0A01)  // 68097
+    #expect(result == .volumeDown(isRepeat: true))
+  }
 
-    @Test("SOUND_DOWN key-up (data1=68352) decodes to nil")
-    func soundDownKeyUp() {
-        let result = decoder.decode(data1: 0x00010B00)  // 68352
-        #expect(result == nil)
-    }
+  @Test("SOUND_DOWN key-up (data1=68352) decodes to nil")
+  func soundDownKeyUp() {
+    let result = decoder.decode(data1: 0x0001_0B00)  // 68352
+    #expect(result == nil)
+  }
 
-    // MARK: - Mute
+  // MARK: - Mute
 
-    @Test("MUTE key-down (data1=460288) decodes to muteToggle")
-    func muteDown() {
-        let result = decoder.decode(data1: 0x00070A00)  // 460288
-        #expect(result == .muteToggle)
-    }
+  @Test("MUTE key-down (data1=460288) decodes to muteToggle")
+  func muteDown() {
+    let result = decoder.decode(data1: 0x0007_0A00)  // 460288
+    #expect(result == .muteToggle)
+  }
 
-    @Test("MUTE auto-repeat (data1=460289) decodes to nil (mute ignores repeat)")
-    func muteRepeat() {
-        let result = decoder.decode(data1: 0x00070A01)  // 460289
-        #expect(result == nil)
-    }
+  @Test("MUTE auto-repeat (data1=460289) decodes to nil (mute ignores repeat)")
+  func muteRepeat() {
+    let result = decoder.decode(data1: 0x0007_0A01)  // 460289
+    #expect(result == nil)
+  }
 
-    @Test("MUTE key-up (data1=460544) decodes to nil")
-    func muteKeyUp() {
-        let result = decoder.decode(data1: 0x00070B00)  // 460544
-        #expect(result == nil)
-    }
+  @Test("MUTE key-up (data1=460544) decodes to nil")
+  func muteKeyUp() {
+    let result = decoder.decode(data1: 0x0007_0B00)  // 460544
+    #expect(result == nil)
+  }
 
-    // MARK: - Unknown key type
+  // MARK: - Unknown key type
 
-    @Test("Unknown keyType (BRIGHTNESS, keyType=2, data1=134656) decodes to nil (fail-open)")
-    func unknownKeyTypeFailOpen() {
-        let result = decoder.decode(data1: 0x00020A00)  // 134656
-        #expect(result == nil)
-    }
+  @Test("Unknown keyType (BRIGHTNESS, keyType=2, data1=134656) decodes to nil (fail-open)")
+  func unknownKeyTypeFailOpen() {
+    let result = decoder.decode(data1: 0x0002_0A00)  // 134656
+    #expect(result == nil)
+  }
 
-    // MARK: - MediaKeyEvent Equatable
+  // MARK: - MediaKeyEvent Equatable
 
-    @Test("MediaKeyEvent.volumeUp(isRepeat:false) equals itself")
-    func volumeUpEquatable() {
-        #expect(MediaKeyEvent.volumeUp(isRepeat: false) == .volumeUp(isRepeat: false))
-        #expect(MediaKeyEvent.volumeUp(isRepeat: false) != .volumeUp(isRepeat: true))
-    }
+  @Test("MediaKeyEvent.volumeUp(isRepeat:false) equals itself")
+  func volumeUpEquatable() {
+    #expect(MediaKeyEvent.volumeUp(isRepeat: false) == .volumeUp(isRepeat: false))
+    #expect(MediaKeyEvent.volumeUp(isRepeat: false) != .volumeUp(isRepeat: true))
+  }
 
-    @Test("MediaKeyEvent.volumeDown and volumeUp are not equal")
-    func differentEventsNotEqual() {
-        #expect(MediaKeyEvent.volumeDown(isRepeat: false) != .volumeUp(isRepeat: false))
-    }
+  @Test("MediaKeyEvent.volumeDown and volumeUp are not equal")
+  func differentEventsNotEqual() {
+    #expect(MediaKeyEvent.volumeDown(isRepeat: false) != .volumeUp(isRepeat: false))
+  }
 }
