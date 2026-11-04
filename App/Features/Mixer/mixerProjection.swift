@@ -35,7 +35,7 @@ struct MixerDevicePresentation: Identifiable {
   var volume: Float?
   var isMuted: Bool?
   var backend: VolumeControlTier
-  var automaticBackend: VolumeControlTier
+  var automaticBackend: VolumeControlTier?
   var isHidden: Bool
   var iconOverride: String?
   var volumeOverride: VolumeControlTier?
@@ -170,11 +170,22 @@ struct MixerBindings {
       isInput: scope == .input,
       onSetDefault: { actions.device.setDefault(scope, row.id) },
       onVolumeChange: { actions.device.setVolume(scope, row.id, $0) },
-      onMuteToggle: {
-        if let muted = current(row, scope: scope).isMuted {
-          actions.device.setMute(scope, row.id, !muted)
-        }
-      })
+      onMuteToggle: { toggleDeviceMute(scope: scope, uid: row.id) })
+  }
+
+  /// Mouse and keyboard resolve the current UID's same UI intent; no stale row supplies mute state.
+  func toggleDeviceMute(scope: MixerDeviceScope, uid: String) {
+    let rows = scope == .output ? read().outputDevices : read().inputDevices
+    guard let row = rows.first(where: { $0.id == uid }),
+      let intent = DeviceRow.muteToggleIntent(
+        volume: row.volume, isMuted: row.isMuted,
+        backend: scope == .input ? .hardware : row.backend,
+        canSetVolume: row.canSetVolume, canSetMute: row.canSetMute)
+    else { return }
+    switch intent {
+    case .setVolume(let gain): actions.device.setVolume(scope, uid, gain)
+    case .setMuted(let muted): actions.device.setMute(scope, uid, muted)
+    }
   }
 
   func eqEnabled(_ app: MixerAppPresentation) -> Binding<Bool> {

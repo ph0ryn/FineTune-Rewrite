@@ -348,13 +348,7 @@ struct MixerView: View {
         if let app = bindings.visibleApps(editing: false).first(where: { $0.id == id }) {
           actions.app.setMute(id, !app.isMuted)
         }
-      case .device(let uid):
-        if let device = bindings.devices(scope: scope, editing: false).first(where: { $0.id == uid }
-        ),
-          let muted = device.isMuted, device.canSetMute
-        {
-          actions.device.setMute(scope, uid, !muted)
-        }
+      case .device(let uid): bindings.toggleDeviceMute(scope: scope, uid: uid)
       }
     case .setPercentage(let row, let percentage):
       let fraction = Double(percentage) / 100

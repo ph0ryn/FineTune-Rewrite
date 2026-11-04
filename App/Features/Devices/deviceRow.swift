@@ -28,7 +28,50 @@ struct DeviceRow: View {
     profileName.map { isEnabled ? $0 : "\($0) (off)" }
   }
 
+  enum MuteIntent: Equatable {
+    case setVolume(Float)
+    case setMuted(Bool)
+  }
+
+  nonisolated static func displayedPercentage(_ volume: Float, backend: VolumeControlTier) -> Int {
+    Int((volumeToSlider(volume, backend: backend) * 100).rounded())
+  }
+
+  /// A UI click intent, not a replacement for the observed mute bit or Common's raw mute operation.
+  nonisolated static func muteToggleIntent(
+    volume: Float?, isMuted: Bool?, backend: VolumeControlTier, canSetVolume: Bool, canSetMute: Bool
+  ) -> MuteIntent? {
+    if let volume, displayedPercentage(volume, backend: backend) == 0 {
+      guard canSetVolume, isMuted != true || canSetMute else { return nil }
+      return .setVolume(sliderToVolume(0.5, backend: backend))
+    }
+    guard canSetMute, let isMuted else { return nil }
+    return .setMuted(!isMuted)
+  }
+
   private var effectiveTier: VolumeControlTier { isInput ? .hardware : volumeBackend }
+
+  var displayedPercentage: Int? {
+    volume.map { Self.displayedPercentage($0, backend: effectiveTier) }
+  }
+
+  var displayedMuteState: Bool? {
+    if displayedPercentage == 0 { return true }
+    return isMuted
+  }
+
+  var canToggleMute: Bool {
+    Self.muteToggleIntent(
+      volume: volume, isMuted: isMuted, backend: effectiveTier,
+      canSetVolume: canSetVolume, canSetMute: canSetMute) != nil
+  }
+
+  private var muteAccessibilityLabel: String {
+    guard canToggleMute, let muted = displayedMuteState else {
+      return "Mute control unavailable for \(device.name)"
+    }
+    return muted ? "Unmute \(device.name)" : "Mute \(device.name)"
+  }
 
   /// This is the same binding used by the actual slider; missing/read-only values have no setter.
   var slider: Binding<Double>? {
@@ -58,14 +101,12 @@ struct DeviceRow: View {
       Spacer(minLength: 0)
       Button(action: onMuteToggle) {
         Image(
-          systemName: isMuted.map { $0 ? "speaker.slash.fill" : "speaker.wave.2.fill" }
+          systemName: displayedMuteState.map { $0 ? "speaker.slash.fill" : "speaker.wave.2.fill" }
             ?? "questionmark.circle")
       }
       .buttonStyle(.plain)
-      .disabled(!canSetMute || isMuted == nil)
-      .accessibilityLabel(
-        isMuted.map { $0 ? "Unmute \(device.name)" : "Mute \(device.name)" }
-          ?? "Mute control unavailable for \(device.name)")
+      .disabled(!canToggleMute)
+      .accessibilityLabel(muteAccessibilityLabel)
       if let slider {
         Slider(value: slider, in: 0...1)
           .frame(minWidth: 80, maxWidth: 160)
@@ -79,14 +120,10 @@ struct DeviceRow: View {
           .accessibilityLabel(
             "\(device.name) volume \(volume == nil ? "unavailable" : "read-only")")
       }
-      Text(
-        volume.map {
-          "\(Int((Self.volumeToSlider($0, backend: effectiveTier) * 100).rounded()))%"
-        } ?? "—"
-      )
-      .font(DesignTokens.Typography.percentage)
-      .frame(width: 36, alignment: .trailing)
-      .accessibilityHidden(volume == nil)
+      Text(displayedPercentage.map { "\($0)%" } ?? "—")
+        .font(DesignTokens.Typography.percentage)
+        .frame(width: 36, alignment: .trailing)
+        .accessibilityHidden(volume == nil)
     }
     .padding(.vertical, DesignTokens.Spacing.sm)
   }

@@ -86,6 +86,142 @@ struct MixerTests {
     #expect(source.lastGain == 0.5)
   }
 
+  @Test(
+    "A displayed zero mute click requests half-slider once, including tiny nonzero gain",
+    arguments: [VolumeControlTier.hardware, .ddc, .software], [Float(0), Float(0.000_001)])
+  func zeroDisplayMuteRestoresHalfSlider(backend: VolumeControlTier, volume: Float) throws {
+    let source = MixerTestSource()
+    source.snapshot.outputDevices[0].backend = backend
+    source.snapshot.outputDevices[0].volume = volume
+    let device = source.snapshot.outputDevices[0]
+    let row = source.bindings.deviceRow(device, scope: .output)
+    let slider = try #require(row.slider)
+    #expect(Int((slider.wrappedValue * 100).rounded()) == 0)
+    row.onMuteToggle()
+    #expect(source.events == ["device-volume"])
+    #expect(source.lastDeviceScope == .output && source.lastDeviceUID == device.id)
+    #expect(source.lastGain == (backend == .software ? 0.25 : 0.5))
+    #expect(source.lastBool == nil)
+  }
+
+  @Test(
+    "Zero volume-only input restores linear half-slider without inventing or writing mute",
+    arguments: [Float(0), Float(0.000_001)])
+  func zeroVolumeOnlyInputDoesNotInventMute(volume: Float) {
+    let source = MixerTestSource()
+    source.snapshot.inputDevices[0].backend = .software
+    source.snapshot.inputDevices[0].volume = volume
+    source.snapshot.inputDevices[0].isMuted = nil
+    source.snapshot.inputDevices[0].canSetMute = false
+    let device = source.snapshot.inputDevices[0]
+    source.bindings.deviceRow(device, scope: .input).onMuteToggle()
+    #expect(source.events == ["device-volume"])
+    #expect(source.lastDeviceScope == .input && source.lastDeviceUID == device.id)
+    #expect(source.lastGain == 0.5 && source.lastBool == nil)
+    #expect(source.snapshot.inputDevices[0].isMuted == nil)
+  }
+
+  @Test("A known read-only mute blocks composed recovery even when zero volume is writable")
+  func knownReadOnlyMutePreventsComposedRecovery() {
+    let source = MixerTestSource()
+    source.snapshot.outputDevices[0].volume = 0
+    source.snapshot.outputDevices[0].isMuted = true
+    let uid = source.snapshot.outputDevices[0].id
+    let earlierRow = source.bindings.deviceRow(source.snapshot.outputDevices[0], scope: .output)
+    source.snapshot.outputDevices[0].canSetMute = false
+    let row = source.bindings.deviceRow(source.snapshot.outputDevices[0], scope: .output)
+    #expect(row.canSetVolume && row.isMuted == true)
+    #expect(!row.canToggleMute && row.displayedMuteState == true)
+    earlierRow.onMuteToggle()
+    source.bindings.toggleDeviceMute(scope: .output, uid: uid)
+    #expect(source.events.isEmpty)
+    #expect(source.lastGain == nil && source.lastBool == nil)
+    #expect(source.snapshot.outputDevices[0].isMuted == true)
+  }
+
+  @Test("Mute callbacks resolve latest volume, backend and mute instead of their captured row")
+  func deviceMuteReadsLatestValues() {
+    let source = MixerTestSource()
+    let row = source.bindings.deviceRow(source.snapshot.outputDevices[0], scope: .output)
+    source.snapshot.outputDevices[0].volume = 0.000_001
+    source.snapshot.outputDevices[0].backend = .hardware
+    row.onMuteToggle()
+    #expect(source.events == ["device-volume"] && source.lastGain == 0.5)
+    source.events.removeAll()
+    source.lastGain = nil
+    source.snapshot.outputDevices[0].volume = 0.4
+    source.snapshot.outputDevices[0].isMuted = true
+    row.onMuteToggle()
+    #expect(source.events == ["device-mute"] && source.lastBool == false)
+    #expect(source.lastGain == nil)
+  }
+
+  @Test("Zero and unknown row presentation keep unavailable capabilities and actual mute distinct")
+  func deviceMutePresentationKeepsUnknownState() {
+    let source = MixerTestSource()
+    source.snapshot.outputDevices[0].volume = 0.000_001
+    source.snapshot.outputDevices[0].isMuted = nil
+    source.snapshot.outputDevices[0].canSetMute = false
+    var row = source.bindings.deviceRow(source.snapshot.outputDevices[0], scope: .output)
+    #expect(row.displayedPercentage == 0 && row.displayedMuteState == true && row.canToggleMute)
+    #expect(row.isMuted == nil)
+    source.snapshot.outputDevices[0].canSetVolume = false
+    row = source.bindings.deviceRow(source.snapshot.outputDevices[0], scope: .output)
+    #expect(!row.canToggleMute && row.displayedMuteState == true)
+    row.onMuteToggle()
+    #expect(source.events.isEmpty)
+    source.snapshot.outputDevices[0].volume = nil
+    row = source.bindings.deviceRow(source.snapshot.outputDevices[0], scope: .output)
+    #expect(row.displayedPercentage == nil && row.displayedMuteState == nil && !row.canToggleMute)
+    row.onMuteToggle()
+    source.snapshot.outputDevices[0].volume = 0.5
+    source.snapshot.outputDevices[0].canSetVolume = true
+    source.snapshot.outputDevices[0].canSetMute = true
+    row = source.bindings.deviceRow(source.snapshot.outputDevices[0], scope: .output)
+    #expect(row.displayedMuteState == nil && !row.canToggleMute)
+    row.onMuteToggle()
+    #expect(source.events.isEmpty && source.snapshot.outputDevices[0].isMuted == nil)
+  }
+
+  @Test(
+    "Unknown volume still permits an independently known writable mute bit",
+    arguments: [false, true])
+  func ordinaryMuteWithUnknownVolume(isMuted: Bool) {
+    let source = MixerTestSource()
+    source.snapshot.outputDevices[0].volume = nil
+    source.snapshot.outputDevices[0].isMuted = isMuted
+    source.snapshot.outputDevices[0].canSetVolume = false
+    let row = source.bindings.deviceRow(source.snapshot.outputDevices[0], scope: .output)
+    #expect(
+      row.displayedPercentage == nil && row.displayedMuteState == isMuted && row.canToggleMute)
+    row.onMuteToggle()
+    #expect(source.events == ["device-mute"] && source.lastBool == !isMuted)
+    #expect(source.lastGain == nil)
+  }
+
+  @Test("A disappeared device cannot supply stale mute state to a delayed click")
+  func disappearedDeviceMuteDoesNotFallback() {
+    let source = MixerTestSource()
+    let row = source.bindings.deviceRow(source.snapshot.outputDevices[0], scope: .output)
+    source.snapshot.outputDevices.removeAll()
+    row.onMuteToggle()
+    #expect(source.events.isEmpty)
+  }
+
+  @Test("The shared keyboard device entry requests one gain operation without a trailing raw mute")
+  func sharedDeviceMuteEntryUsesFreshUID() {
+    let source = MixerTestSource()
+    let uid = source.snapshot.outputDevices[0].id
+    source.snapshot.outputDevices[0].volume = 0
+    source.bindings.toggleDeviceMute(scope: .output, uid: uid)
+    #expect(source.events == ["device-volume"] && source.lastGain == 0.25 && source.lastBool == nil)
+    source.events.removeAll()
+    source.snapshot.outputDevices[0].volume = 0.4
+    source.snapshot.outputDevices[0].canSetMute = false
+    source.bindings.toggleDeviceMute(scope: .output, uid: uid)
+    #expect(source.events.isEmpty)
+  }
+
   @Test("The actual row preserves volume-only input and has no unknown or read-only binding")
   func deviceRowCapabilitiesAreIndependent() throws {
     let source = MixerTestSource()
