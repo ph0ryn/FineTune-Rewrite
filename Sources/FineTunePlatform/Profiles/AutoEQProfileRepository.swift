@@ -29,6 +29,7 @@ public final class AutoEQProfileRepository {
   }
   private var status: CatalogStatus = .idle
   @ObservationIgnored private var diskCatalog: DiskCatalogState = .unread
+  @ObservationIgnored private var catalogGeneration = 0
 
   public let cache: AutoEQProfileCache
   public private(set) var catalog: [AutoEQCatalogEntry] = []
@@ -91,6 +92,7 @@ public final class AutoEQProfileRepository {
     let ids = Set(parsed.map { $0.profile.id })
     for old in importedEntries where !ids.contains(old.id) {
       cache.remove(id: old.id)
+      cacheRevision += 1
       parseDiagnostics[old.id] = nil
     }
     importedEntries = []
@@ -103,24 +105,27 @@ public final class AutoEQProfileRepository {
     if !selectedProfileIDs.isEmpty {
       do {
         _ = try loadCachedCatalog()
-        for id in selectedProfileIDs.sorted() {
-          try ProfileFileStore.validateIdentifier(id)
-          if cache.profile(for: id) != nil { continue }
-          guard let entry = catalog.first(where: { $0.id == id }),
-            let text = try files.readFetchedText(id: id)
-          else { continue }
-          publish(try parseFetched(text, entry: entry))
-          loadedIDs.append(id)
-        }
       } catch {
         status = .failed(error)
         throw error
+      }
+      // Per-profile read/parse failure does not invalidate otherwise usable catalog metadata.
+      for id in selectedProfileIDs.sorted() {
+        try ProfileFileStore.validateIdentifier(id)
+        if cache.profile(for: id) != nil { continue }
+        guard let entry = catalog.first(where: { $0.id == id }),
+          let text = try files.readFetchedText(id: id)
+        else { continue }
+        publish(try parseFetched(text, entry: entry))
+        loadedIDs.append(id)
       }
     }
     return loadedIDs
   }
 
   public func loadCatalog() async throws {
+    catalogGeneration += 1
+    let generation = catalogGeneration
     do {
       if let modifiedAt = try loadCachedCatalog(),
         now().timeIntervalSince(modifiedAt) <= Self.catalogTTL
@@ -130,12 +135,14 @@ public final class AutoEQProfileRepository {
       }
       try await refreshCatalog()
     } catch {
-      status = .failed(error)
+      if catalogGeneration == generation { status = .failed(error) }
       throw error
     }
   }
 
   public func refreshCatalog() async throws {
+    catalogGeneration += 1
+    let generation = catalogGeneration
     status = .loading
     do {
       let response = try await transport.get(Self.indexURL)
@@ -143,13 +150,15 @@ public final class AutoEQProfileRepository {
       let entries = AutoEQCatalogParser.parseIndexMarkdown(text)
       guard !entries.isEmpty else { throw ProfileRepositoryError.invalidCatalog }
       try Task.checkCancellation()
+      // An older caller can finish or fail, but cannot publish over a newer catalog operation.
+      guard catalogGeneration == generation else { throw CancellationError() }
       try files.writeCatalog(entries)
       catalog = entries
       diskCatalog = .present(now())
       rebuildIndex()
       status = .ready
     } catch {
-      status = .failed(error)
+      if catalogGeneration == generation { status = .failed(error) }
       throw error
     }
   }

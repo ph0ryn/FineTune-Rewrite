@@ -1,6 +1,7 @@
 import FineTuneDomain
 import FineTunePlatform
 import Foundation
+import Observation
 import Testing
 
 // Independently authored unit coverage for the new profile format/storage boundary (MIT).
@@ -107,6 +108,20 @@ struct ProfileFileStoreTests {
       try store.writeFetchedText("untrusted", id: "../escape")
     }
     #expect(!FileManager.default.fileExists(atPath: directory.path))
+  }
+
+  @Test("An existing non-directory root is an I/O error, never an absent cache")
+  func blockedStorageIsNotAbsence() throws {
+    let directory = URL(fileURLWithPath: uniqueDirectory().path, isDirectory: false)
+    let intendedParent = FileManager.default.temporaryDirectory.resolvingSymlinksInPath()
+    #expect(directory.resolvingSymlinksInPath().deletingLastPathComponent() == intendedParent)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    try Data("A regular file blocks the configured storage directory".utf8).write(to: directory)
+    let store = try ProfileFileStore(directory: directory)
+    #expect(throws: (any Error).self) { try store.readCatalog() }
+    #expect(throws: (any Error).self) { try store.readImportedProfiles() }
+    #expect(throws: (any Error).self) { try store.readFetchedText(id: "unit") }
+    #expect(throws: (any Error).self) { try store.removeImportedProfile(id: "unit") }
   }
 }
 
@@ -406,5 +421,39 @@ struct ProfileRepositoryTests {
     #expect(cache.profile(for: entry.id)?.name == entry.name)
     #expect(cache.profile(for: entry.id)?.measuredBy == entry.measuredBy)
     #expect(await http.requestedURLs.isEmpty)
+  }
+
+  @Test("A bad selected profile does not reclassify a valid catalog as failed")
+  func localProfileFailureIsNotCatalogFailure() async throws {
+    let files = files()
+    files.fetched[entry.id] = "No supported filters"
+    let http = ProfileHTTPStub()
+    let repo = repository(files: files, http: http)
+    #expect(throws: ProfileRepositoryError.noValidFilters) {
+      try repo.loadLocalProfiles(selectedProfileIDs: [entry.id])
+    }
+    #expect(repo.catalogState == .ready)
+    #expect(repo.catalogError == nil)
+    #expect(repo.catalog == [entry])
+    #expect(await http.requestedURLs.isEmpty)
+  }
+
+  @Test("Removing the final local import invalidates observable profile reads")
+  func finalLocalRemovalIsObservable() async throws {
+    let files = files()
+    files.imported = [ImportedProfileText(id: "local", name: "Local", text: text)]
+    let repo = repository(files: files)
+    try repo.loadLocalProfiles()
+    #expect(repo.profile(for: "local") != nil)
+    files.imported = []
+    try await confirmation("The cached-profile read is invalidated", expectedCount: 1) { changed in
+      withObservationTracking {
+        _ = repo.profile(for: "local")
+      } onChange: {
+        changed()
+      }
+      try repo.loadLocalProfiles()
+    }
+    #expect(repo.profile(for: "local") == nil)
   }
 }

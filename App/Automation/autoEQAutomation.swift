@@ -153,6 +153,7 @@ final class AutoEQAutomation {
     guard !isStopped else { return .failure(CancellationError()) }
     do {
       try repository.deleteImportedProfile(id: id)
+      failures = failures.filter { $0.value.profileID != id }
       commands.perform(.profileAvailabilityChanged(profileID: id))
       return .success(())
     } catch {

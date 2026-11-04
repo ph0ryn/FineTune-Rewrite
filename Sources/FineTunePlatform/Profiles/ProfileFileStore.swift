@@ -59,9 +59,10 @@ public final class ProfileFileStore: ProfileFileStoring {
   }
 
   public func readCatalog() throws -> CachedAutoEQCatalog? {
-    guard FileManager.default.fileExists(atPath: catalogURL.path) else { return nil }
-    let entries = try JSONDecoder().decode(
-      [AutoEQCatalogEntry].self, from: Data(contentsOf: catalogURL))
+    guard let data = try allowingMissingFile({ try Data(contentsOf: catalogURL) }) else {
+      return nil
+    }
+    let entries = try JSONDecoder().decode([AutoEQCatalogEntry].self, from: data)
     let attributes = try FileManager.default.attributesOfItem(atPath: catalogURL.path)
     guard let modifiedAt = attributes[.modificationDate] as? Date else {
       throw ProfileRepositoryError.missingModificationDate
@@ -77,8 +78,7 @@ public final class ProfileFileStore: ProfileFileStoring {
 
   public func readFetchedText(id: String) throws -> String? {
     let url = try profileURL(directory: fetchedDirectory, id: id, extension: "txt")
-    guard FileManager.default.fileExists(atPath: url.path) else { return nil }
-    return try String(contentsOf: url, encoding: .utf8)
+    return try allowingMissingFile { try String(contentsOf: url, encoding: .utf8) }
   }
 
   public func writeFetchedText(_ text: String, id: String) throws {
@@ -88,20 +88,21 @@ public final class ProfileFileStore: ProfileFileStoring {
   }
 
   public func readImportedProfiles() throws -> [ImportedProfileText] {
-    guard FileManager.default.fileExists(atPath: importsDirectory.path) else { return [] }
-    let files = try FileManager.default.contentsOfDirectory(
-      at: importsDirectory, includingPropertiesForKeys: nil
-    )
-    .filter { $0.pathExtension == "txt" }
-    .sorted { $0.lastPathComponent < $1.lastPathComponent }
+    guard
+      let contents = try allowingMissingFile({
+        try FileManager.default.contentsOfDirectory(
+          at: importsDirectory, includingPropertiesForKeys: nil)
+      })
+    else { return [] }
+    let files = contents.filter { $0.pathExtension == "txt" }
+      .sorted { $0.lastPathComponent < $1.lastPathComponent }
     return try files.map { file in
       let id = file.deletingPathExtension().lastPathComponent
       let nameURL = try profileURL(directory: importsDirectory, id: id, extension: "name")
       let text = try String(contentsOf: file, encoding: .utf8)
       let name =
-        FileManager.default.fileExists(atPath: nameURL.path)
-        ? try String(contentsOf: nameURL, encoding: .utf8)
-          .trimmingCharacters(in: .whitespacesAndNewlines) : id
+        try allowingMissingFile { try String(contentsOf: nameURL, encoding: .utf8) }?
+        .trimmingCharacters(in: .whitespacesAndNewlines) ?? id
       return ImportedProfileText(id: id, name: name, text: text)
     }
   }
@@ -125,8 +126,19 @@ public final class ProfileFileStore: ProfileFileStoring {
   public func removeImportedProfile(id: String) throws {
     let nameURL = try profileURL(directory: importsDirectory, id: id, extension: "name")
     let textURL = try profileURL(directory: importsDirectory, id: id, extension: "txt")
-    for url in [nameURL, textURL] where FileManager.default.fileExists(atPath: url.path) {
-      try FileManager.default.removeItem(at: url)
+    for url in [nameURL, textURL] {
+      _ = try allowingMissingFile { try FileManager.default.removeItem(at: url) }
+    }
+  }
+
+  /// Only a documented missing-file error means absence; permission/path/I/O failures stay thrown.
+  private func allowingMissingFile<Value>(_ operation: () throws -> Value) throws -> Value? {
+    do {
+      return try operation()
+    } catch let error as CocoaError
+      where error.code == .fileReadNoSuchFile || error.code == .fileNoSuchFile
+    {
+      return nil
     }
   }
 
