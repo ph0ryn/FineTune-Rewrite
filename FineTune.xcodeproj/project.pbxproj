@@ -16,9 +16,25 @@
 		F10000000000000000000003 /* FineTuneRewrite.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FineTuneRewrite.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		F10000000000000000000026 /* Exceptions for "App" folder in "FineTuneRewrite" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				.indexion,
+			);
+			target = F10000000000000000000008 /* FineTuneRewrite */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		F10000000000000000000004 /* App */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				F10000000000000000000026 /* Exceptions for "App" folder in "FineTuneRewrite" target */,
+			);
+			explicitFolders = (
+				.indexion,
+			);
 			path = App;
 			sourceTree = "<group>";
 		};
