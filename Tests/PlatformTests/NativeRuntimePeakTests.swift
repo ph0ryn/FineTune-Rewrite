@@ -15,9 +15,11 @@ struct NativeRuntimePeakTests {
     #expect(observation.peakLevel == nil)
   }
 
-  @Test("A processed output peak reaches the public Control observation unchanged", arguments: [
-    Float(0), 0.375, 1.25,
-  ])
+  @Test(
+    "A processed output peak reaches the public Control observation unchanged",
+    arguments: [
+      Float(0), 0.375, 1.25,
+    ])
   func processedOutputPeakIsPreserved(peak: Float) {
     let observation = nativeRouteObservation(key: key, snapshot: appliedSnapshot(peak: peak))
     #expect(observation.key == key)
@@ -59,9 +61,11 @@ struct NativeRuntimePeakTests {
     #expect(nativeRouteObservation(key: key, snapshot: snapshot).peakLevel == nil)
   }
 
-  @Test("Nonfinite and negative native peaks stay unavailable", arguments: [
-    Float.nan, .infinity, -.infinity, -0.125,
-  ])
+  @Test(
+    "Nonfinite and negative native peaks stay unavailable",
+    arguments: [
+      Float.nan, .infinity, -.infinity, -0.125,
+    ])
   func invalidPeaksHaveNoValue(peak: Float) {
     let observation = nativeRouteObservation(key: key, snapshot: appliedSnapshot(peak: peak))
     #expect(observation.peakLevel == nil)

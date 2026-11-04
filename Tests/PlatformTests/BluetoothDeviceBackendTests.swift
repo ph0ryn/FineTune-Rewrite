@@ -29,7 +29,8 @@ struct BluetoothDeviceBackendTests {
     backend.stop()
   }
 
-  @Test("A failed power read invalidates the previous on or off observation", arguments: [false, true])
+  @Test(
+    "A failed power read invalidates the previous on or off observation", arguments: [false, true])
   func failedPowerRead(previouslyPowered: Bool) async {
     let notifications = BluetoothNotificationFixture()
     let transport = BluetoothFixtureTransport(

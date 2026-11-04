@@ -139,5 +139,6 @@ func nativeRouteObservation(
     failure: snapshot.failure.kind == FT_NATIVE_NO_FAILURE
       ? nil : nativeRouteFailure(snapshot.failure),
     cleanupFailure: snapshot.cleanup_failure.kind == FT_NATIVE_NO_FAILURE
-      ? nil : nativeRouteFailure(snapshot.cleanup_failure), peakLevel: hasPeak ? snapshot.peak : nil)
+      ? nil : nativeRouteFailure(snapshot.cleanup_failure), peakLevel: hasPeak ? snapshot.peak : nil
+  )
 }

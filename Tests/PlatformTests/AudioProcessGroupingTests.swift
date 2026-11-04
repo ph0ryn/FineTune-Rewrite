@@ -61,7 +61,8 @@ struct AudioProcessGroupingTests {
       #expect(app.processRevision > 0)
       #expect(
         try source.monitor.resolveApp(
-          identifier: "Com.Player", processRevision: app.processRevision).processObjectIDs == [99])
+          identifier: "Com.Player", processRevision: app.processRevision
+        ).processObjectIDs == [99])
     }
   }
 
