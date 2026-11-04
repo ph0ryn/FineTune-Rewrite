@@ -120,6 +120,12 @@
       "reviewer": "native-engineer",
       "status": "approved",
       "evidence": "Independent Native49 exact seven-source AutoEQ preparation/C-adapter/facade/test delta approval at receipt SHA74aea696985a1cef72f956b080f66a19677b2c236dd71923be319e7a4b05492c, not old31 or ownNative26. Current test75d2578d; separate fresh53 isolated actual native3TU leaf Debug/Release JSONL3 declarations/14 invocations/one complete run, XML3 declaration rows F/E/S0 independently audited by compatibility-scout, with19 before/after/archive/current input hashes and21 regular sealed tar members. Source/count/fingerprint derive from the actual same-type static-let literal, not hardcoded12. New namedCPP0; no wholeRoot/physicalHAL/TCC/RT deadline approval. Details .indexion/cache/dspStageAndHALIndependentReview.md and .indexion/cache/task19-autoEQ33-independent-seal.json; actual packet .indexion/cache/autoEQSwiftCurrentVerification/20261103T232900-44294935/packet.json."
+    },
+    "task-42": {
+      "author": "native-engineer (existing contracts); compatibility-scout (reporter delta)",
+      "reviewer": "dsp-engineer",
+      "status": "approved",
+      "evidence": "Independent DSP exact4 reporter source/callsite delta receipt .indexion/cache/nativeReporterIndependentFinal.json, plus unchanged37 Slot-body retention proof .indexion/cache/nativeReporterIndependentProof.json; historical37 model/negative-evidence limits remain disclosed, not expanded. New54 separately rebuilds all current CPP37 inputs, including actual no-capture boundary13TU NativeRuntime2adc192d/header0827924f/HalAPI4559e995, instead of silently rebinding historical39c325. Actual three modes each6reports/49named6654inv independently checked with supported Release failed-row controls and sealed368 artifacts in .indexion/cache/task19-native54-independent-current.json; execution proof SHAba03b6e2bd53e1ac9bd7726839465ba19b03282ba268a0853e73587a92a67e5f. Task42 adds11 names/invocations1 each, not stress iterations. Helper0 named cases. This does not independently approve source16/26/wholeNative39/Root51, physicalHAL/TCC/PAC or RT deadlines."
     }
   },
   "license_notice": {
@@ -19126,6 +19132,160 @@
           }
         }
       ]
+    },
+    {
+      "id": "Tests/NativeRuntimeTests/CallbackSlotsTests.cpp::cookiePointerRoundTrip",
+      "classification": "D",
+      "adaptation": "Actual volatile public C ABI cookie encode/decode round trip retains the expected value; optimized call/result preservation independently inspected, not a PAC claim.",
+      "review": "task-42",
+      "destinations": [
+        {
+          "kind": "cpp",
+          "id": "Tests/NativeRuntimeTests/CallbackSlotsTests.cpp::cookiePointerRoundTrip",
+          "invocations": 1,
+          "guarantee": "Actual volatile public C ABI cookie encode/decode round trip retains the expected value; optimized call/result preservation independently inspected, not a PAC claim."
+        }
+      ]
+    },
+    {
+      "id": "Tests/NativeRuntimeTests/CallbackSlotsTests.cpp::firstCallbackAndClosedEntry",
+      "classification": "D",
+      "adaptation": "A published synthetic context admits its first callback; closing admission denies later entry without changing the live reader ownership contract.",
+      "review": "task-42",
+      "destinations": [
+        {
+          "kind": "cpp",
+          "id": "Tests/NativeRuntimeTests/CallbackSlotsTests.cpp::firstCallbackAndClosedEntry",
+          "invocations": 1,
+          "guarantee": "A published synthetic context admits its first callback; closing admission denies later entry without changing the live reader ownership contract."
+        }
+      ]
+    },
+    {
+      "id": "Tests/NativeRuntimeTests/CallbackSlotsTests.cpp::lateOldCookieAfterReuse",
+      "classification": "D",
+      "adaptation": "A retained old cookie cannot admit a late callback into a freshly reused synthetic slot generation.",
+      "review": "task-42",
+      "destinations": [
+        {
+          "kind": "cpp",
+          "id": "Tests/NativeRuntimeTests/CallbackSlotsTests.cpp::lateOldCookieAfterReuse",
+          "invocations": 1,
+          "guarantee": "A retained old cookie cannot admit a late callback into a freshly reused synthetic slot generation."
+        }
+      ]
+    },
+    {
+      "id": "Tests/NativeRuntimeTests/CallbackSlotsTests.cpp::pausedReaderPreventsReclamation",
+      "classification": "D",
+      "adaptation": "An admitted paused reader lease prevents non-RT reclamation until its release; caller lifetime/serialization preconditions remain explicit.",
+      "review": "task-42",
+      "destinations": [
+        {
+          "kind": "cpp",
+          "id": "Tests/NativeRuntimeTests/CallbackSlotsTests.cpp::pausedReaderPreventsReclamation",
+          "invocations": 1,
+          "guarantee": "An admitted paused reader lease prevents non-RT reclamation until its release; caller lifetime/serialization preconditions remain explicit."
+        }
+      ]
+    },
+    {
+      "id": "Tests/NativeRuntimeTests/CallbackSlotsTests.cpp::leaseMovesHaveOneReaderOwnership",
+      "classification": "D",
+      "adaptation": "Moved synthetic leases transfer exactly one reader ownership and release it once without duplicate decrement.",
+      "review": "task-42",
+      "destinations": [
+        {
+          "kind": "cpp",
+          "id": "Tests/NativeRuntimeTests/CallbackSlotsTests.cpp::leaseMovesHaveOneReaderOwnership",
+          "invocations": 1,
+          "guarantee": "Moved synthetic leases transfer exactly one reader ownership and release it once without duplicate decrement."
+        }
+      ]
+    },
+    {
+      "id": "Tests/NativeRuntimeTests/CallbackSlotsTests.cpp::boundedCapacityAndFreshReuse",
+      "classification": "D",
+      "adaptation": "Finite pool exhaustion fails closed; released/reused slots issue fresh cookies while stale cookies remain denied under the documented bounded-generation contract.",
+      "review": "task-42",
+      "destinations": [
+        {
+          "kind": "cpp",
+          "id": "Tests/NativeRuntimeTests/CallbackSlotsTests.cpp::boundedCapacityAndFreshReuse",
+          "invocations": 1,
+          "guarantee": "Finite pool exhaustion fails closed; released/reused slots issue fresh cookies while stale cookies remain denied under the documented bounded-generation contract."
+        }
+      ]
+    },
+    {
+      "id": "Tests/NativeRuntimeTests/CallbackSlotsTests.cpp::callbackPathDoesNotAllocate",
+      "classification": "D",
+      "adaptation": "Synthetic callback admission/lease release executes inside the existing ordinary C++ allocation-counting interval with no counted allocation; not arbitrary malloc/CF/OS interposition.",
+      "review": "task-42",
+      "destinations": [
+        {
+          "kind": "cpp",
+          "id": "Tests/NativeRuntimeTests/CallbackSlotsTests.cpp::callbackPathDoesNotAllocate",
+          "invocations": 1,
+          "guarantee": "Synthetic callback admission/lease release executes inside the existing ordinary C++ allocation-counting interval with no counted allocation; not arbitrary malloc/CF/OS interposition."
+        }
+      ]
+    },
+    {
+      "id": "Tests/NativeRuntimeTests/CoherentLevelsTests.cpp::initialSavedTuple",
+      "classification": "D",
+      "adaptation": "Initial coherent saved gain/mute tuple decodes to its expected independent fields.",
+      "review": "task-42",
+      "destinations": [
+        {
+          "kind": "cpp",
+          "id": "Tests/NativeRuntimeTests/CoherentLevelsTests.cpp::initialSavedTuple",
+          "invocations": 1,
+          "guarantee": "Initial coherent saved gain/mute tuple decodes to its expected independent fields."
+        }
+      ]
+    },
+    {
+      "id": "Tests/NativeRuntimeTests/CoherentLevelsTests.cpp::staleTupleCannotRollbackGainMute",
+      "classification": "D",
+      "adaptation": "An older tuple revision cannot roll gain or mute back after newer publication.",
+      "review": "task-42",
+      "destinations": [
+        {
+          "kind": "cpp",
+          "id": "Tests/NativeRuntimeTests/CoherentLevelsTests.cpp::staleTupleCannotRollbackGainMute",
+          "invocations": 1,
+          "guarantee": "An older tuple revision cannot roll gain or mute back after newer publication."
+        }
+      ]
+    },
+    {
+      "id": "Tests/NativeRuntimeTests/CoherentLevelsTests.cpp::singleAttemptAtomicTupleUnderConcurrentPublication",
+      "classification": "D",
+      "adaptation": "Concurrent publication/reads retain one complete atomic gain/mute tuple with the existing single-attempt reader behavior and original stress assertions, not a deadline guarantee.",
+      "review": "task-42",
+      "destinations": [
+        {
+          "kind": "cpp",
+          "id": "Tests/NativeRuntimeTests/CoherentLevelsTests.cpp::singleAttemptAtomicTupleUnderConcurrentPublication",
+          "invocations": 1,
+          "guarantee": "Concurrent publication/reads retain one complete atomic gain/mute tuple with the existing single-attempt reader behavior and original stress assertions, not a deadline guarantee."
+        }
+      ]
+    },
+    {
+      "id": "Tests/NativeRuntimeTests/NativeRuntimeBoundaryTests.cpp::noExplicitCaptureHasNoAcquisition",
+      "classification": "D",
+      "adaptation": "The actual public C boundary rejects absent explicit-capture intent with the expected status/null prepared result; fresh real13TU uses only the empty external HAL provider and no SystemHal linkage.",
+      "review": "task-42",
+      "destinations": [
+        {
+          "kind": "cpp",
+          "id": "Tests/NativeRuntimeTests/NativeRuntimeBoundaryTests.cpp::noExplicitCaptureHasNoAcquisition",
+          "invocations": 1,
+          "guarantee": "The actual public C boundary rejects absent explicit-capture intent with the expected status/null prepared result; fresh real13TU uses only the empty external HAL provider and no SystemHal linkage."
+        }
+      ]
     }
   ],
   "fixtures": [
@@ -19234,6 +19394,34 @@
       "derived_from": [],
       "license": "MIT",
       "review": "task-40"
+    },
+    {
+      "destination": "Tests/NativeRuntimeTests/CallbackSlotsTests.cpp",
+      "sha256": "656c4f0c697b3e5c48d80564a75e76ac3c6feee59c711805d79728328869c401",
+      "derived_from": [],
+      "license": "MIT",
+      "review": "task-42"
+    },
+    {
+      "destination": "Tests/NativeRuntimeTests/CoherentLevelsTests.cpp",
+      "sha256": "4ff83b040539133903f9b8449579f86acf53a58e48a33dfa2ef6bc1302773d3d",
+      "derived_from": [],
+      "license": "MIT",
+      "review": "task-42"
+    },
+    {
+      "destination": "Tests/NativeRuntimeTests/NativeRuntimeBoundaryTests.cpp",
+      "sha256": "cdedd9410df20436218bf45f5913e5d4ed2e95d18ea50a9d29867dc1b9764006",
+      "derived_from": [],
+      "license": "MIT",
+      "review": "task-42"
+    },
+    {
+      "destination": "Tests/NativeRuntimeTests/NativeTestReport.hpp",
+      "sha256": "95040fe8d3feb6c4ab184e36ee28fb157eccab136f47ec2cd74c02e61341bbbf",
+      "derived_from": [],
+      "license": "MIT",
+      "review": "task-42"
     }
   ]
 }
