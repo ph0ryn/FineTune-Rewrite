@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 import Testing
 
 @testable import FineTune
@@ -6,6 +7,65 @@ import Testing
 @Suite("Application lifecycle without live OS services")
 @MainActor
 struct BootstrapLifecycleTests {
+  @Test("Cached observation maintenance survives suspension without delivering suspended effects")
+  func cachedObservationSurvivesSleep() async throws {
+    let fixture = try LifecycleFixture()
+    defer { fixture.cleanUp() }
+    let probe = LifecycleServiceProbe()
+    let coordinator = LifecycleCoordinator(settings: fixture.settings, ports: probe.ports)
+    let cache = LifecycleDefaultCache()
+    var delivered: [String] = []
+    await coordinator.start()
+    coordinator.observeWhileStarted(
+      read: {
+        _ = cache.uid
+        _ = cache.failure
+      },
+      onChange: { delivered.append(cache.uid) })
+    await coordinator.handle(.systemWillSleep)
+    cache.failure = "Default read unavailable while suspended"
+    await drainObservationTasks()
+    #expect(delivered.isEmpty)
+    await coordinator.handle(.systemDidWake)
+    cache.failure = nil
+    await drainObservationTasks()
+    #expect(delivered == ["A"])
+    cache.uid = "B"
+    await drainObservationTasks()
+    #expect(delivered == ["A", "B"])
+    await coordinator.stop()
+  }
+
+  @Test("Queued observations cannot re-arm an old session after stop and restart")
+  func stoppedObservationCannotDuplicateNewSession() async throws {
+    let fixture = try LifecycleFixture()
+    defer { fixture.cleanUp() }
+    let probe = LifecycleServiceProbe()
+    let coordinator = LifecycleCoordinator(settings: fixture.settings, ports: probe.ports)
+    let cache = LifecycleDefaultCache()
+    var delivered: [String] = []
+    await coordinator.start()
+    coordinator.observeWhileStarted(
+      read: { _ = cache.uid }, onChange: { delivered.append("old:\(cache.uid)") })
+    cache.uid = "late"
+    await coordinator.stop()
+    await coordinator.start()
+    coordinator.observeWhileStarted(
+      read: { _ = cache.uid }, onChange: { delivered.append("new:\(cache.uid)") })
+    cache.uid = "B"
+    await drainObservationTasks()
+    #expect(delivered == ["new:B"])
+    cache.uid = "C"
+    await drainObservationTasks()
+    #expect(delivered == ["new:B", "new:C"])
+    await coordinator.stop()
+  }
+
+  private func drainObservationTasks() async {
+    // Bounded executor turns, not a real timer, polling loop, or production scheduler.
+    for _ in 0..<8 { await Task.yield() }
+  }
+
   @Test("Construction is inert; explicit starts and stops are idempotent")
   func explicitLifecycle() async throws {
     let fixture = try LifecycleFixture()
@@ -183,6 +243,13 @@ struct BootstrapLifecycleTests {
     #expect(probe.audioActive && probe.inputActive)
     await coordinator.stop()
   }
+}
+
+@MainActor
+@Observable
+private final class LifecycleDefaultCache {
+  var uid = "A"
+  var failure: String?
 }
 
 @MainActor

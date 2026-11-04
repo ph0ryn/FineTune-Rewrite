@@ -82,6 +82,24 @@ final class LifecycleCoordinator {
     }
   }
 
+  /// Application-owned cached observations share this coordinator's lifetime.
+  func observeWhileStarted(
+    read: @escaping @MainActor () -> Void, onChange: @escaping @MainActor () -> Void
+  ) {
+    let current = generation
+    withObservationTracking {
+      read()
+    } onChange: { [weak self] in
+      Task { @MainActor [weak self] in
+        guard let self, self.generation == current,
+          self.phase == .starting || self.phase == .running || self.phase == .suspended
+        else { return }
+        self.observeWhileStarted(read: read, onChange: onChange)
+        if self.phase == .running { onChange() }
+      }
+    }
+  }
+
   func handle(_ event: LifecycleEvent) async {
     guard phase == .running || phase == .suspended else { return }
     let current = generation
