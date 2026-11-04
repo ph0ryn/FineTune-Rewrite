@@ -20,6 +20,8 @@ final class ApplicationGraph {
     devices: any AudioDeviceObservationProviding,
     processes: any AudioProcessObservationProviding, volumes: any DeviceVolumeProviding,
     runtime: any AudioRoutingRuntime,
+    readOutputFailure: @escaping @MainActor () -> String?,
+    readDefaultRoutingDecision: @escaping @MainActor () -> ControlDefaultOutputRoutingDecision,
     deviceCommand: @escaping @MainActor (AudioCommand) throws -> Void
   ) {
     self.settings = settings
@@ -30,12 +32,13 @@ final class ApplicationGraph {
     let cache = profiles.cache
     let controller = AudioController(
       settings: settings, runtime: runtime, profileLookup: { cache.profile(for: $0) },
-      deviceCommand: deviceCommand)
+      readDefaultRoutingDecision: readDefaultRoutingDecision, deviceCommand: deviceCommand)
     self.controller = controller
     engine = AudioEngine(
       controller: controller, settingsManager: settings, deviceObservations: devices,
-      processObservations: processes, deviceVolumeMonitor: volumes)
-    bindings = RootBindings(controller: controller)
+      processObservations: processes, deviceVolumeMonitor: volumes,
+      readOutputFailure: readOutputFailure)
+    bindings = RootBindings(controller: controller, settings: settings)
     urlAutomation = URLAutomationController(commandHandler: controller)
     autoEQAutomation = AutoEQAutomation(
       repository: profiles, preferences: settings, commands: controller,

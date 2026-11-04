@@ -18,8 +18,9 @@ struct BootstrapTests {
     let settings = SettingsManager(
       directory: directory, launchAtLoginService: BootstrapBindingLoginService())
     let controller = AudioController(
-      settings: settings, runtime: nil, profileLookup: { _ in nil })
-    let bindings = RootBindings(controller: controller)
+      settings: settings, runtime: nil, profileLookup: { _ in nil },
+      readDefaultRoutingDecision: { .followObserved })
+    let bindings = RootBindings(controller: controller, settings: settings)
 
     var first = settings.appSettings
     first.defaultNewAppVolume = 0.37
@@ -62,7 +63,8 @@ struct BootstrapTests {
     let runtime = RoutingProbeRuntime()
     let graph = ApplicationGraph(
       settings: settings, profiles: repository, devices: devices, processes: processes,
-      volumes: volumes, runtime: runtime,
+      volumes: volumes, runtime: runtime, readOutputFailure: { volumes.defaultOutputReadFailure },
+      readDefaultRoutingDecision: { .followObserved },
       deviceCommand: { _ in
         Issue.record("Constructing and editing inactive app wishes must not write hardware.")
         throw AudioRouteFailure(
@@ -96,6 +98,61 @@ struct BootstrapTests {
     #expect(settings.lastSaveError == nil)
   }
 
+  @Test("Preset metadata CRUD persists without changing copied active EQ or native execution")
+  func presetMetadataDoesNotReconfigureAudio() async throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(
+      "FineTuneRootPresets-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let settings = SettingsManager(
+      directory: directory, launchAtLoginService: BootstrapBindingLoginService())
+    let activeEQ = EQPreset.bassBoost.settings
+    settings.setEQSettings(activeEQ, for: "unit.active")
+    let runtime = RoutingProbeRuntime()
+    let controller = AudioController(
+      settings: settings, runtime: runtime, profileLookup: { _ in nil },
+      readDefaultRoutingDecision: { .followObserved })
+    controller.observeOutputs(
+      [
+        AudioOutputDescriptor(
+          uid: "A", bindingRevision: 1, supportsAutoEQ: false, processingGain: 1, volume: 1,
+          isMuted: false)
+      ], defaultUID: "A")
+    controller.observeApplications([
+      AudioApplicationDescriptor(
+        identifier: "unit.active", processID: 101, processRevision: 1,
+        displayName: "Active", bundleID: "unit.active")
+    ])
+    controller.perform(.requestCaptureStart)
+    await controller.waitForCurrentWork()
+    let route = try #require(runtime.handle("A"))
+    let before = controller.routeObservations
+    let committed = route.commits
+    let updates = route.updates
+    let bindings = RootBindings(controller: controller, settings: settings)
+    let actions = bindings.appActions
+    actions.createPreset("First", EQPreset.podcast.settings)
+    actions.createPreset("Keep", EQPreset.trebleBoost.settings)
+    let first = try #require(settings.getUserPresets().first { $0.name == "First" })
+    actions.renamePreset(first.id, "Renamed")
+    #expect(settings.getUserPresets().first { $0.id == first.id }?.name == "Renamed")
+    actions.deletePreset(first.id)
+    await controller.waitForCurrentWork()
+
+    #expect(settings.getEQSettings(for: "unit.active") == activeEQ)
+    #expect(route.commits == committed && route.updates == updates)
+    #expect(controller.routeObservations == before)
+    #expect(runtime.requests.count == 1)
+    #expect(!route.cancelled && !route.retired)
+    settings.flushSync()
+    let restored = SettingsManager(
+      directory: directory, launchAtLoginService: BootstrapBindingLoginService())
+    #expect(restored.getUserPresets().count == 1)
+    #expect(restored.getUserPresets().first?.name == "Keep")
+    #expect(restored.getEQSettings(for: "unit.active") == activeEQ)
+    #expect(restored.appSettings.explicitUserCaptureEnabled)
+    await controller.shutdown()
+  }
+
   @Test("Blocked preparation cannot delay Root wishes or commit stale gain and cached correction")
   func callbacksWhilePreparationIsBlocked() async throws {
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent(
@@ -111,8 +168,9 @@ struct BootstrapTests {
     let runtime = RoutingProbeRuntime()
     runtime.holdPreparation = ["A"]
     let controller = AudioController(
-      settings: settings, runtime: runtime, profileLookup: { cache.profile(for: $0) })
-    let bindings = RootBindings(controller: controller)
+      settings: settings, runtime: runtime, profileLookup: { cache.profile(for: $0) },
+      readDefaultRoutingDecision: { .followObserved })
+    let bindings = RootBindings(controller: controller, settings: settings)
     controller.observeOutputs(
       [
         AudioOutputDescriptor(
