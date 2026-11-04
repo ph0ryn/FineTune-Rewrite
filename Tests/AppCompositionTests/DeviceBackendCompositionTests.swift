@@ -217,7 +217,8 @@ private final class DeviceCompositionFixture {
         }
       }, outputPreferencesDidChange: { [preferences] in preferences.outputChanges += 1 })
     controller = AudioController(
-      settings: settings, runtime: nil, profileLookup: { _ in nil }, deviceCommand: model.perform)
+      settings: settings, runtime: nil, profileLookup: { _ in nil },
+      readDefaultRoutingDecision: { .followObserved }, deviceCommand: model.perform)
   }
   func start() {
     output.start()
