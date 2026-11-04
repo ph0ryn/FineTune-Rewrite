@@ -272,19 +272,26 @@ struct MixerView: View {
     return VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
       HStack(spacing: DesignTokens.Spacing.xs) {
         bindings.deviceRow(device, scope: renderScope, autoEQSubtitle: subtitle)
-        if renderScope == .output && device.device.supportsAutoEQ && !isEditing {
-          Button("AutoEQ") {
-            profileSelection = DeviceSelection(scope: renderScope, uid: device.id)
+        // AutoEQ availability must not change the width offered to DeviceRow.
+        Group {
+          if renderScope == .output && device.device.supportsAutoEQ && !isEditing {
+            Button("AutoEQ") {
+              profileSelection = DeviceSelection(scope: renderScope, uid: device.id)
+            }
+            .buttonStyle(.plain).font(DesignTokens.Typography.pickerText)
+            .accessibilityLabel("Headphone correction for \(device.device.name)")
+          } else {
+            Color.clear.frame(height: 0).accessibilityHidden(true)
           }
-          .buttonStyle(.plain).font(DesignTokens.Typography.pickerText)
-          .accessibilityLabel("Headphone correction for \(device.device.name)")
         }
+        .frame(width: DesignTokens.Dimensions.percentageWidth)
         Button {
           inspected = DeviceSelection(scope: renderScope, uid: device.id)
         } label: {
           Image(systemName: "info.circle")
         }
-        .buttonStyle(.plain).accessibilityLabel("Details for \(device.device.name)")
+        .buttonStyle(.plain).frame(width: DesignTokens.Dimensions.minTouchTarget)
+        .accessibilityLabel("Details for \(device.device.name)")
         if isEditing {
           Button {
             iconSelection = DeviceSelection(scope: renderScope, uid: device.id)

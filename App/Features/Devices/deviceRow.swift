@@ -85,6 +85,7 @@ struct DeviceRow: View {
 
   var body: some View {
     HStack(spacing: DesignTokens.Spacing.sm) {
+      // Only the name column flexes; every device keeps the same trailing control columns.
       Button(action: onSetDefault) {
         HStack(spacing: DesignTokens.Spacing.sm) {
           if let icon = device.icon {
@@ -99,13 +100,16 @@ struct DeviceRow: View {
                 .foregroundStyle(DesignTokens.Colors.textTertiary).lineLimit(1).help(autoEQSubtitle)
             }
           }
-          if isDefault { Image(systemName: "checkmark") }
+          .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+          Image(systemName: "checkmark")
+            .frame(width: DesignTokens.Dimensions.minTouchTarget)
+            .opacity(isDefault ? 1 : 0).accessibilityHidden(!isDefault)
         }
       }
       .buttonStyle(.plain)
+      .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
       .accessibilityLabel(
         isInput ? "Use \(device.name) as default input" : "Use \(device.name) as default output")
-      Spacer(minLength: 0)
       Button(action: onMuteToggle) {
         Image(
           systemName: displayedMuteState.map {
@@ -115,18 +119,19 @@ struct DeviceRow: View {
           } ?? "questionmark.circle")
       }
       .buttonStyle(.plain)
+      .frame(width: DesignTokens.Dimensions.minTouchTarget)
       .disabled(!canToggleMute)
       .accessibilityLabel(muteAccessibilityLabel)
       if let slider {
         Slider(value: slider, in: 0...1)
-          .frame(minWidth: 80, maxWidth: 160)
+          .frame(width: DesignTokens.Dimensions.sliderWidth)
           .scrollWheelStep(slider, in: 0...1)
           .accessibilityLabel("\(device.name) volume")
       } else {
         Text(volume == nil ? "Unavailable" : "Read-only")
           .font(DesignTokens.Typography.caption)
           .foregroundStyle(DesignTokens.Colors.textSecondary)
-          .frame(minWidth: 80, maxWidth: 160)
+          .frame(width: DesignTokens.Dimensions.sliderWidth)
           .accessibilityLabel(
             "\(device.name) volume \(volume == nil ? "unavailable" : "read-only")")
       }
