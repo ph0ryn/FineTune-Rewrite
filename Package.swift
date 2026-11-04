@@ -1,6 +1,11 @@
 // swift-tools-version: 6.0
 
+import Foundation
 import PackageDescription
+
+// The opt-in CLI has its own main-executable privacy metadata, never a library/test linker flag.
+let probeInfo = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+  .appendingPathComponent("Tools/AudioProbe/Info.plist").path
 
 let package = Package(
   name: "FineTune",
@@ -12,6 +17,7 @@ let package = Package(
     .library(name: "NativeAudio", targets: ["NativeAudio"]),
     .library(name: "AudioDSP", targets: ["AudioDSP"]),
     .executable(name: "FineTune", targets: ["FineTune"]),
+    .executable(name: "AudioProbe", targets: ["AudioProbe"]),
     .executable(name: "DSPTests", targets: ["DSPTests"]),
     .executable(name: "NativeStageTests", targets: ["NativeStageTests"]),
     .executable(name: "NativeSlotTests", targets: ["NativeSlotTests"]),
@@ -49,6 +55,17 @@ let package = Package(
       ],
       path: "App",
       resources: [.copy("Resources/ThirdPartyNotices.txt")]
+    ),
+    .executableTarget(
+      name: "AudioProbe",
+      dependencies: ["FineTuneDomain", "FineTunePlatform", "FineTuneControl", "NativeAudio"],
+      path: "Tools/AudioProbe", exclude: ["Info.plist"],
+      linkerSettings: [
+        .unsafeFlags([
+          "-Xlinker", "-sectcreate", "-Xlinker", "__TEXT", "-Xlinker", "__info_plist",
+          "-Xlinker", probeInfo,
+        ])
+      ]
     ),
     .executableTarget(
       name: "DSPTests",

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleIdentifier</key>
+  <string>com.finetune-rewrite.AudioProbe</string>
+  <key>CFBundleName</key>
+  <string>AudioProbe</string>
+  <key>CFBundleExecutable</key>
+  <string>AudioProbe</string>
+  <key>CFBundleVersion</key>
+  <string>1</string>
+  <key>NSAudioCaptureUsageDescription</key>
+  <string>AudioProbe records the app and plays it through the output you explicitly select for a limited diagnostic run.</string>
+</dict>
+</plist>
