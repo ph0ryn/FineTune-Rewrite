@@ -126,6 +126,12 @@
       "reviewer": "dsp-engineer",
       "status": "approved",
       "evidence": "Independent DSP exact4 reporter source/callsite delta receipt .indexion/cache/nativeReporterIndependentFinal.json, plus unchanged37 Slot-body retention proof .indexion/cache/nativeReporterIndependentProof.json; historical37 model/negative-evidence limits remain disclosed, not expanded. New54 separately rebuilds all current CPP37 inputs, including actual no-capture boundary13TU NativeRuntime2adc192d/header0827924f/HalAPI4559e995, instead of silently rebinding historical39c325. Actual three modes each6reports/49named6654inv independently checked with supported Release failed-row controls and sealed368 artifacts in .indexion/cache/task19-native54-independent-current.json; execution proof SHAba03b6e2bd53e1ac9bd7726839465ba19b03282ba268a0853e73587a92a67e5f. Task42 adds11 names/invocations1 each, not stress iterations. Helper0 named cases. This does not independently approve source16/26/wholeNative39/Root51, physicalHAL/TCC/PAC or RT deadlines."
+    },
+    "task-27": {
+      "author": "domain-engineer",
+      "reviewer": "ui-style-engineer",
+      "status": "approved",
+      "evidence": "Task43 final scoped acceptance .indexion/cache/engineInputIndependentReview.md on approvedDefaultSnapshot3: all70 regular archived inputs/24 current owned bytes and before-after maps verified. Final Core24decl38inv freshly independently rerun Debug/Release; Engine74/86, Input4/5, Output7/8 explicitly reuse independently executed snapshot2 runs only because every input in exact61/39/39 closures/manifests is byte-identical. The sole snapshot3 oracle change retains cancelled/non-rendering before shutdown and requires retired after the actual join; production/API unchanged. The actual passive Engine/shared Controller, pre-commit initial state/profile-miss/ordering, durable input/output wishes, priority/echo/grace, observed-versus-approved target and stale-default revalidation guarantees are accepted. New D35/51 plus source/helper4 are bounded to owned six test/helper paths. Scanner263ef0c derives actual cartesian38 rather than historical incorrect30; no count/runtime edits. This is not Root30/G7/task47, author's UI44-46, Native whole, live HAL/TCC/default-device/RT approval. Existing original classifications/baselines and Native49 metadata remain unchanged."
     }
   },
   "license_notice": {
@@ -459,16 +465,16 @@
       "derived_from": [
         "FineTuneTests/AudioEngineTapInitialStateTests.swift"
       ],
-      "tokens_sha256": "e919c2e0c4b25b4f3bb25ad5f6402bc5cc7166744c030bb4610194f0ddce8494",
-      "review": "task-14"
+      "tokens_sha256": "a2ce0c31ef10dfa508021aad58b80ffb9e2ae140be828f8103ec038b9880f7f6",
+      "review": "task-27"
     },
     {
       "destination": "Tests/UpstreamCompatibilityTests/AudioEngineToggleMuteTests.swift",
       "derived_from": [
         "FineTuneTests/AudioEngineToggleMuteTests.swift"
       ],
-      "tokens_sha256": "b610a790879e162d8dddee5126715571cd05928f8eedfe02c42c15b4fc39ae5d",
-      "review": "task-14"
+      "tokens_sha256": "501da03d9e743fe4a4c34fe6dbd3d77e739860367ba785d4132a8e35d27eba7d",
+      "review": "task-27"
     },
     {
       "destination": "Tests/UpstreamCompatibilityTests/BTCallModeTransitionTests.swift",
@@ -843,6 +849,30 @@
       "derived_from": [],
       "tokens_sha256": "2345cf3d06323fe8ba0012c43356894aaad71105813736e1444c93ea45db6a09",
       "review": "task-33"
+    },
+    {
+      "destination": "Tests/AppCompositionTests/InputPolicyTests.swift",
+      "derived_from": [],
+      "tokens_sha256": "87da7d1978c6ee780bc4626b82114468aa35d316deae6699dcafdda4dcf94364",
+      "review": "task-27"
+    },
+    {
+      "destination": "Tests/AppCompositionTests/OutputPolicyTests.swift",
+      "derived_from": [],
+      "tokens_sha256": "fc33f3f74f9c0c3dcdb89d872d698d608e627e71a303e7880582a6c16d1016ef",
+      "review": "task-27"
+    },
+    {
+      "destination": "Tests/AppCompositionTests/RoutingTests.swift",
+      "derived_from": [],
+      "tokens_sha256": "6a7cb86606f421309c7c1dd8f5efb8975031d272155d37f9e540d1215177a48d",
+      "review": "task-27"
+    },
+    {
+      "destination": "Tests/AppCompositionTests/devicePolicyTestClock.swift",
+      "derived_from": [],
+      "tokens_sha256": "20a53d7401febff80c7539350faaf50778511258abb4ac230104000f8634c79a",
+      "review": "task-27"
     }
   ],
   "support_files": [],
@@ -1913,11 +1943,15 @@
       "destinations": [
         {
           "id": "Tests/UpstreamCompatibilityTests/AudioEngineTapInitialStateTests.swift::AudioEngineTapInitialStateTests.eqSettingsAreCarried",
-          "invocations": 1
+          "invocations": 1,
+          "fingerprints": {
+            "body": "8ab08a9c0cf02b7d8e99bb1d91984c7cd9b7364b4134bfb5b7a71f65ea6ec65a",
+            "assertions": "88fc136b699045e4789aabb48b20218f47ef600846c2e147689bb5c9188579c7"
+          }
         }
       ],
-      "adaptation": "Preserve the setting values, nil-correction rules and activate-before-mutation guarantees through actual Control initial values and a small injected runtime port. Use an actual profile cache, explicit observed authorization (default unknown in production), temporary settings/login-service fake, and no live HAL activation.",
-      "review": "task-14"
+      "adaptation": "Preserve the setting values, nil-correction rules and activate-before-mutation guarantees through actual Control initial values and a small injected runtime port. Use an actual profile cache, explicit observed authorization (default unknown in production), temporary settings/login-service fake, and no live HAL activation. Current27/43 scoped acceptance also covers the actual passive Engine, typed approved-default reader and retirement-acknowledged oracle; historical counts are not silently promoted to current Root evidence.",
+      "review": "task-27"
     },
     {
       "id": "FineTuneTests/AudioEngineTapInitialStateTests.swift::AudioEngineTapInitialStateTests.autoEQPreampEnabledMirrored",
@@ -1933,11 +1967,15 @@
       "destinations": [
         {
           "id": "Tests/UpstreamCompatibilityTests/AudioEngineTapInitialStateTests.swift::AudioEngineTapInitialStateTests.autoEQPreampEnabledMirrored",
-          "invocations": 2
+          "invocations": 2,
+          "fingerprints": {
+            "body": "50406aaac01b9eeec56369beaf1a4752b92253a9ca32bb225755839e2e8b0181",
+            "assertions": "4f94d70016f7f466263e1478c5b1b9f2e3f4fc4aeacb9f641c44e5ff05f033fe"
+          }
         }
       ],
-      "adaptation": "Preserve the setting values, nil-correction rules and activate-before-mutation guarantees through actual Control initial values and a small injected runtime port. Use an actual profile cache, explicit observed authorization (default unknown in production), temporary settings/login-service fake, and no live HAL activation.",
-      "review": "task-14"
+      "adaptation": "Preserve the setting values, nil-correction rules and activate-before-mutation guarantees through actual Control initial values and a small injected runtime port. Use an actual profile cache, explicit observed authorization (default unknown in production), temporary settings/login-service fake, and no live HAL activation. Current27/43 scoped acceptance also covers the actual passive Engine, typed approved-default reader and retirement-acknowledged oracle; historical counts are not silently promoted to current Root evidence.",
+      "review": "task-27"
     },
     {
       "id": "FineTuneTests/AudioEngineTapInitialStateTests.swift::AudioEngineTapInitialStateTests.loudnessCompensationFlagMirrored",
@@ -1953,11 +1991,15 @@
       "destinations": [
         {
           "id": "Tests/UpstreamCompatibilityTests/AudioEngineTapInitialStateTests.swift::AudioEngineTapInitialStateTests.loudnessCompensationFlagMirrored",
-          "invocations": 2
+          "invocations": 2,
+          "fingerprints": {
+            "body": "63938d16c6174d10fbcde35e5bb5926dd600b6c5c8d1e687ca751fe692a70b75",
+            "assertions": "b469b91771839415f9c4ddf25d834b3cf80771ca012e1a2fe05db5d07d51757e"
+          }
         }
       ],
-      "adaptation": "Preserve the setting values, nil-correction rules and activate-before-mutation guarantees through actual Control initial values and a small injected runtime port. Use an actual profile cache, explicit observed authorization (default unknown in production), temporary settings/login-service fake, and no live HAL activation.",
-      "review": "task-14"
+      "adaptation": "Preserve the setting values, nil-correction rules and activate-before-mutation guarantees through actual Control initial values and a small injected runtime port. Use an actual profile cache, explicit observed authorization (default unknown in production), temporary settings/login-service fake, and no live HAL activation. Current27/43 scoped acceptance also covers the actual passive Engine, typed approved-default reader and retirement-acknowledged oracle; historical counts are not silently promoted to current Root evidence.",
+      "review": "task-27"
     },
     {
       "id": "FineTuneTests/AudioEngineTapInitialStateTests.swift::AudioEngineTapInitialStateTests.loudnessEqualizerFlagMirrored",
@@ -1973,11 +2015,15 @@
       "destinations": [
         {
           "id": "Tests/UpstreamCompatibilityTests/AudioEngineTapInitialStateTests.swift::AudioEngineTapInitialStateTests.loudnessEqualizerFlagMirrored",
-          "invocations": 2
+          "invocations": 2,
+          "fingerprints": {
+            "body": "2daa86d0626cb86546e9cbc4ca8a8107424bd4cbc77b452e1a8512d1660988ef",
+            "assertions": "0e82483d112cd3052c0afc6caf0b3c4fbbfc73bfa3d661e14ea9ad088bdf50e4"
+          }
         }
       ],
-      "adaptation": "Preserve the setting values, nil-correction rules and activate-before-mutation guarantees through actual Control initial values and a small injected runtime port. Use an actual profile cache, explicit observed authorization (default unknown in production), temporary settings/login-service fake, and no live HAL activation.",
-      "review": "task-14"
+      "adaptation": "Preserve the setting values, nil-correction rules and activate-before-mutation guarantees through actual Control initial values and a small injected runtime port. Use an actual profile cache, explicit observed authorization (default unknown in production), temporary settings/login-service fake, and no live HAL activation. Current27/43 scoped acceptance also covers the actual passive Engine, typed approved-default reader and retirement-acknowledged oracle; historical counts are not silently promoted to current Root evidence.",
+      "review": "task-27"
     },
     {
       "id": "FineTuneTests/AudioEngineTapInitialStateTests.swift::AudioEngineTapInitialStateTests.loudnessVolumeIsProduct",
@@ -1993,11 +2039,15 @@
       "destinations": [
         {
           "id": "Tests/UpstreamCompatibilityTests/AudioEngineTapInitialStateTests.swift::AudioEngineTapInitialStateTests.loudnessVolumeIsProduct",
-          "invocations": 1
+          "invocations": 1,
+          "fingerprints": {
+            "body": "0989811cac4605ae2f848993364dc76c237e6fe268f1dbd7be61632a4845451c",
+            "assertions": "d3b59e36dc979174cbf2f0101ca1371269bb6760667f24630992d94e7db7c3ec"
+          }
         }
       ],
-      "adaptation": "Preserve the setting values, nil-correction rules and activate-before-mutation guarantees through actual Control initial values and a small injected runtime port. Use an actual profile cache, explicit observed authorization (default unknown in production), temporary settings/login-service fake, and no live HAL activation.",
-      "review": "task-14"
+      "adaptation": "Preserve the setting values, nil-correction rules and activate-before-mutation guarantees through actual Control initial values and a small injected runtime port. Use an actual profile cache, explicit observed authorization (default unknown in production), temporary settings/login-service fake, and no live HAL activation. Current27/43 scoped acceptance also covers the actual passive Engine, typed approved-default reader and retirement-acknowledged oracle; historical counts are not silently promoted to current Root evidence.",
+      "review": "task-27"
     },
     {
       "id": "FineTuneTests/AudioEngineTapInitialStateTests.swift::AudioEngineTapInitialStateTests.autoEQNilForUnsupportedDevice",
@@ -2015,13 +2065,13 @@
           "id": "Tests/UpstreamCompatibilityTests/AudioEngineTapInitialStateTests.swift::AudioEngineTapInitialStateTests.autoEQNilForUnsupportedDevice",
           "invocations": 1,
           "fingerprints": {
-            "body": "3337ac450142aa33ed8baaf742048d473edd365c03ea772739fa05e464fdb1f4",
-            "assertions": "0e258a7b38fb7070f8599124544a74ecd7c251dc4c2631dd3224634d0cafe75c"
+            "body": "815fa6c0f5b8f9517cd15d48d2c3a73f6a3057cd2e00caca81c7cec9f0a2f373",
+            "assertions": "07aa80b8ae3be5cc0be2a814d5a0c3e3623250dfece87601427d6a9f0a183d25"
           }
         }
       ],
-      "adaptation": "Preserve the setting values, nil-correction rules and activate-before-mutation guarantees through actual Control initial values and a small injected runtime port. Use an actual profile cache, explicit observed authorization (default unknown in production), temporary settings/login-service fake, and no live HAL activation.",
-      "review": "task-14"
+      "adaptation": "Preserve the setting values, nil-correction rules and activate-before-mutation guarantees through actual Control initial values and a small injected runtime port. Use an actual profile cache, explicit observed authorization (default unknown in production), temporary settings/login-service fake, and no live HAL activation. Current27/43 scoped acceptance also covers the actual passive Engine, typed approved-default reader and retirement-acknowledged oracle; historical counts are not silently promoted to current Root evidence.",
+      "review": "task-27"
     },
     {
       "id": "FineTuneTests/AudioEngineTapInitialStateTests.swift::AudioEngineTapInitialStateTests.autoEQNilWithNoSelection",
@@ -2039,13 +2089,13 @@
           "id": "Tests/UpstreamCompatibilityTests/AudioEngineTapInitialStateTests.swift::AudioEngineTapInitialStateTests.autoEQNilWithNoSelection",
           "invocations": 1,
           "fingerprints": {
-            "body": "114be67a921ed96f28ebbc31cd8001f227d1402d662e09f65ebe7fc9cc271568",
-            "assertions": "0e258a7b38fb7070f8599124544a74ecd7c251dc4c2631dd3224634d0cafe75c"
+            "body": "cd09c8cc79c00209b2acb2157621de702a5e623762304ba9aa6eb321a0fbcff5",
+            "assertions": "07aa80b8ae3be5cc0be2a814d5a0c3e3623250dfece87601427d6a9f0a183d25"
           }
         }
       ],
-      "adaptation": "Preserve the setting values, nil-correction rules and activate-before-mutation guarantees through actual Control initial values and a small injected runtime port. Use an actual profile cache, explicit observed authorization (default unknown in production), temporary settings/login-service fake, and no live HAL activation.",
-      "review": "task-14"
+      "adaptation": "Preserve the setting values, nil-correction rules and activate-before-mutation guarantees through actual Control initial values and a small injected runtime port. Use an actual profile cache, explicit observed authorization (default unknown in production), temporary settings/login-service fake, and no live HAL activation. Current27/43 scoped acceptance also covers the actual passive Engine, typed approved-default reader and retirement-acknowledged oracle; historical counts are not silently promoted to current Root evidence.",
+      "review": "task-27"
     },
     {
       "id": "FineTuneTests/AudioEngineTapInitialStateTests.swift::AudioEngineTapInitialStateTests.autoEQNilWhenSelectionDisabled",
@@ -2063,13 +2113,13 @@
           "id": "Tests/UpstreamCompatibilityTests/AudioEngineTapInitialStateTests.swift::AudioEngineTapInitialStateTests.autoEQNilWhenSelectionDisabled",
           "invocations": 1,
           "fingerprints": {
-            "body": "1fcb84960b2257c575aa17687c51454ee8668bd50303b03f74eabc8062cd9c54",
-            "assertions": "0e258a7b38fb7070f8599124544a74ecd7c251dc4c2631dd3224634d0cafe75c"
+            "body": "f5cd4b93d9ad1183ce5cf6701e715c53b6e987f92448e526a7c1df6dc494cac7",
+            "assertions": "07aa80b8ae3be5cc0be2a814d5a0c3e3623250dfece87601427d6a9f0a183d25"
           }
         }
       ],
-      "adaptation": "Preserve the setting values, nil-correction rules and activate-before-mutation guarantees through actual Control initial values and a small injected runtime port. Use an actual profile cache, explicit observed authorization (default unknown in production), temporary settings/login-service fake, and no live HAL activation.",
-      "review": "task-14"
+      "adaptation": "Preserve the setting values, nil-correction rules and activate-before-mutation guarantees through actual Control initial values and a small injected runtime port. Use an actual profile cache, explicit observed authorization (default unknown in production), temporary settings/login-service fake, and no live HAL activation. Current27/43 scoped acceptance also covers the actual passive Engine, typed approved-default reader and retirement-acknowledged oracle; historical counts are not silently promoted to current Root evidence.",
+      "review": "task-27"
     },
     {
       "id": "FineTuneTests/AudioEngineTapInitialStateTests.swift::AudioEngineTapInitialStateTests.autoEQNilWhenProfileNotCached",
@@ -2087,13 +2137,13 @@
           "id": "Tests/UpstreamCompatibilityTests/AudioEngineTapInitialStateTests.swift::AudioEngineTapInitialStateTests.autoEQNilWhenProfileNotCached",
           "invocations": 1,
           "fingerprints": {
-            "body": "3d18b509c954e002f49ad501c01f94aa77b39e41bdd5af948ef899ec72995d92",
-            "assertions": "0e258a7b38fb7070f8599124544a74ecd7c251dc4c2631dd3224634d0cafe75c"
+            "body": "54fb71443ce85346b4f16bbd0654a510d03ebd2042e573fa466ab3631dfc61f2",
+            "assertions": "07aa80b8ae3be5cc0be2a814d5a0c3e3623250dfece87601427d6a9f0a183d25"
           }
         }
       ],
-      "adaptation": "Preserve the setting values, nil-correction rules and activate-before-mutation guarantees through actual Control initial values and a small injected runtime port. Use an actual profile cache, explicit observed authorization (default unknown in production), temporary settings/login-service fake, and no live HAL activation.",
-      "review": "task-14"
+      "adaptation": "Preserve the setting values, nil-correction rules and activate-before-mutation guarantees through actual Control initial values and a small injected runtime port. Use an actual profile cache, explicit observed authorization (default unknown in production), temporary settings/login-service fake, and no live HAL activation. Current27/43 scoped acceptance also covers the actual passive Engine, typed approved-default reader and retirement-acknowledged oracle; historical counts are not silently promoted to current Root evidence.",
+      "review": "task-27"
     },
     {
       "id": "FineTuneTests/AudioEngineTapInitialStateTests.swift::AudioEngineTapInitialStateTests.activateIsFirstEvent",
@@ -2109,11 +2159,16 @@
       "destinations": [
         {
           "id": "Tests/UpstreamCompatibilityTests/AudioEngineTapInitialStateTests.swift::AudioEngineTapInitialStateTests.activateIsFirstEvent",
-          "invocations": 1
+          "invocations": 1,
+          "fingerprints": {
+            "body": "2e8f327f4bf105245bfb71645c18f1af67aed20307ffc03c7b61ea3d8aaf9e3d",
+            "assertions": "4625489f7f01a5add642f557d5d0dbc1e766c5ce009ffea952c3d895f73f822e",
+            "attribute": "5c1bac686f77955c872fefaaf2476bc3cdd925ba83d3d4be05cb517f5c16898f"
+          }
         }
       ],
-      "adaptation": "Preserve the setting values, nil-correction rules and activate-before-mutation guarantees through actual Control initial values and a small injected runtime port. Use an actual profile cache, explicit observed authorization (default unknown in production), temporary settings/login-service fake, and no live HAL activation.",
-      "review": "task-14"
+      "adaptation": "Preserve the setting values, nil-correction rules and activate-before-mutation guarantees through actual Control initial values and a small injected runtime port. Use an actual profile cache, explicit observed authorization (default unknown in production), temporary settings/login-service fake, and no live HAL activation. Current27/43 scoped acceptance also covers the actual passive Engine, typed approved-default reader and retirement-acknowledged oracle; historical counts are not silently promoted to current Root evidence.",
+      "review": "task-27"
     },
     {
       "id": "FineTuneTests/AudioEngineTapInitialStateTests.swift::AudioEngineTapInitialStateTests.noMutationBeforeActivate",
@@ -2129,11 +2184,16 @@
       "destinations": [
         {
           "id": "Tests/UpstreamCompatibilityTests/AudioEngineTapInitialStateTests.swift::AudioEngineTapInitialStateTests.noMutationBeforeActivate",
-          "invocations": 1
+          "invocations": 1,
+          "fingerprints": {
+            "body": "728399c408480074349de34a7df33a392f5ac693769fbd0b8f244edaf527adf6",
+            "assertions": "0e8b14dc3b0f9b9ddd891d0df8b3cd612336b9a7f9b4585a22d90f94eccb2d84",
+            "attribute": "619e35e8b2fcc49f668370d8f38583c4cefb87fee22e082b370c1a31b8cbc012"
+          }
         }
       ],
-      "adaptation": "Preserve the setting values, nil-correction rules and activate-before-mutation guarantees through actual Control initial values and a small injected runtime port. Use an actual profile cache, explicit observed authorization (default unknown in production), temporary settings/login-service fake, and no live HAL activation.",
-      "review": "task-14"
+      "adaptation": "Preserve the setting values, nil-correction rules and activate-before-mutation guarantees through actual Control initial values and a small injected runtime port. Use an actual profile cache, explicit observed authorization (default unknown in production), temporary settings/login-service fake, and no live HAL activation. Current27/43 scoped acceptance also covers the actual passive Engine, typed approved-default reader and retirement-acknowledged oracle; historical counts are not silently promoted to current Root evidence.",
+      "review": "task-27"
     },
     {
       "id": "FineTuneTests/AudioEngineTapInitialStateTests.swift::AudioEngineTapInitialStateTests.cacheMissTriggersPostActivateNilSet",
@@ -2151,14 +2211,14 @@
           "id": "Tests/UpstreamCompatibilityTests/AudioEngineTapInitialStateTests.swift::AudioEngineTapInitialStateTests.cacheMissPreservesUnavailableSelection",
           "invocations": 1,
           "fingerprints": {
-            "body": "8e21a54988bda08d0ed92b0d335a50b5f1a28da49a0958d694715e6fe8f6b3a1",
-            "assertions": "fd9db039ba5149a75c5f3d2f9523327da6249b44c26c7466cadeb4eb951f5ed2",
+            "body": "6b24a7b5cf82420065d7b239d270296d7e1181d4ce518702a62ca23ba9ec9e79",
+            "assertions": "ce5cac63da14f9aaf6e0b6522207f1c04f36c5356cb436f323f934d3120da54d",
             "attribute": "6d7f1cc43b30f1071f2b9505ccf547cc891fda43140bee4208e93e766108ea46"
           }
         }
       ],
-      "adaptation": "Lead-approved B: initial nil correction is completely prepared before activate; a redundant legacy post-activate nil setter event is not required. Assert the actual captured initial value, explicit unavailable-profile observation, successful recording-route activation, and unchanged enabled/missing-ID saved preference.",
-      "review": "task-14"
+      "adaptation": "Lead-approved B: initial nil correction is completely prepared before activate; a redundant legacy post-activate nil setter event is not required. Assert the actual captured initial value, explicit unavailable-profile observation, successful recording-route activation, and unchanged enabled/missing-ID saved preference. Current27/43 scoped acceptance also covers the actual passive Engine, typed approved-default reader and retirement-acknowledged oracle; historical counts are not silently promoted to current Root evidence.",
+      "review": "task-27"
     },
     {
       "id": "FineTuneTests/AudioEngineTapInitialStateTests.swift::RecordingProcessTapControllerContractTests.recordsCallOrder",
@@ -2176,25 +2236,23 @@
           "id": "Tests/UpstreamCompatibilityTests/AudioEngineTapInitialStateTests.swift::AudioEngineTapInitialStateTests.activateIsFirstEvent",
           "invocations": 1,
           "fingerprints": {
-            "body": "71ca8012cdd0fa2dec0a85866254be027f31a4eda1770fb8e6fdc559d2906f06",
-            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "eca9a27ca2ffcb835ef0753a685756c9a2f8f41845e781a7866e37a3e8d89362",
-            "attribute": "cc2342e128157e2b6c71abceaf7e7772ece98856f5a237830eed84dca255c6ec"
+            "body": "2e8f327f4bf105245bfb71645c18f1af67aed20307ffc03c7b61ea3d8aaf9e3d",
+            "assertions": "4625489f7f01a5add642f557d5d0dbc1e766c5ce009ffea952c3d895f73f822e",
+            "attribute": "5c1bac686f77955c872fefaaf2476bc3cdd925ba83d3d4be05cb517f5c16898f"
           }
         },
         {
           "id": "Tests/UpstreamCompatibilityTests/AudioEngineTapInitialStateTests.swift::AudioEngineTapInitialStateTests.noMutationBeforeActivate",
           "invocations": 1,
           "fingerprints": {
-            "body": "b786f1814c23b0d8ab35a8d9f3d7416044824d8c32617494b6085bc8a3b60101",
-            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "af90bb1c5d0b756860c92f0ecf3b6d9a935cefc99afe13a21e878c7df031a2de",
-            "attribute": "284efd5d206afa04343fe08ca8cd8ef7081542f2933a306291778dde175d2568"
+            "body": "728399c408480074349de34a7df33a392f5ac693769fbd0b8f244edaf527adf6",
+            "assertions": "0e8b14dc3b0f9b9ddd891d0df8b3cd612336b9a7f9b4585a22d90f94eccb2d84",
+            "attribute": "619e35e8b2fcc49f668370d8f38583c4cefb87fee22e082b370c1a31b8cbc012"
           }
         }
       ],
-      "adaptation": "Lead-approved superseded scaffolding: remove the recording-double self-test rather than preserving a test count. The actual Engine activation and no-pre-activation-mutation units provide the stronger externally meaningful initial-state ordering guarantee. An isolated actual-engine setter-before-activate mutant must be detected by those retained assertions.",
-      "review": "task-14"
+      "adaptation": "Lead-approved superseded scaffolding: remove the recording-double self-test rather than preserving a test count. The actual Engine activation and no-pre-activation-mutation units provide the stronger externally meaningful initial-state ordering guarantee. An isolated actual-engine setter-before-activate mutant must be detected by those retained assertions. Current27/43 scoped acceptance also covers the actual passive Engine, typed approved-default reader and retirement-acknowledged oracle; historical counts are not silently promoted to current Root evidence.",
+      "review": "task-27"
     },
     {
       "id": "FineTuneTests/AudioEngineTapInitialStateTests.swift::RecordingProcessTapControllerContractTests.defaultsMatchProductionController",
@@ -2213,14 +2271,13 @@
           "invocations": 1,
           "fingerprints": {
             "body": "c4b9ea2c24718e5a8bbf72affd2ed6fec169a636bf644cec9ba7cc8341efb61c",
-            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
             "assertions": "575113cf88309613d37fb8449f9ce6e403e5f293833eab2cfeca35f356c63bfb",
             "attribute": "872ccc5c9d053b0ca30fc684b62ec111e01393969df762fa0882ea46f1fba78b"
           }
         }
       ],
-      "adaptation": "Lead-approved B: the old controller internal/test-double defaults are not restored. Actual Control VolumeState and TapInitialState defaults verify unity volume, independent unmuted state/boost, flat EQ, no correction/preamp, and disabled loudness processing. Actual Engine activation/no-pre-mutation units provide ordering guarantees without recording-double or unused convenience self-tests.",
-      "review": "task-14"
+      "adaptation": "Lead-approved B: the old controller internal/test-double defaults are not restored. Actual Control VolumeState and TapInitialState defaults verify unity volume, independent unmuted state/boost, flat EQ, no correction/preamp, and disabled loudness processing. Actual Engine activation/no-pre-mutation units provide ordering guarantees without recording-double or unused convenience self-tests. Current27/43 scoped acceptance also covers the actual passive Engine, typed approved-default reader and retirement-acknowledged oracle; historical counts are not silently promoted to current Root evidence.",
+      "review": "task-27"
     },
     {
       "id": "FineTuneTests/AudioEngineTapInitialStateTests.swift::RecordingProcessTapControllerContractTests.convenienceActivateRoutesThroughInitial",
@@ -2239,7 +2296,6 @@
           "invocations": 1,
           "fingerprints": {
             "body": "c4b9ea2c24718e5a8bbf72affd2ed6fec169a636bf644cec9ba7cc8341efb61c",
-            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
             "assertions": "575113cf88309613d37fb8449f9ce6e403e5f293833eab2cfeca35f356c63bfb",
             "attribute": "872ccc5c9d053b0ca30fc684b62ec111e01393969df762fa0882ea46f1fba78b"
           }
@@ -2248,25 +2304,23 @@
           "id": "Tests/UpstreamCompatibilityTests/AudioEngineTapInitialStateTests.swift::AudioEngineTapInitialStateTests.activateIsFirstEvent",
           "invocations": 1,
           "fingerprints": {
-            "body": "71ca8012cdd0fa2dec0a85866254be027f31a4eda1770fb8e6fdc559d2906f06",
-            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "eca9a27ca2ffcb835ef0753a685756c9a2f8f41845e781a7866e37a3e8d89362",
-            "attribute": "cc2342e128157e2b6c71abceaf7e7772ece98856f5a237830eed84dca255c6ec"
+            "body": "2e8f327f4bf105245bfb71645c18f1af67aed20307ffc03c7b61ea3d8aaf9e3d",
+            "assertions": "4625489f7f01a5add642f557d5d0dbc1e766c5ce009ffea952c3d895f73f822e",
+            "attribute": "5c1bac686f77955c872fefaaf2476bc3cdd925ba83d3d4be05cb517f5c16898f"
           }
         },
         {
           "id": "Tests/UpstreamCompatibilityTests/AudioEngineTapInitialStateTests.swift::AudioEngineTapInitialStateTests.noMutationBeforeActivate",
           "invocations": 1,
           "fingerprints": {
-            "body": "b786f1814c23b0d8ab35a8d9f3d7416044824d8c32617494b6085bc8a3b60101",
-            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "af90bb1c5d0b756860c92f0ecf3b6d9a935cefc99afe13a21e878c7df031a2de",
-            "attribute": "284efd5d206afa04343fe08ca8cd8ef7081542f2933a306291778dde175d2568"
+            "body": "728399c408480074349de34a7df33a392f5ac693769fbd0b8f244edaf527adf6",
+            "assertions": "0e8b14dc3b0f9b9ddd891d0df8b3cd612336b9a7f9b4585a22d90f94eccb2d84",
+            "attribute": "619e35e8b2fcc49f668370d8f38583c4cefb87fee22e082b370c1a31b8cbc012"
           }
         }
       ],
-      "adaptation": "Lead-approved superseded scaffolding: production no-argument activate consumers are zero, so remove the unused public convenience and its self-test. Actual Control initial-value assertions plus real Engine initialization/ordering units jointly replace the original two trivial forwarding/default guarantees; original source identity remains in this many-to-many B mapping.",
-      "review": "task-14"
+      "adaptation": "Lead-approved superseded scaffolding: production no-argument activate consumers are zero, so remove the unused public convenience and its self-test. Actual Control initial-value assertions plus real Engine initialization/ordering units jointly replace the original two trivial forwarding/default guarantees; original source identity remains in this many-to-many B mapping. Current27/43 scoped acceptance also covers the actual passive Engine, typed approved-default reader and retirement-acknowledged oracle; historical counts are not silently promoted to current Root evidence.",
+      "review": "task-27"
     },
     {
       "id": "FineTuneTests/AudioEngineToggleMuteTests.swift::AudioEngineToggleMuteTests.toggleUnmutedToMuted",
@@ -2282,11 +2336,12 @@
       "destinations": [
         {
           "id": "Tests/UpstreamCompatibilityTests/AudioEngineToggleMuteTests.swift::AudioEngineToggleMuteTests.toggleUnmutedToMuted",
-          "invocations": 1
+          "invocations": 1,
+          "fingerprints": {}
         }
       ],
-      "adaptation": "Same mute/audibility intent through actual Control VolumeState/App composition. Explicit temporary settings/login-service fake and an injected known-app process snapshot avoid OS side effects and ensure the no-process-object case really matches an app instead of passing vacuously.",
-      "review": "task-14"
+      "adaptation": "Same mute/audibility intent through actual Control VolumeState/App composition. Explicit temporary settings/login-service fake and an injected known-app process snapshot avoid OS side effects and ensure the no-process-object case really matches an app instead of passing vacuously. Current27/43 scoped acceptance also covers the actual passive Engine, typed approved-default reader and retirement-acknowledged oracle; historical counts are not silently promoted to current Root evidence.",
+      "review": "task-27"
     },
     {
       "id": "FineTuneTests/AudioEngineToggleMuteTests.swift::AudioEngineToggleMuteTests.toggleMutedToUnmuted",
@@ -2302,11 +2357,12 @@
       "destinations": [
         {
           "id": "Tests/UpstreamCompatibilityTests/AudioEngineToggleMuteTests.swift::AudioEngineToggleMuteTests.toggleMutedToUnmuted",
-          "invocations": 1
+          "invocations": 1,
+          "fingerprints": {}
         }
       ],
-      "adaptation": "Same mute/audibility intent through actual Control VolumeState/App composition. Explicit temporary settings/login-service fake and an injected known-app process snapshot avoid OS side effects and ensure the no-process-object case really matches an app instead of passing vacuously.",
-      "review": "task-14"
+      "adaptation": "Same mute/audibility intent through actual Control VolumeState/App composition. Explicit temporary settings/login-service fake and an injected known-app process snapshot avoid OS side effects and ensure the no-process-object case really matches an app instead of passing vacuously. Current27/43 scoped acceptance also covers the actual passive Engine, typed approved-default reader and retirement-acknowledged oracle; historical counts are not silently promoted to current Root evidence.",
+      "review": "task-27"
     },
     {
       "id": "FineTuneTests/AudioEngineToggleMuteTests.swift::AudioEngineToggleMuteTests.isAudibleNowReturnsFalseForUnknownBundle",
@@ -2322,11 +2378,12 @@
       "destinations": [
         {
           "id": "Tests/UpstreamCompatibilityTests/AudioEngineToggleMuteTests.swift::AudioEngineToggleMuteTests.isAudibleNowReturnsFalseForUnknownBundle",
-          "invocations": 1
+          "invocations": 1,
+          "fingerprints": {}
         }
       ],
-      "adaptation": "Same mute/audibility intent through actual Control VolumeState/App composition. Explicit temporary settings/login-service fake and an injected known-app process snapshot avoid OS side effects and ensure the no-process-object case really matches an app instead of passing vacuously.",
-      "review": "task-14"
+      "adaptation": "Same mute/audibility intent through actual Control VolumeState/App composition. Explicit temporary settings/login-service fake and an injected known-app process snapshot avoid OS side effects and ensure the no-process-object case really matches an app instead of passing vacuously. Current27/43 scoped acceptance also covers the actual passive Engine, typed approved-default reader and retirement-acknowledged oracle; historical counts are not silently promoted to current Root evidence.",
+      "review": "task-27"
     },
     {
       "id": "FineTuneTests/AudioEngineToggleMuteTests.swift::AudioEngineToggleMuteTests.isAudibleNowReturnsFalseWhenNoProcessObjects",
@@ -2349,8 +2406,8 @@
           }
         }
       ],
-      "adaptation": "Same mute/audibility intent through actual Control VolumeState/App composition. Explicit temporary settings/login-service fake and an injected known-app process snapshot avoid OS side effects and ensure the no-process-object case really matches an app instead of passing vacuously.",
-      "review": "task-14"
+      "adaptation": "Same mute/audibility intent through actual Control VolumeState/App composition. Explicit temporary settings/login-service fake and an injected known-app process snapshot avoid OS side effects and ensure the no-process-object case really matches an app instead of passing vacuously. Current27/43 scoped acceptance also covers the actual passive Engine, typed approved-default reader and retirement-acknowledged oracle; historical counts are not silently promoted to current Root evidence.",
+      "review": "task-27"
     },
     {
       "id": "FineTuneTests/BTCallModeTransitionTests.swift::BTCallModeTransitionTests.firesOnChange",
@@ -18292,35 +18349,35 @@
     {
       "id": "Tests/UpstreamCompatibilityTests/AudioEngineTapInitialStateTests.swift::AudioEngineRouteBoundaryTests.failedActivationKeepsOldRoute",
       "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: AudioEngineRouteBoundaryTests.failedActivationKeepsOldRoute",
+      "adaptation": "Independent/new-boundary unit guarantee: AudioEngineRouteBoundaryTests.failedActivationKeepsOldRoute Current27/43 scoped acceptance also covers the actual passive Engine, typed approved-default reader and retirement-acknowledged oracle; historical counts are not silently promoted to current Root evidence.",
       "destinations": [
         {
           "id": "Tests/UpstreamCompatibilityTests/AudioEngineTapInitialStateTests.swift::AudioEngineRouteBoundaryTests.failedActivationKeepsOldRoute",
           "invocations": 1,
           "fingerprints": {
-            "body": "4db2f3b604f5016592ddd88883920102ea35ef8e28037a1b65fb62c7b192e06a",
+            "body": "e27794255045d341dd4350270c143aeecee5c5031a33dde3a42e4ef2e740dcd3",
             "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "80b75913b444af44ed632638a297b702b4c995ba0b5dc4e5d12b6c281dff28ed",
+            "assertions": "1230bf74e4ec065d3ec2eada0af1b63dbac4a17fc7c2ed1d0f0841dd90d5fe49",
             "attribute": "c0bdea2e35f1549c35f322d119efef92e267ddd47f635b68007c4291f47506e2"
           }
         }
       ],
-      "review": "task-14"
+      "review": "task-27"
     },
     {
       "id": "Tests/UpstreamCompatibilityTests/AudioEngineTapInitialStateTests.swift::AudioEngineRouteBoundaryTests.profileCacheRetainsValues",
       "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: AudioEngineRouteBoundaryTests.profileCacheRetainsValues",
-      "review": "task-14",
+      "adaptation": "Independent/new-boundary unit guarantee: AudioEngineRouteBoundaryTests.profileCacheRetainsValues Current27/43 scoped acceptance also covers the actual passive Engine, typed approved-default reader and retirement-acknowledged oracle; historical counts are not silently promoted to current Root evidence.",
+      "review": "task-27",
       "destinations": [
         {
           "id": "Tests/UpstreamCompatibilityTests/AudioEngineTapInitialStateTests.swift::AudioEngineRouteBoundaryTests.profileCacheRetainsValues",
           "invocations": 2,
           "fingerprints": {
-            "body": "f9f1d5e71bc09722c5d30f393f33fd29a1645eb03da9e440f432ddbaa6d58e2f",
+            "body": "49e4e3d24b3319e17c5dfceb3d57863f80901be09065c6e9623aabb49b62c3a3",
             "arguments": "83623bc42c7d5dcdf7d681eeed3785b536c356cc8915987589ca2579af1d1434",
             "assertions": "19a78f88fbd9f3f07d5ab80dac29c6d7c59b65143214a83cd49f6081133e9836",
-            "attribute": "af6c62d7668a84186ffc3a1a8e40091d546ee8762bc28601360e6506038d94b2"
+            "attribute": "dbc9ae698d351d5811e46b4c42e42d381b7c1158d57a4e4ff2cdf39aeb77f058"
           }
         }
       ]
@@ -18328,56 +18385,56 @@
     {
       "id": "Tests/UpstreamCompatibilityTests/AudioEngineTapInitialStateTests.swift::AudioEngineRouteBoundaryTests.unavailableRuntimePreservesRequest",
       "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: AudioEngineRouteBoundaryTests.unavailableRuntimePreservesRequest",
+      "adaptation": "Independent/new-boundary unit guarantee: AudioEngineRouteBoundaryTests.unavailableRuntimePreservesRequest Current27/43 scoped acceptance also covers the actual passive Engine, typed approved-default reader and retirement-acknowledged oracle; historical counts are not silently promoted to current Root evidence.",
       "destinations": [
         {
           "id": "Tests/UpstreamCompatibilityTests/AudioEngineTapInitialStateTests.swift::AudioEngineRouteBoundaryTests.unavailableRuntimePreservesRequest",
           "invocations": 1,
           "fingerprints": {
-            "body": "53ee4e8782d0a627e8d6161fddda0739dc625f58031d12d91098cd15793e70c1",
+            "body": "77627f52ef7a737eb6696386ce31dff789648dd96b300005ff28ba4a00127830",
             "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "a6e27094bd2ebce882ac26c9e5df55ea7c7215d1bd34ab60a05a3cdcb7f8976e",
-            "attribute": "2c723079f6f501339431c409b773c35129782596ff511a1eed63b152e42d23ae"
+            "assertions": "153c4fd1c36eb4023699fe69efbb27b1bd792390543ad20ebb98217f115c66b3",
+            "attribute": "dc399a4f13129278ee5d6e32c45268640a38145ea86506a803e4cb2053862045"
           }
         }
       ],
-      "review": "task-14"
+      "review": "task-27"
     },
     {
       "id": "Tests/UpstreamCompatibilityTests/AudioEngineTapInitialStateTests.swift::AudioEngineRouteBoundaryTests.unknownAuthorizationPreservesRequest",
       "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: AudioEngineRouteBoundaryTests.unknownAuthorizationPreservesRequest",
+      "adaptation": "Independent/new-boundary unit guarantee: AudioEngineRouteBoundaryTests.unknownAuthorizationPreservesRequest Current27/43 scoped acceptance also covers the actual passive Engine, typed approved-default reader and retirement-acknowledged oracle; historical counts are not silently promoted to current Root evidence.",
       "destinations": [
         {
           "id": "Tests/UpstreamCompatibilityTests/AudioEngineTapInitialStateTests.swift::AudioEngineRouteBoundaryTests.unknownAuthorizationPreservesRequest",
           "invocations": 1,
           "fingerprints": {
-            "body": "b14f77d5b9a9bf2c317d2f824b85f3edbf4ee80cca367d240924710657d4eda8",
+            "body": "d2cceb37cdb90c52ad9932ad449b5fa6433d7c7f2a91eff37578bad91e4bd99c",
             "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "101b670c5d6e9ca4579614874338074bcb5453571df95bf6d99a1f0ec664ee4c",
-            "attribute": "19d7a1c00cb557c860f16548503b204a9cdb59a579f1adf1a1a15dacb2491068"
+            "assertions": "65c6cabf3b4767c64b27467616f83639566f3e9f0abd64cb8ebdd3a28b5dc407",
+            "attribute": "112432f65feb2e77eab279499ac37a5c2ca6932620220c694780270ed82a0094"
           }
         }
       ],
-      "review": "task-14"
+      "review": "task-27"
     },
     {
       "id": "Tests/UpstreamCompatibilityTests/AudioEngineTapInitialStateTests.swift::AudioEngineRouteBoundaryTests.vanishedProcessReleasesRoute",
       "classification": "D",
-      "adaptation": "Independent/new-boundary unit guarantee: AudioEngineRouteBoundaryTests.vanishedProcessReleasesRoute",
+      "adaptation": "Independent/new-boundary unit guarantee: AudioEngineRouteBoundaryTests.vanishedProcessReleasesRoute Current27/43 scoped acceptance also covers the actual passive Engine, typed approved-default reader and retirement-acknowledged oracle; historical counts are not silently promoted to current Root evidence.",
       "destinations": [
         {
           "id": "Tests/UpstreamCompatibilityTests/AudioEngineTapInitialStateTests.swift::AudioEngineRouteBoundaryTests.vanishedProcessReleasesRoute",
           "invocations": 1,
           "fingerprints": {
-            "body": "fbdd5c88646f366a215025cc68e7a7268694f451762b2869eb540dccdbf6fea5",
+            "body": "46fb280e58bf3a3ad9232c18652f21afdbde66b5470a5b2ad55d3723a29d3f85",
             "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-            "assertions": "dd1fd578528fafb4870d1ebd565ae0dae63c7f1ff42535c4497ec416dc0dcbe3",
-            "attribute": "45e88972ab42e139cd2bb28d5d20cfed01239578525d0ab72c2b2298bcc5ea1d"
+            "assertions": "8aaf77013e95b0ee02b77c7b8210019c2405316a0aaff976ff830c5e8973d7f4",
+            "attribute": "4cc27f0eb840fac7699dc66e1dd13724bae40b52e1812357835269390c543dec"
           }
         }
       ],
-      "review": "task-14"
+      "review": "task-27"
     },
     {
       "id": "Tests/UpstreamCompatibilityTests/BiquadProcessorSignalAdversarialTests.swift::ExtremeAmplitudeTests.infinityInputReportsErrorAndMutesBlock",
@@ -19284,6 +19341,636 @@
           "id": "Tests/NativeRuntimeTests/NativeRuntimeBoundaryTests.cpp::noExplicitCaptureHasNoAcquisition",
           "invocations": 1,
           "guarantee": "The actual public C boundary rejects absent explicit-capture intent with the expected status/null prepared result; fresh real13TU uses only the empty external HAL provider and no SystemHal linkage."
+        }
+      ]
+    },
+    {
+      "id": "Tests/AppCompositionTests/InputPolicyTests.swift::InputPolicyTests.connectionGraceUsesObservedTransport",
+      "classification": "D",
+      "adaptation": "Additional27 unit: Grace follows pinned non-BT two seconds / BT and BLE five seconds. Actual Control/policy with only the reviewed external-runtime/settings/clock test ports; scoped task43 source/input proof, not hardware or whole Root evidence.",
+      "review": "task-27",
+      "destinations": [
+        {
+          "id": "Tests/AppCompositionTests/InputPolicyTests.swift::InputPolicyTests.connectionGraceUsesObservedTransport",
+          "invocations": 2,
+          "fingerprints": {
+            "body": "eae777bc15b6c1a8d22686f3061a911348a676ab4fab12797b80f8d33e5650f7",
+            "arguments": "83623bc42c7d5dcdf7d681eeed3785b536c356cc8915987589ca2579af1d1434",
+            "assertions": "452fb14eb5bcd882b3d781095e11dca835b2e41214c067341642ed059a965c39",
+            "attribute": "e38d3b925af4eedac0c94c739b46616c57c9b98df56a5d5675ab3280637565bd"
+          }
+        }
+      ]
+    },
+    {
+      "id": "Tests/AppCompositionTests/InputPolicyTests.swift::InputPolicyTests.disconnectAndReconnectPreserveWish",
+      "classification": "D",
+      "adaptation": "Additional27 unit: Priority fallback changes the current lock, never preferred wish; reconnect restores preferred. Actual Control/policy with only the reviewed external-runtime/settings/clock test ports; scoped task43 source/input proof, not hardware or whole Root evidence.",
+      "review": "task-27",
+      "destinations": [
+        {
+          "id": "Tests/AppCompositionTests/InputPolicyTests.swift::InputPolicyTests.disconnectAndReconnectPreserveWish",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "a964e90ab7346a90eed7b191ffb5fd202a802803f2067af389e671fbbc911d1d",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "9454c69363705df79bb4a26ee909bec9a3e80dbc6922273c1c2e3cf8ac9e690e",
+            "attribute": "18450721447286eb8b109e07af46af1cb28f5416575a46af712d205078f16190"
+          }
+        }
+      ]
+    },
+    {
+      "id": "Tests/AppCompositionTests/InputPolicyTests.swift::InputPolicyTests.enablingLockUsesObservedDefault",
+      "classification": "D",
+      "adaptation": "Additional27 unit: Lock enable captures the observed default; unlocked observations do not force writes. Actual Control/policy with only the reviewed external-runtime/settings/clock test ports; scoped task43 source/input proof, not hardware or whole Root evidence.",
+      "review": "task-27",
+      "destinations": [
+        {
+          "id": "Tests/AppCompositionTests/InputPolicyTests.swift::InputPolicyTests.enablingLockUsesObservedDefault",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "7adea82f4599901c6f3f53934506209f51b400b8dc6899c64067d7d1d2ba9c64",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "5c374bc6f8f86b9cc9457cf59a4a54697ddb632cb471339f835e1d2022e66964",
+            "attribute": "f64ea9c9d21743f89ba04bbfa77da9c3fd4080efb93cbc6b5b1cada98b1c0102"
+          }
+        }
+      ]
+    },
+    {
+      "id": "Tests/AppCompositionTests/InputPolicyTests.swift::InputPolicyTests.failedWriteAndObservationAreVisible",
+      "classification": "D",
+      "adaptation": "Additional27 unit: Writer failure preserves explicit wishes and last-good discovery, never optimistic default. Actual Control/policy with only the reviewed external-runtime/settings/clock test ports; scoped task43 source/input proof, not hardware or whole Root evidence.",
+      "review": "task-27",
+      "destinations": [
+        {
+          "id": "Tests/AppCompositionTests/InputPolicyTests.swift::InputPolicyTests.failedWriteAndObservationAreVisible",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "259a11d1e7f3a42d3881db2027c84e99c07bcb1c3c327cf8b44847b29d920cc7",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "31c250e5d047bad96764374db8ff739e4e12d6802d80e19a548b9117ce06822e",
+            "attribute": "44a8cd87f346dee91553df68601e105b309e211825cd38252805adf325c909ff"
+          }
+        }
+      ]
+    },
+    {
+      "id": "Tests/AppCompositionTests/OutputPolicyTests.swift::OutputPolicyTests.failedObservationBlocksExpiredEchoRetry",
+      "classification": "D",
+      "adaptation": "Additional27 unit: Failed default observation forbids writes after grace and outstanding-echo clocks expire. Actual Control/policy with only the reviewed external-runtime/settings/clock test ports; scoped task43 source/input proof, not hardware or whole Root evidence.",
+      "review": "task-27",
+      "destinations": [
+        {
+          "id": "Tests/AppCompositionTests/OutputPolicyTests.swift::OutputPolicyTests.failedObservationBlocksExpiredEchoRetry",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "ce4c202dc8743680a12fa5c2946dc15b4d54e5ada16d2a579f33603eb38ebf8f",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "3b909795c45663f0f26023247931b1470535034136ec9a5b2e94911790e4c3e4",
+            "attribute": "004707133ea498b1f5353b200a977111f27aa8095902857157d593e6bba465b0"
+          }
+        }
+      ]
+    },
+    {
+      "id": "Tests/AppCompositionTests/OutputPolicyTests.swift::OutputPolicyTests.highestReconnect",
+      "classification": "D",
+      "adaptation": "Additional27 unit: Highest-priority reconnect wins without overwriting observed default or pinned app wishes. Actual Control/policy with only the reviewed external-runtime/settings/clock test ports; scoped task43 source/input proof, not hardware or whole Root evidence.",
+      "review": "task-27",
+      "destinations": [
+        {
+          "id": "Tests/AppCompositionTests/OutputPolicyTests.swift::OutputPolicyTests.highestReconnect",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "0b49b82c13b5e14a6eebb83c2bd797e7119d19bf6a30f9dfda1061ceabb2003d",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "b36912ca91439fda0032578aba4ec259150bd4ed002c1a3beddc2e95612af552",
+            "attribute": "b662ce2f56284ed72516ba21cf4cc1ef7f45c27de4d3c1a97abd975ddb46ed3d"
+          }
+        }
+      ]
+    },
+    {
+      "id": "Tests/AppCompositionTests/OutputPolicyTests.swift::OutputPolicyTests.lowerHotplugPreservesConfirmedUserChoice",
+      "classification": "D",
+      "adaptation": "Additional27 unit: Lower-priority hotplug restores the mid-priority user choice, including default-before-list ordering. Actual Control/policy with only the reviewed external-runtime/settings/clock test ports; scoped task43 source/input proof, not hardware or whole Root evidence.",
+      "review": "task-27",
+      "destinations": [
+        {
+          "id": "Tests/AppCompositionTests/OutputPolicyTests.swift::OutputPolicyTests.lowerHotplugPreservesConfirmedUserChoice",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "631dcba458d5fb7811f9d3ebec04e8aecb8235a54ffd35d2369ee7a094fccb02",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "63831aeb0bf14c74e7d1419e8d3e3d40c9f9cc5d4106a3d4ecb7cd22035fb957",
+            "attribute": "490284b8460b56b5f0acb8df145efd6b2e9b185bb6ddf94c415d05f0973fa132"
+          }
+        }
+      ]
+    },
+    {
+      "id": "Tests/AppCompositionTests/OutputPolicyTests.swift::OutputPolicyTests.ownEchoAndSettledExternalChoice",
+      "classification": "D",
+      "adaptation": "Additional27 unit: Explicit FineTune echo beats grace; a later settled System Settings change is respected. Actual Control/policy with only the reviewed external-runtime/settings/clock test ports; scoped task43 source/input proof, not hardware or whole Root evidence.",
+      "review": "task-27",
+      "destinations": [
+        {
+          "id": "Tests/AppCompositionTests/OutputPolicyTests.swift::OutputPolicyTests.ownEchoAndSettledExternalChoice",
+          "invocations": 2,
+          "fingerprints": {
+            "body": "310e82d6d14478eaa4bb3ea406af5bf8cef4be6c730bc0353e1c37136f3f7cf3",
+            "arguments": "83623bc42c7d5dcdf7d681eeed3785b536c356cc8915987589ca2579af1d1434",
+            "assertions": "90b5d81c64f0298b96b9908df11d4747f6a56e022ad7313231daf3fb6bacaa87",
+            "attribute": "be65d13184b271182ea26946cf815a7fa6d2196c632da45d9d9671ea0887e94e"
+          }
+        }
+      ]
+    },
+    {
+      "id": "Tests/AppCompositionTests/OutputPolicyTests.swift::OutputPolicyTests.priorityFailureAndObservationFailure",
+      "classification": "D",
+      "adaptation": "Additional27 unit: Failed priority write and failed discovery preserve actual default and durable priority. Actual Control/policy with only the reviewed external-runtime/settings/clock test ports; scoped task43 source/input proof, not hardware or whole Root evidence.",
+      "review": "task-27",
+      "destinations": [
+        {
+          "id": "Tests/AppCompositionTests/OutputPolicyTests.swift::OutputPolicyTests.priorityFailureAndObservationFailure",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "12cb16cab0dd7d5e0959bea80299e15f5907920c9cf431602be3845d9b5772e9",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "4679a86c05cb5536f54304a1ebe935bc1a64d1fd62b52c06743b797cffa06490",
+            "attribute": "3b1efb87f82d81ba61b4e3bd6fbf4c3c12748acbadbedeaff37011fbc33e36cb"
+          }
+        }
+      ]
+    },
+    {
+      "id": "Tests/AppCompositionTests/OutputPolicyTests.swift::OutputPolicyTests.rapidOwnEchoesPreserveNewestChoice",
+      "classification": "D",
+      "adaptation": "Additional27 unit: Reference-counted late echoes from rapid UI choices cannot overwrite the newest accepted intent. Actual Control/policy with only the reviewed external-runtime/settings/clock test ports; scoped task43 source/input proof, not hardware or whole Root evidence.",
+      "review": "task-27",
+      "destinations": [
+        {
+          "id": "Tests/AppCompositionTests/OutputPolicyTests.swift::OutputPolicyTests.rapidOwnEchoesPreserveNewestChoice",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "bd46428257925cfc5d3163a86bdc019b708031cfc5f60a8604695bcc67878e15",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "fd1fa6fd5de28ea18f5bd4034517520373f96e29492a09e9167b94c0998f0038",
+            "attribute": "1793b3344c85494da5e2946cdd3310463a62892b7ffcba95d9d1fdfc122d4f6b"
+          }
+        }
+      ]
+    },
+    {
+      "id": "Tests/AppCompositionTests/OutputPolicyTests.swift::OutputPolicyTests.unknownHotplugBatchPriorityRegistration",
+      "classification": "D",
+      "adaptation": "Additional27 unit: One hotplug batch registers unknown UIDs in the primary deterministic UID order. Actual Control/policy with only the reviewed external-runtime/settings/clock test ports; scoped task43 source/input proof, not hardware or whole Root evidence.",
+      "review": "task-27",
+      "destinations": [
+        {
+          "id": "Tests/AppCompositionTests/OutputPolicyTests.swift::OutputPolicyTests.unknownHotplugBatchPriorityRegistration",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "95b7b6fba24cde9a616fd6e737d10801956b21c7190b3900556c78e971ac172b",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "6b24f70a45b6be7dc2ff76b426f3b445bdc1cefd150c53f9f4977ff1d38a79b0",
+            "attribute": "07984e2fade067b53aba68956a7efbb1059f76a7b5a8cfe46599bd8561b916b8"
+          }
+        }
+      ]
+    },
+    {
+      "id": "Tests/AppCompositionTests/RoutingTests.swift::CommonAudioCommandTests.consecutiveSettingsSnapshots",
+      "classification": "D",
+      "adaptation": "Additional27 unit: Consecutive snapshot edits apply synchronously without losing fields or capture wish. Actual Control/policy with only the reviewed external-runtime/settings/clock test ports; scoped task43 source/input proof, not hardware or whole Root evidence.",
+      "review": "task-27",
+      "destinations": [
+        {
+          "id": "Tests/AppCompositionTests/RoutingTests.swift::CommonAudioCommandTests.consecutiveSettingsSnapshots",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "8ab7645b03111c0c34a2b1218c1af8ab1e016179bc34f97dc9544e1ede40eabc",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "aef70832d8235c88e66685aeb90f22c293cda6f206ad27558cc71be0971cd468",
+            "attribute": "61315c9370283c5dde4c3bd190ffd264de0d6b4e499d715db91dacefa75b92fb"
+          }
+        }
+      ]
+    },
+    {
+      "id": "Tests/AppCompositionTests/RoutingTests.swift::CommonAudioCommandTests.inactiveCommandsAndMuteSemantics",
+      "classification": "D",
+      "adaptation": "Additional27 unit: Inactive URL/raw changes persist while UI editing alone clears mute. Actual Control/policy with only the reviewed external-runtime/settings/clock test ports; scoped task43 source/input proof, not hardware or whole Root evidence.",
+      "review": "task-27",
+      "destinations": [
+        {
+          "id": "Tests/AppCompositionTests/RoutingTests.swift::CommonAudioCommandTests.inactiveCommandsAndMuteSemantics",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "8a7c9a4275f89859de175f5fd8aa098b6a055c45fd75c8bea8c1d94e04fcbfb6",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "8b9595cf96a245eba2d18a75746ed6b4b200314cc4c3e7c0542ce57bf01477c1",
+            "attribute": "919c96ea50cc8905c07d7c017973accc1ecc3ad625e7f70cbfa458c22662cbd6"
+          }
+        }
+      ]
+    },
+    {
+      "id": "Tests/AppCompositionTests/RoutingTests.swift::CommonAudioCommandTests.popupShiftDoublesConfiguredStep",
+      "classification": "D",
+      "adaptation": "Additional27 unit: Popup Shift doubles the configured slider step, including pinned-inactive rows. Actual Control/policy with only the reviewed external-runtime/settings/clock test ports; scoped task43 source/input proof, not hardware or whole Root evidence.",
+      "review": "task-27",
+      "destinations": [
+        {
+          "id": "Tests/AppCompositionTests/RoutingTests.swift::CommonAudioCommandTests.popupShiftDoublesConfiguredStep",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "4bd898aad0697d33fbbaaff88de74d320bbf6b3f4c9e9ed5560da10aa6d59c18",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "8c49e0899a23bec7e4fc817346c2e0048b311616103b518211c222b5239ef5fc",
+            "attribute": "b5d5b5f766cdbcacabab6fae56321731cd5647709b00b1327d4f85a1568697dd"
+          }
+        }
+      ]
+    },
+    {
+      "id": "Tests/AppCompositionTests/RoutingTests.swift::ControlledAudioRoutingTests.acceptedDefaultPrecedesObservedSnapshot",
+      "classification": "D",
+      "adaptation": "Additional27 unit: An accepted default obsoletes a pending old target before asynchronous snapshot delivery. Actual Control/policy with only the reviewed external-runtime/settings/clock test ports; scoped task43 source/input proof, not hardware or whole Root evidence.",
+      "review": "task-27",
+      "destinations": [
+        {
+          "id": "Tests/AppCompositionTests/RoutingTests.swift::ControlledAudioRoutingTests.acceptedDefaultPrecedesObservedSnapshot",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "827a5b3857294a5c548b4e0d4a715be8b80a88bed93c82713bd42a74e6383d17",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "d9295aff737b698821847712100ade79e91038a27c7f51f0cdced9508efcefca",
+            "attribute": "dedf2dee399d4acbcc91ebd14888274eb39566268f4e9c9abc93a80c943477a5"
+          }
+        }
+      ]
+    },
+    {
+      "id": "Tests/AppCompositionTests/RoutingTests.swift::ControlledAudioRoutingTests.armedAndRetirementHandoff",
+      "classification": "D",
+      "adaptation": "Additional27 unit: Idle candidate retains old route; armed cannot commit before old retirement. Actual Control/policy with only the reviewed external-runtime/settings/clock test ports; scoped task43 source/input proof, not hardware or whole Root evidence.",
+      "review": "task-27",
+      "destinations": [
+        {
+          "id": "Tests/AppCompositionTests/RoutingTests.swift::ControlledAudioRoutingTests.armedAndRetirementHandoff",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "f3823d08ec5ad655031143a9a2df42a68c896b4472192319aa9b031a8f7d4fa9",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "b2cf840fc8359d1e4ec7eeab9cfa98992047a40db0ed9d7333da4abbfe478861",
+            "attribute": "1e54b6bfd77babedf3b5ba177e6f11fc587926edefd232bed6c11126e8632b62"
+          }
+        }
+      ]
+    },
+    {
+      "id": "Tests/AppCompositionTests/RoutingTests.swift::ControlledAudioRoutingTests.callbackBeforeOldReceiptPreservesApplied",
+      "classification": "D",
+      "adaptation": "Additional27 unit: An applied callback survives a delayed older receipt and hot levels never invent full applied. Actual Control/policy with only the reviewed external-runtime/settings/clock test ports; scoped task43 source/input proof, not hardware or whole Root evidence.",
+      "review": "task-27",
+      "destinations": [
+        {
+          "id": "Tests/AppCompositionTests/RoutingTests.swift::ControlledAudioRoutingTests.callbackBeforeOldReceiptPreservesApplied",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "480e97cc1c4e37d97e1ab57a388416ff941ed45a065c792fa765678dca916cb0",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "4944e70fb3fdc0d659041a755e6cb30dca17034ec17c8453a0341410a2969f5a",
+            "attribute": "a26661981c452d83b36cac46a829f611698e80f1a0881b8ac6791c0e5c3a71f4"
+          }
+        }
+      ]
+    },
+    {
+      "id": "Tests/AppCompositionTests/RoutingTests.swift::ControlledAudioRoutingTests.cleanupErrorBeforeArmedReceiptRejectsCommit",
+      "classification": "D",
+      "adaptation": "Additional27 unit: An armed cleanup error rejects commit whether callback or receipt arrives first. Actual Control/policy with only the reviewed external-runtime/settings/clock test ports; scoped task43 source/input proof, not hardware or whole Root evidence.",
+      "review": "task-27",
+      "destinations": [
+        {
+          "id": "Tests/AppCompositionTests/RoutingTests.swift::ControlledAudioRoutingTests.cleanupErrorBeforeArmedReceiptRejectsCommit",
+          "invocations": 2,
+          "fingerprints": {
+            "body": "7bc758ecf2afb9e23457b152953749cd1bd1e79d5d6deaa0f31f351f2a9d32d5",
+            "arguments": "83623bc42c7d5dcdf7d681eeed3785b536c356cc8915987589ca2579af1d1434",
+            "assertions": "d996ebb90b8072f83d69d7fec0bb6729a240738f6af7ab9f17184d2ab1f61cd3",
+            "attribute": "e8431d4e1da4892d8f8d715e85054969d82c154f361fc85576245c3c807d9d38"
+          }
+        }
+      ]
+    },
+    {
+      "id": "Tests/AppCompositionTests/RoutingTests.swift::ControlledAudioRoutingTests.coalescesFullStateWithoutLosingHotLevels",
+      "classification": "D",
+      "adaptation": "Additional27 unit: Blocked processing coalesces latest full state while hot levels remain immediate. Actual Control/policy with only the reviewed external-runtime/settings/clock test ports; scoped task43 source/input proof, not hardware or whole Root evidence.",
+      "review": "task-27",
+      "destinations": [
+        {
+          "id": "Tests/AppCompositionTests/RoutingTests.swift::ControlledAudioRoutingTests.coalescesFullStateWithoutLosingHotLevels",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "731e68ddcc422065627928e86ec0bff8c2b00e883d87b64c9d70748820209209",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "78fcbc2b715fc7af2d5afa75b8b76af4ed8120c6622b93d69fa5dc2dd758f5f3",
+            "attribute": "a0744b5254844c3ef6c75785aecc49bd2db739560fedf47afcef8f351f9fb29e"
+          }
+        }
+      ]
+    },
+    {
+      "id": "Tests/AppCompositionTests/RoutingTests.swift::ControlledAudioRoutingTests.commitReceiptCannotEraseLatchedError",
+      "classification": "D",
+      "adaptation": "Additional27 unit: A cleanup callback during initial commit is not erased by its later successful receipt. Actual Control/policy with only the reviewed external-runtime/settings/clock test ports; scoped task43 source/input proof, not hardware or whole Root evidence.",
+      "review": "task-27",
+      "destinations": [
+        {
+          "id": "Tests/AppCompositionTests/RoutingTests.swift::ControlledAudioRoutingTests.commitReceiptCannotEraseLatchedError",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "d45429482d0b4b999a9dd385ea62f1ecd6f0d512e79c6250447da824ccb7db5a",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "3845e02756dd59d71cce3047f0b20ea6a2fae3e734d02e279263926728656ffc",
+            "attribute": "ea23bad42b190b428689058ef9b9ea26aca813ca1fff1f0ee6ea4c124a5fc812"
+          }
+        }
+      ]
+    },
+    {
+      "id": "Tests/AppCompositionTests/RoutingTests.swift::ControlledAudioRoutingTests.errorBeforePendingRetirementRejectsCommit",
+      "classification": "D",
+      "adaptation": "Additional27 unit: Retirement errors survive callback/receipt ordering and successful quiescence acknowledgements. Actual Control/policy with only the reviewed external-runtime/settings/clock test ports; scoped task43 source/input proof, not hardware or whole Root evidence.",
+      "review": "task-27",
+      "destinations": [
+        {
+          "id": "Tests/AppCompositionTests/RoutingTests.swift::ControlledAudioRoutingTests.errorBeforePendingRetirementRejectsCommit",
+          "invocations": 8,
+          "fingerprints": {
+            "body": "0e625390f779187bea055c134894c4caafa813716db8062e292400956e4cd1b6",
+            "arguments": "cde873c42ced3787ef8cf6c6243139d9c969f25529e2784d2fd63af4d4446b84",
+            "assertions": "c3d4f13014fe983290d2878b5803cd8ca56950e93451d42af1cdd41bdb4d347d",
+            "attribute": "cead70036c07b1454a4f76c4077f1d079f2bacacc7fbd89e555e9ff4d3ffcd60"
+          }
+        }
+      ]
+    },
+    {
+      "id": "Tests/AppCompositionTests/RoutingTests.swift::ControlledAudioRoutingTests.failedSameTargetCanRetry",
+      "classification": "D",
+      "adaptation": "Additional27 unit: A failed same target retries through route/start while retaining usable multi outputs. Actual Control/policy with only the reviewed external-runtime/settings/clock test ports; scoped task43 source/input proof, not hardware or whole Root evidence.",
+      "review": "task-27",
+      "destinations": [
+        {
+          "id": "Tests/AppCompositionTests/RoutingTests.swift::ControlledAudioRoutingTests.failedSameTargetCanRetry",
+          "invocations": 4,
+          "fingerprints": {
+            "body": "3a8cb19e75f508c5c3d89f77c17b8555915f7345b66ea17053a9289c161e64b8",
+            "arguments": "871e533f747fed6b28f3c2e35990200c3c104dfc789568f4e25b2091c54985ae",
+            "assertions": "6448612716c6d41d62175609479b61a4bf50020f35d78ebf27be166c6313237f",
+            "attribute": "1c75fa4b82c5cf17db6da81aa9a0b14d7fa19ed86ec2bb51b07dc3792e7e3dba"
+          }
+        }
+      ]
+    },
+    {
+      "id": "Tests/AppCompositionTests/RoutingTests.swift::ControlledAudioRoutingTests.failureIsNotSuccessfulEmpty",
+      "classification": "D",
+      "adaptation": "Additional27 unit: Failed observation preserves last-good owner; successful empty retires without erasing wishes. Actual Control/policy with only the reviewed external-runtime/settings/clock test ports; scoped task43 source/input proof, not hardware or whole Root evidence.",
+      "review": "task-27",
+      "destinations": [
+        {
+          "id": "Tests/AppCompositionTests/RoutingTests.swift::ControlledAudioRoutingTests.failureIsNotSuccessfulEmpty",
+          "invocations": 2,
+          "fingerprints": {
+            "body": "0306ad55a799c34f18d6f10ebbf80744ad56a3cb7c4e9bc770763d6faece1959",
+            "arguments": "83623bc42c7d5dcdf7d681eeed3785b536c356cc8915987589ca2579af1d1434",
+            "assertions": "b0dfa146b0eb8c1695e251b1d5f3a0b01cc82b2e2d002433b3d4cc397005d937",
+            "attribute": "fe5120b77259cdecdd46a11cca8ca41770ae666105a59928a1d656d764236e27"
+          }
+        }
+      ]
+    },
+    {
+      "id": "Tests/AppCompositionTests/RoutingTests.swift::ControlledAudioRoutingTests.independentUIDProcessingAndProfileRemoval",
+      "classification": "D",
+      "adaptation": "Additional27 unit: Multi output uses independent UID gain/profile; missing cache data keeps the saved selection. Actual Control/policy with only the reviewed external-runtime/settings/clock test ports; scoped task43 source/input proof, not hardware or whole Root evidence.",
+      "review": "task-27",
+      "destinations": [
+        {
+          "id": "Tests/AppCompositionTests/RoutingTests.swift::ControlledAudioRoutingTests.independentUIDProcessingAndProfileRemoval",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "d4a2dd0e053c048c0b28981d00353259aff7ab4ae0dd79e7f8a02b92fa83d827",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "40fbcfeab342d79eacb967797e76a98e78647de3aae4f9ef001e9a1d6833b7fd",
+            "attribute": "9421e6dd05d4ba0ca8d73e242b921772d4d6985aaa2f0ab35727198473e209a7"
+          }
+        }
+      ]
+    },
+    {
+      "id": "Tests/AppCompositionTests/RoutingTests.swift::ControlledAudioRoutingTests.knownDenialDoesNotRetryAutomatically",
+      "classification": "D",
+      "adaptation": "Additional27 unit: Typed known denial blocks reconnect work until a fresh explicit retry. Actual Control/policy with only the reviewed external-runtime/settings/clock test ports; scoped task43 source/input proof, not hardware or whole Root evidence.",
+      "review": "task-27",
+      "destinations": [
+        {
+          "id": "Tests/AppCompositionTests/RoutingTests.swift::ControlledAudioRoutingTests.knownDenialDoesNotRetryAutomatically",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "7ec3c689b431ba403dcb3abd12b2ec25440e2ad2a2923a9c2f98730ec8b1ba8e",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "8424666f6d2ddaf889e55acae55b7ef860cdda5fdfb051e19323e5ba69d42fc9",
+            "attribute": "894fb65b9af0c57243a22313453334747893249e1f002edb4d170724d7844979"
+          }
+        }
+      ]
+    },
+    {
+      "id": "Tests/AppCompositionTests/RoutingTests.swift::ControlledAudioRoutingTests.newFollowingAppUsesApprovedDefault",
+      "classification": "D",
+      "adaptation": "Additional27 unit: A new following app routes to the approved UID after physical restoration fails. Actual Control/policy with only the reviewed external-runtime/settings/clock test ports; scoped task43 source/input proof, not hardware or whole Root evidence.",
+      "review": "task-27",
+      "destinations": [
+        {
+          "id": "Tests/AppCompositionTests/RoutingTests.swift::ControlledAudioRoutingTests.newFollowingAppUsesApprovedDefault",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "82b23bed7a69fc89ae8966a9364821bffbc0686485ab5668effb301f07317c70",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "0e3e426cb1be637dc5940430ed430ec8cbaa7c7f3fe39a58da3ead26f8e265b0",
+            "attribute": "720b71121f441a386fe115c4b77fab51b9ded1c5ee8d27f7464b0fcbcc74a3b9"
+          }
+        }
+      ]
+    },
+    {
+      "id": "Tests/AppCompositionTests/RoutingTests.swift::ControlledAudioRoutingTests.oldSessionDenialDoesNotRevokeRetry",
+      "classification": "D",
+      "adaptation": "Additional27 unit: A superseded session denial cannot revoke the fresh explicit retry. Actual Control/policy with only the reviewed external-runtime/settings/clock test ports; scoped task43 source/input proof, not hardware or whole Root evidence.",
+      "review": "task-27",
+      "destinations": [
+        {
+          "id": "Tests/AppCompositionTests/RoutingTests.swift::ControlledAudioRoutingTests.oldSessionDenialDoesNotRevokeRetry",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "c6b45841b8c3a043ae4182ee92403dd98f0a06609f7c1d0a5683a3df0eec75c8",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "d7e79c8cc55094f22ce28605aadb1f29682a3e90d6c6f59f1db916c97df053ff",
+            "attribute": "fb076d92895b2b4ac447082703bf89f5adf9084748ad8604537ddde6bca1c783"
+          }
+        }
+      ]
+    },
+    {
+      "id": "Tests/AppCompositionTests/RoutingTests.swift::ControlledAudioRoutingTests.pendingDefaultCandidateRechecksApprovedTarget",
+      "classification": "D",
+      "adaptation": "Additional27 unit: A late default candidate cannot commit after an approved routing target changes. Actual Control/policy with only the reviewed external-runtime/settings/clock test ports; scoped task43 source/input proof, not hardware or whole Root evidence.",
+      "review": "task-27",
+      "destinations": [
+        {
+          "id": "Tests/AppCompositionTests/RoutingTests.swift::ControlledAudioRoutingTests.pendingDefaultCandidateRechecksApprovedTarget",
+          "invocations": 2,
+          "fingerprints": {
+            "body": "ace8c4cb97cab49287a224e5b1dc870b786455ac74feb4c310a431994dc918e6",
+            "arguments": "83623bc42c7d5dcdf7d681eeed3785b536c356cc8915987589ca2579af1d1434",
+            "assertions": "45f5afe6a7a244619f90a32ff16a309b5ae595b9a5c71717013c4efe9342f723",
+            "attribute": "171e175030fc47a8ad30b29b89002b310648f3b6f7cabf5ff0305c4c8455423e"
+          }
+        }
+      ]
+    },
+    {
+      "id": "Tests/AppCompositionTests/RoutingTests.swift::ControlledAudioRoutingTests.resetAllUsesSameControllerAndStore",
+      "classification": "D",
+      "adaptation": "Additional27 unit: Confirmed reset-all synchronously clears wishes and cached active state then retires native owners. Actual Control/policy with only the reviewed external-runtime/settings/clock test ports; scoped task43 source/input proof, not hardware or whole Root evidence.",
+      "review": "task-27",
+      "destinations": [
+        {
+          "id": "Tests/AppCompositionTests/RoutingTests.swift::ControlledAudioRoutingTests.resetAllUsesSameControllerAndStore",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "dd8b438daf65962e2da60a20a1e154aad8906458a6bf041b9a6c22e1e1c58ccb",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "489effc21cdddd01477e447d712e7bdb1d6da6dcf6928c746c9682550f392c00",
+            "attribute": "18c34701271e16f19ae9e8429dc7b95ce90b96af97f5569741299851c1019633"
+          }
+        }
+      ]
+    },
+    {
+      "id": "Tests/AppCompositionTests/RoutingTests.swift::ControlledAudioRoutingTests.stalePreparationCannotActivate",
+      "classification": "D",
+      "adaptation": "Additional27 unit: Late cancelled preparation only retires its own owner, not the newer route. Actual Control/policy with only the reviewed external-runtime/settings/clock test ports; scoped task43 source/input proof, not hardware or whole Root evidence.",
+      "review": "task-27",
+      "destinations": [
+        {
+          "id": "Tests/AppCompositionTests/RoutingTests.swift::ControlledAudioRoutingTests.stalePreparationCannotActivate",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "c7514208aa7d26ddba9c1ae1f5f5092d620b49ae651e30d672031e324cc69a2f",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "b33f5f3344b39017aeda6b0e9dd443bb94132cfc8512fc03b4c8024cd6997afa",
+            "attribute": "761f4b4de8cb34dab87969a414e4162adc5ba6b1c2dbc45524ea9c27bf7215e4"
+          }
+        }
+      ]
+    },
+    {
+      "id": "Tests/AppCompositionTests/RoutingTests.swift::ControlledAudioRoutingTests.stopCollectsLatePreparedOwner",
+      "classification": "D",
+      "adaptation": "Additional27 unit: Stop waits for a held preparation and retires only its late owner without committing. Actual Control/policy with only the reviewed external-runtime/settings/clock test ports; scoped task43 source/input proof, not hardware or whole Root evidence.",
+      "review": "task-27",
+      "destinations": [
+        {
+          "id": "Tests/AppCompositionTests/RoutingTests.swift::ControlledAudioRoutingTests.stopCollectsLatePreparedOwner",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "57c6c787f6448058bdcb3e5265b86ef376f1ab17cf52ecf00493196af5cc5214",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "d8a967ecfb2b7504a569ef9ff8492dc5320ce1fd4746869cad9014c18674e722",
+            "attribute": "ef386892cf59787e1c45e2534afdb1e055dbc34523302b67be6c86abc02413f8"
+          }
+        }
+      ]
+    },
+    {
+      "id": "Tests/AppCompositionTests/RoutingTests.swift::ControlledAudioRoutingTests.stopDuringPendingRetirementSharesOwner",
+      "classification": "D",
+      "adaptation": "Additional27 unit: Stop shares pending retirement and shutdown collects both owners exactly once. Actual Control/policy with only the reviewed external-runtime/settings/clock test ports; scoped task43 source/input proof, not hardware or whole Root evidence.",
+      "review": "task-27",
+      "destinations": [
+        {
+          "id": "Tests/AppCompositionTests/RoutingTests.swift::ControlledAudioRoutingTests.stopDuringPendingRetirementSharesOwner",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "d95ac3af24e9e7455857ac2e464533d4490160446664bb0db5196101a7dd6a6c",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "163ed4f8cbf196e5ef3b08748110892184f27760134fdfd563bd312252562aaa",
+            "attribute": "484f4953a55286f9b355b197db0ba7577a443c03c727a727865b7c9f69b7715d"
+          }
+        }
+      ]
+    },
+    {
+      "id": "Tests/AppCompositionTests/RoutingTests.swift::ControlledAudioRoutingTests.unavailableApprovedDefaultIsExplicit",
+      "classification": "D",
+      "adaptation": "Additional27 unit: An unavailable approved default never silently falls back to the rejected actual default. Actual Control/policy with only the reviewed external-runtime/settings/clock test ports; scoped task43 source/input proof, not hardware or whole Root evidence.",
+      "review": "task-27",
+      "destinations": [
+        {
+          "id": "Tests/AppCompositionTests/RoutingTests.swift::ControlledAudioRoutingTests.unavailableApprovedDefaultIsExplicit",
+          "invocations": 2,
+          "fingerprints": {
+            "body": "d94bd65b92c0402e40ecc74b724826c0512493da53e45716071fcead432c1cbf",
+            "arguments": "83623bc42c7d5dcdf7d681eeed3785b536c356cc8915987589ca2579af1d1434",
+            "assertions": "81bf40f9f5be1881b34fcf137757f23afbabf1b5913246485ce900136ed0b87f",
+            "attribute": "0dd6eea2a2b62abb492346e7b210f8765a3201a08b56364b98be0b6f68f6267a"
+          }
+        }
+      ]
+    },
+    {
+      "id": "Tests/AppCompositionTests/RoutingTests.swift::ControlledAudioRoutingTests.updateReceiptCannotEraseLatchedError",
+      "classification": "D",
+      "adaptation": "Additional27 unit: A delayed successful update receipt cannot continue full-state writes after a latched error. Actual Control/policy with only the reviewed external-runtime/settings/clock test ports; scoped task43 source/input proof, not hardware or whole Root evidence.",
+      "review": "task-27",
+      "destinations": [
+        {
+          "id": "Tests/AppCompositionTests/RoutingTests.swift::ControlledAudioRoutingTests.updateReceiptCannotEraseLatchedError",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "f0376ad2ab0bdcac4991a5a6d1a41f2396b92e6165594595de151015efd4ea6c",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "262bd5fd2421cf69f92f4a6087e9dcd859d0a0812a9aaccd25025ef5bcc1ad49",
+            "attribute": "ab793a2cb0f1e82bc1d0ca5db0569aca2cd17273e856aa3aa57b5bcd68484e4d"
+          }
+        }
+      ]
+    },
+    {
+      "id": "Tests/AppCompositionTests/RoutingTests.swift::ProfileAvailabilityCacheTests.removesOnlyTheSelectedProfile",
+      "classification": "D",
+      "adaptation": "Additional27 unit: Removing a profile invalidates only that cached ID and permits a later replacement. Actual Control/policy with only the reviewed external-runtime/settings/clock test ports; scoped task43 source/input proof, not hardware or whole Root evidence.",
+      "review": "task-27",
+      "destinations": [
+        {
+          "id": "Tests/AppCompositionTests/RoutingTests.swift::ProfileAvailabilityCacheTests.removesOnlyTheSelectedProfile",
+          "invocations": 1,
+          "fingerprints": {
+            "body": "ba859f8410105b9352bd61b5d2e78409ca724deb08c97555701feaaeabf03271",
+            "arguments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "assertions": "8595b966035e6db6e2dfc12746df9126105ba698478e92c78ff100cd79801cdb",
+            "attribute": "993f4c2400858cc8a100295273a754b6491c032c1457d0a5fb2d9cdc930e1edd"
+          }
         }
       ]
     }
