@@ -90,6 +90,15 @@ struct FineTuneSettingsView: View {
   private var audio: some View {
     Form {
       Section("Volume") {
+        setting(
+          "Live Audio Processing",
+          description: "macOS may ask for audio capture permission. Turn off to stop processing."
+        ) {
+          Toggle(
+            "Live Audio Processing", isOn: bindings.field(\AppSettings.explicitUserCaptureEnabled)
+          )
+          .labelsHidden()
+        }
         setting("Default Volume", description: "Initial volume for new apps") {
           HStack(spacing: DesignTokens.Spacing.sm) {
             Slider(value: bindings.defaultVolume, in: 0.1...1).frame(width: 230)

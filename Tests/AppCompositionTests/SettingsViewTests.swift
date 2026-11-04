@@ -2,6 +2,7 @@
 import AppKit
 import FineTuneControl
 import FineTuneDomain
+import FineTunePlatform
 import Observation
 import SwiftUI
 import Testing
@@ -11,6 +12,73 @@ import Testing
 @Suite("Settings live bindings")
 @MainActor
 struct SettingsViewTests {
+  @Test("The live-audio field saves the wish and starts/stops the same Root Controller")
+  func liveAudioFieldUsesCommonCaptureTransition() async throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(
+      "FineTuneCaptureSettings-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let settings = SettingsManager(
+      directory: directory, launchAtLoginService: CaptureSettingsLoginService())
+    let runtime = RoutingProbeRuntime()
+    let controller = AudioController(
+      settings: settings, runtime: runtime, profileLookup: { _ in nil },
+      readDefaultRoutingDecision: { .followObserved })
+    let root = RootBindings(controller: controller, settings: settings)
+    let read = {
+      SettingsSnapshot(
+        settings: settings.appSettings, isAccessibilityTrusted: false, isMediaKeyOffline: false,
+        error: controller.lastFailure?.message, device: testDeviceSettings())
+    }
+    let actions = SettingsActions(
+      updateSettings: root.updateSettings,
+      recordShortcut: { _, _ in Issue.record("Capture editing must not register shortcuts.") },
+      requestAccessibility: { Issue.record("Capture editing must not request Accessibility.") },
+      retryMediaKeys: { Issue.record("Capture editing must not start media keys.") },
+      resetAll: root.resetAllSettings,
+      device: recordingDeviceSettingsActions { _ in
+        Issue.record("Capture editing must not issue device commands.")
+      })
+    let binding = SettingsBindings(read: read, actions: actions)
+      .field(\AppSettings.explicitUserCaptureEnabled)
+    _ = FineTuneSettingsView(
+      read: read, actions: actions, updates: .unavailable(reason: "No test update service."))
+    #expect(!binding.wrappedValue && runtime.requests.isEmpty)
+    #expect(root.controller === controller && controller.captureIntent == .none)
+    controller.observeOutputs(
+      [
+        AudioOutputDescriptor(
+          uid: "capture-output", bindingRevision: 1, supportsAutoEQ: false, processingGain: 1,
+          volume: 1, isMuted: false)
+      ], defaultUID: "capture-output")
+    controller.observeApplications([
+      AudioApplicationDescriptor(
+        identifier: "unit.capture-settings", processID: 72, processRevision: 1,
+        displayName: "Capture Settings", bundleID: "unit.capture-settings")
+    ])
+    #expect(runtime.requests.isEmpty)
+
+    binding.wrappedValue = true
+    #expect(settings.appSettings.explicitUserCaptureEnabled && binding.wrappedValue)
+    guard case .userInitiated(let session) = controller.captureIntent else {
+      Issue.record("The same settings transition must establish capture intent.")
+      return
+    }
+    #expect(session != 0)
+    await controller.waitForCurrentWork()
+    let route = try #require(runtime.handle("capture-output"))
+    #expect(runtime.requests.count == 1 && route.commits.count == 1)
+    binding.wrappedValue = false
+    #expect(!settings.appSettings.explicitUserCaptureEnabled && !binding.wrappedValue)
+    #expect(controller.captureIntent == .none && route.cancelled)
+    await controller.shutdown()
+    #expect(route.retired && !route.rendering && runtime.requests.count == 1)
+    settings.flushSync()
+    #expect(settings.lastSaveError == nil)
+    let reloaded = SettingsManager(
+      directory: directory, launchAtLoginService: CaptureSettingsLoginService())
+    #expect(!reloaded.appSettings.explicitUserCaptureEnabled)
+  }
+
   @Test("Changing a field preserves unrelated preferences updated after the binding was created")
   func fieldBindingUsesLatestSettings() {
     let source = SettingsTestSource()
@@ -205,4 +273,10 @@ func recordingDeviceSettingsActions(_ record: @escaping (String) -> Void) -> Dev
     setAlertVolume: { record("alert:\($0)") },
     refreshBluetooth: { record("bluetooth-refresh") },
     connectBluetooth: { record("bluetooth-connect:\($0)") })
+}
+
+@MainActor
+private final class CaptureSettingsLoginService: LaunchAtLoginService {
+  var isEnabled = false
+  func setEnabled(_ enabled: Bool) throws { isEnabled = enabled }
 }
