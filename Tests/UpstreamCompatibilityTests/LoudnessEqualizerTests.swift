@@ -55,7 +55,7 @@ struct LoudnessEqualizerTests {
 
         var output = [Float](repeating: 0, count: frameCount * channelCount)
 
-        input.withUnsafeMutableBufferPointer { inPtr in
+        let status = input.withUnsafeMutableBufferPointer { inPtr in
             output.withUnsafeMutableBufferPointer { outPtr in
                 eq.process(
                     input: inPtr.baseAddress!,
@@ -65,6 +65,7 @@ struct LoudnessEqualizerTests {
                 )
             }
         }
+        #expect(status == 0)
 
         // Extract output channels (interleaved: L0,R0,L1,R1,…)
         let outLeft  = stride(from: 0, to: frameCount * channelCount, by: channelCount).map { output[$0] }
@@ -100,7 +101,7 @@ struct LoudnessEqualizerTests {
         }
         var output = [Float](repeating: 0, count: frameCount * channelCount)
 
-        input.withUnsafeMutableBufferPointer { inPtr in
+        let status = input.withUnsafeMutableBufferPointer { inPtr in
             output.withUnsafeMutableBufferPointer { outPtr in
                 eq.process(
                     input: inPtr.baseAddress!,
@@ -110,6 +111,7 @@ struct LoudnessEqualizerTests {
                 )
             }
         }
+        #expect(status == 0)
 
         for index in 0..<input.count {
             #expect(abs(output[index] - input[index]) < 1e-7,
@@ -135,7 +137,7 @@ struct LoudnessEqualizerTests {
         }
         var loudOutput = [Float](repeating: 0, count: frameCount * channelCount)
 
-        loudInput.withUnsafeMutableBufferPointer { inPtr in
+        let loudStatus = loudInput.withUnsafeMutableBufferPointer { inPtr in
             loudOutput.withUnsafeMutableBufferPointer { outPtr in
                 enabledEq.process(
                     input: inPtr.baseAddress!,
@@ -145,6 +147,7 @@ struct LoudnessEqualizerTests {
                 )
             }
         }
+        #expect(loudStatus == 0)
 
         // LoudnessEqualizer is immutable — create a new disabled instance
         // (matches the atomic swap pattern used in production)
@@ -160,7 +163,7 @@ struct LoudnessEqualizerTests {
         }
         var quietOutput = [Float](repeating: 0, count: frameCount * channelCount)
 
-        quietInput.withUnsafeMutableBufferPointer { inPtr in
+        let quietStatus = quietInput.withUnsafeMutableBufferPointer { inPtr in
             quietOutput.withUnsafeMutableBufferPointer { outPtr in
                 disabledEq.process(
                     input: inPtr.baseAddress!,
@@ -170,6 +173,7 @@ struct LoudnessEqualizerTests {
                 )
             }
         }
+        #expect(quietStatus == 0)
 
         for index in 0..<quietInput.count {
             #expect(abs(quietOutput[index] - quietInput[index]) < 1e-6,
