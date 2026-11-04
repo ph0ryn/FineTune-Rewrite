@@ -1,579 +1,453 @@
 // FineTuneTests/AudioEngineTapInitialStateTests.swift
-//
-// Verifies AudioEngine derives TapInitialState from persisted settings and
-// hands it to activate(initial:) before any post-activation mutation.
+// The original first-sound guarantees now exercise the actual shared Control owner and Prepared route port.
 
-import Testing
-import Foundation
 import AppKit
 import AudioToolbox
+import Foundation
+import Testing
+
 @testable import FineTune
 
-// MARK: - Recording Mock
-
-/// Records every method invocation against `ProcessTapControlling` in order.
-/// Tests assert on `events` to verify the engine's apply-initial-state contract.
+/// Records external runtime commands, not a second implementation of desired state or DSP.
 @MainActor
-final class RecordingProcessTapController: ProcessTapControlling {
-    enum Event: Equatable {
-        case activate(TapInitialState)
-        case updateEQSettings(EQSettings)
-        case updateAutoEQProfile(profileID: String?)
-        case setAutoEQPreampEnabled(Bool)
-        case updateLoudnessCompensation(volume: Float, enabled: Bool)
-        case updateLoudnessEqualization(LoudnessEqualizerSettings)
-        case invalidate
-    }
+final class RecordingPreparedAudioRoute: PreparedAudioRoute {
+  enum Event: Equatable {
+    case commit(AudioOutputState)
+    case startMuted(AudioOutputState)
+    case update(AudioOutputState)
+    case levels(AudioOutputLevels)
+    case cancel
+    case retire
+  }
+  let key: AudioRouteKey
+  var onObservation: (@MainActor (AudioRouteObservation) -> Void)?
+  private(set) var events: [Event] = []
+  let activationError: AudioRouteFailure?
+  private(set) var retired = false
+  private var retirementWaiters: [CheckedContinuation<Void, Never>] = []
 
-    let app: AudioApp
-    private(set) var events: [Event] = []
-
-    // Mutable surface — recorded as plain property writes (not events).
-    var volume: Float = 1.0
-    var isMuted: Bool = false
-    var currentDeviceVolume: Float = 1.0
-    var isDeviceMuted: Bool = false
-    var audioLevel: Float = 0.0
-    private(set) var currentDeviceUIDs: [String]
-    var currentDeviceUID: String? { currentDeviceUIDs.first }
-
-    init(app: AudioApp, deviceUIDs: [String]) {
-        self.app = app
-        self.currentDeviceUIDs = deviceUIDs
-    }
-
-    // Extra failure injection for the new route-ownership boundary tests below.
-    var activationError: (any Error)?
-
-    func activate(initial: TapInitialState) throws {
-        events.append(.activate(initial))
-        if let activationError { throw activationError }
-    }
-
-    func invalidate() {
-        events.append(.invalidate)
-    }
-
-    func updateEQSettings(_ settings: EQSettings) {
-        events.append(.updateEQSettings(settings))
-    }
-
-    func updateAutoEQProfile(_ profile: AutoEQProfile?) {
-        events.append(.updateAutoEQProfile(profileID: profile?.id))
-    }
-
-    func setAutoEQPreampEnabled(_ enabled: Bool) {
-        events.append(.setAutoEQPreampEnabled(enabled))
-    }
-
-    func updateLoudnessCompensation(volume: Float, enabled: Bool) {
-        events.append(.updateLoudnessCompensation(volume: volume, enabled: enabled))
-    }
-
-    func updateLoudnessEqualization(_ settings: LoudnessEqualizerSettings) {
-        events.append(.updateLoudnessEqualization(settings))
-    }
+  init(key: AudioRouteKey, activationError: AudioRouteFailure? = nil) {
+    self.key = key
+    self.activationError = activationError
+  }
+  func startMuted(state: AudioOutputState) async throws -> AudioRouteObservation {
+    events.append(.startMuted(state))
+    if let activationError { throw activationError }
+    return AudioRouteObservation(key: key, phase: .armed, acceptedRevision: state.revision)
+  }
+  func commit(state: AudioOutputState) async throws -> AudioRouteObservation {
+    events.append(.commit(state))
+    if let activationError { throw activationError }
+    return AudioRouteObservation(key: key, phase: .committed, acceptedRevision: state.revision)
+  }
+  func update(state: AudioOutputState) async throws -> AudioRouteObservation {
+    events.append(.update(state))
+    return AudioRouteObservation(key: key, phase: .accepted, acceptedRevision: state.revision)
+  }
+  func requestLevels(_ levels: AudioOutputLevels) { events.append(.levels(levels)) }
+  func cancel() { events.append(.cancel) }
+  func retire() async -> AudioRetirementResult {
+    events.append(.retire)
+    retired = true
+    for waiter in retirementWaiters { waiter.resume() }
+    retirementWaiters.removeAll()
+    return .retired
+  }
+  func waitUntilRetired() async {
+    if retired { return }
+    await withCheckedContinuation { retirementWaiters.append($0) }
+  }
 }
 
-// MARK: - Process monitor stub
-
 @MainActor
-final class StubProcessMonitor: AudioProcessMonitoring {
-    var activeApps: [AudioApp] = []
-    var onAppsChanged: (([AudioApp]) -> Void)?
-    func start() {}
-    func stop() {}
+final class RecordingAudioRoutingRuntime: AudioRoutingRuntime {
+  private(set) var requests: [AudioRouteRequest] = []
+  private(set) var routes: [RecordingPreparedAudioRoute] = []
+  var activationError: AudioRouteFailure?
+  func prepare(_ request: AudioRouteRequest) async throws -> any PreparedAudioRoute {
+    requests.append(request)
+    let route = RecordingPreparedAudioRoute(key: request.key, activationError: activationError)
+    routes.append(route)
+    return route
+  }
 }
 
-// MARK: - Fixture
+@MainActor
+final class StubProcessMonitor: AudioProcessObservationProviding {
+  var activeApps: [AudioApp] = []
+  var onAppsChanged: (([AudioApp]) -> Void)?
+  var onObservationChanged: (() -> Void)?
+  var observation: AudioProcessObservationSnapshot {
+    AudioProcessObservationSnapshot(activeApps: activeApps, health: .healthy, revision: 1)
+  }
+  func start() {}
+  func stop() {}
+}
 
 @MainActor
 private struct Fixture {
-    let engine: AudioEngine
-    let settings: SettingsManager
-    let deviceMonitor: MockAudioDeviceMonitor
-    let deviceVolume: MockDeviceVolumeProviding
-    let app: AudioApp
-    let device: AudioDevice
-    let lastTap: () -> RecordingProcessTapController?
+  let engine: AudioEngine
+  let settings: SettingsManager
+  let app: AudioApp
+  let device: AudioDevice
+  let runtime: RecordingAudioRoutingRuntime
+  func activate() async {
+    engine.setDevice(for: app, deviceUID: device.uid)
+    engine.controller.perform(.requestCaptureStart)
+    await engine.controller.waitForCurrentWork()
+  }
+  var lastTap: RecordingPreparedAudioRoute? { runtime.routes.last }
 }
 
 @MainActor
-private func makeFixture(
-    supportsAutoEQ: Bool = true,
-    deviceVolume: Float = 0.75
-) -> Fixture {
-    let tempDir = FileManager.default.temporaryDirectory
-        .appendingPathComponent(UUID().uuidString)
-    let settings = SettingsManager(directory: tempDir, launchAtLoginService: TestLaunchAtLoginService())
-
-    let deviceMonitor = MockAudioDeviceMonitor()
-    let device = AudioDevice(
-        id: AudioDeviceID(99),
-        uid: "uid-test",
-        name: "Test Output",
-        icon: nil,
-        supportsAutoEQ: supportsAutoEQ
-    )
-    deviceMonitor.addOutputDevice(device)
-
-    let mockVolume = MockDeviceVolumeProviding(deviceMonitor: deviceMonitor)
-    mockVolume.volumes[device.id] = deviceVolume
-
-    let app = AudioApp(
-        id: 12345,
-        processObjectIDs: [],
-        name: "TestApp",
-        icon: NSImage(),
-        bundleID: "com.test.tapinitial"
-    )
-
-    let processMonitor = StubProcessMonitor()
-    processMonitor.activeApps = [app]
-
-    // Capture every tap the factory hands out so tests can read the captured
-    // event log. Mutable box lets the closure write into the test scope.
-    let box = TapBox()
-
-    // The new composition receives an observed authorization value. This fixture
-    // explicitly authorizes its recording double; it never preflights private TCC
-    // SPI, requests capture, or changes the production default of unknown.
-    let permission = AudioCaptureAuthorization()
-    permission.status = .authorized
-
-    let engine = AudioEngine(
-        permission: permission,
-        settingsManager: settings,
-        autoEQProfileManager: AutoEQProfileCache(),
-        deviceProvider: deviceMonitor,
-        processMonitor: processMonitor,
-        deviceVolumeMonitor: mockVolume,
-        tapFactory: { app, uids, _ in
-            let tap = RecordingProcessTapController(app: app, deviceUIDs: uids)
-            box.last = tap
-            return tap
-        },
-        startMonitorsAutomatically: false
-    )
-
-    return Fixture(
-        engine: engine,
-        settings: settings,
-        deviceMonitor: deviceMonitor,
-        deviceVolume: mockVolume,
-        app: app,
-        device: device,
-        lastTap: { box.last }
-    )
+private func makeFixture(supportsAutoEQ: Bool = true, deviceVolume: Float = 0.75) -> Fixture {
+  let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+  let settings = SettingsManager(
+    directory: directory, launchAtLoginService: TestLaunchAtLoginService())
+  let devices = MockAudioDeviceMonitor()
+  let device = AudioDevice(
+    id: 99, uid: "uid-test", name: "Test Output", icon: nil,
+    supportsAutoEQ: supportsAutoEQ, bindingRevision: 1)
+  devices.addOutputDevice(device)
+  let volume = MockDeviceVolumeProviding(deviceMonitor: devices)
+  volume.defaultDeviceUID = device.uid
+  volume.volumes[device.id] = deviceVolume
+  volume.muteStates[device.id] = false
+  let app = AudioApp(
+    id: 12345, processObjectIDs: [], name: "TestApp", icon: NSImage(),
+    bundleID: "com.test.tapinitial", processRevision: 1)
+  let processes = StubProcessMonitor()
+  processes.activeApps = [app]
+  let runtime = RecordingAudioRoutingRuntime()
+  let cache = AutoEQProfileCache()
+  let controller = AudioController(
+    settings: settings, runtime: runtime,
+    profileLookup: { cache.profile(for: $0) }, readDefaultRoutingDecision: { .followObserved })
+  let engine = AudioEngine(
+    controller: controller, settingsManager: settings,
+    deviceObservations: devices, processObservations: processes,
+    deviceVolumeMonitor: volume, readOutputFailure: { nil })
+  engine.ingestObservations()
+  return Fixture(engine: engine, settings: settings, app: app, device: device, runtime: runtime)
 }
-
-@MainActor
-private final class TapBox {
-    var last: RecordingProcessTapController?
-}
-
-// MARK: - Suite
 
 @Suite("AudioEngine.tapInitialState — first-sound fix (PR-1)")
 @MainActor
 struct AudioEngineTapInitialStateTests {
+  @Test("EQ settings persisted for this app land in TapInitialState.eqSettings")
+  func eqSettingsAreCarried() async throws {
+    let fix = makeFixture()
+    let custom = EQSettings(bandGains: [3, 0, -2, 0, 0, 0, 0, 0, 0, 4], isEnabled: true)
+    fix.settings.setEQSettings(custom, for: fix.app.persistenceIdentifier)
+    await fix.activate()
+    #expect(try #require(capturedInitial(fix)).eqSettings == custom)
+    await fix.engine.shutdown()
+  }
 
-    // MARK: Single-knob derivation
+  @Test(
+    "autoEQPreampEnabled mirrors settingsManager.autoEQPreampEnabled", arguments: [true, false])
+  func autoEQPreampEnabledMirrored(value: Bool) async throws {
+    let fix = makeFixture()
+    fix.settings.autoEQPreampEnabled = value
+    await fix.activate()
+    #expect(try #require(capturedInitial(fix)).autoEQPreampEnabled == value)
+    await fix.engine.shutdown()
+  }
 
-    @Test("EQ settings persisted for this app land in TapInitialState.eqSettings")
-    func eqSettingsAreCarried() throws {
-        let fix = makeFixture()
-        let custom = EQSettings(bandGains: [3, 0, -2, 0, 0, 0, 0, 0, 0, 4], isEnabled: true)
-        fix.settings.setEQSettings(custom, for: fix.app.persistenceIdentifier)
+  @Test(
+    "loudnessCompensationEnabled mirrors appSettings.loudnessCompensationEnabled",
+    arguments: [true, false])
+  func loudnessCompensationFlagMirrored(value: Bool) async throws {
+    let fix = makeFixture()
+    var settings = fix.settings.appSettings
+    settings.loudnessCompensationEnabled = value
+    fix.settings.updateAppSettings(settings)
+    await fix.activate()
+    #expect(try #require(capturedInitial(fix)).loudnessCompensationEnabled == value)
+    await fix.engine.shutdown()
+  }
 
-        fix.engine.setDevice(for: fix.app, deviceUID: fix.device.uid)
+  @Test(
+    "loudnessEqualizerSettings.enabled mirrors appSettings.loudnessEqualizationEnabled",
+    arguments: [true, false])
+  func loudnessEqualizerFlagMirrored(value: Bool) async throws {
+    let fix = makeFixture()
+    var settings = fix.settings.appSettings
+    settings.loudnessEqualizationEnabled = value
+    fix.settings.updateAppSettings(settings)
+    await fix.activate()
+    #expect(try #require(capturedInitial(fix)).loudnessEqualizerSettings.enabled == value)
+    await fix.engine.shutdown()
+  }
 
-        let snap = try #require(capturedInitial(fix))
-        #expect(snap.eqSettings == custom)
+  @Test("loudnessVolume = currentDeviceVolume × per-app volume")
+  func loudnessVolumeIsProduct() async throws {
+    let fix = makeFixture(deviceVolume: 0.5)
+    fix.engine.setVolume(for: fix.app, to: 0.4)
+    await fix.activate()
+    #expect(abs(try #require(capturedInitial(fix)).loudnessVolume - 0.2) < 1e-6)
+    await fix.engine.shutdown()
+  }
+
+  @Test("autoEQProfile is nil when the device does not support AutoEQ")
+  func autoEQNilForUnsupportedDevice() async throws {
+    let fix = makeFixture(supportsAutoEQ: false)
+    fix.settings.setAutoEQSelection(
+      for: fix.device.uid, to: AutoEQSelection(profileID: "any-id", isEnabled: true))
+    await fix.activate()
+    #expect(try #require(capturedInitial(fix)).autoEQProfile == nil)
+    await fix.engine.shutdown()
+  }
+
+  @Test("autoEQProfile is nil when no selection is persisted for the device")
+  func autoEQNilWithNoSelection() async throws {
+    let fix = makeFixture()
+    await fix.activate()
+    #expect(try #require(capturedInitial(fix)).autoEQProfile == nil)
+    await fix.engine.shutdown()
+  }
+
+  @Test("autoEQProfile is nil when the selection is disabled")
+  func autoEQNilWhenSelectionDisabled() async throws {
+    let fix = makeFixture()
+    fix.settings.setAutoEQSelection(
+      for: fix.device.uid, to: AutoEQSelection(profileID: "any-id", isEnabled: false))
+    await fix.activate()
+    #expect(try #require(capturedInitial(fix)).autoEQProfile == nil)
+    await fix.engine.shutdown()
+  }
+
+  @Test("autoEQProfile is nil when selection is enabled but profile is not in the cache")
+  func autoEQNilWhenProfileNotCached() async throws {
+    let fix = makeFixture()
+    fix.settings.setAutoEQSelection(
+      for: fix.device.uid, to: AutoEQSelection(profileID: "missing-id", isEnabled: true))
+    await fix.activate()
+    #expect(try #require(capturedInitial(fix)).autoEQProfile == nil)
+    await fix.engine.shutdown()
+  }
+
+  @Test("Initial commit is the first event the prepared native owner observes")
+  func activateIsFirstEvent() async throws {
+    let fix = makeFixture()
+    await fix.activate()
+    let first = try #require(fix.lastTap?.events.first)
+    if case .commit = first {
+    } else {
+      Issue.record("First event was \(first), expected initial commit")
     }
+    await fix.engine.shutdown()
+  }
 
-    @Test("autoEQPreampEnabled mirrors settingsManager.autoEQPreampEnabled",
-          arguments: [true, false])
-    func autoEQPreampEnabledMirrored(value: Bool) throws {
-        let fix = makeFixture()
-        fix.settings.autoEQPreampEnabled = value
-
-        fix.engine.setDevice(for: fix.app, deviceUID: fix.device.uid)
-
-        let snap = try #require(capturedInitial(fix))
-        #expect(snap.autoEQPreampEnabled == value)
+  @Test("No post-initial processing update runs before initial native commit")
+  func noMutationBeforeActivate() async throws {
+    let fix = makeFixture()
+    fix.settings.setAutoEQSelection(
+      for: fix.device.uid, to: AutoEQSelection(profileID: "missing-id", isEnabled: true))
+    fix.settings.setEQSettings(
+      EQSettings(bandGains: Array(repeating: 1, count: 10)), for: fix.app.persistenceIdentifier)
+    var settings = fix.settings.appSettings
+    settings.loudnessCompensationEnabled = true
+    settings.loudnessEqualizationEnabled = true
+    fix.settings.updateAppSettings(settings)
+    await fix.activate()
+    let tap = try #require(fix.lastTap)
+    let index = try #require(tap.events.firstIndex { if case .commit = $0 { true } else { false } })
+    for event in tap.events.prefix(index) {
+      if case .update = event {
+        Issue.record("Pre-activate mutation breaks the apply-initial-state contract: \(event)")
+      }
     }
+    let initial = try #require(capturedInitial(fix))
+    #expect(initial.eqSettings.bandGains == Array(repeating: 1, count: 10))
+    #expect(initial.loudnessCompensationEnabled && initial.loudnessEqualizerSettings.enabled)
+    await fix.engine.shutdown()
+  }
 
-    @Test("loudnessCompensationEnabled mirrors appSettings.loudnessCompensationEnabled",
-          arguments: [true, false])
-    func loudnessCompensationFlagMirrored(value: Bool) throws {
-        let fix = makeFixture()
-        var s = fix.settings.appSettings
-        s.loudnessCompensationEnabled = value
-        fix.settings.updateAppSettings(s)
-
-        fix.engine.setDevice(for: fix.app, deviceUID: fix.device.uid)
-
-        let snap = try #require(capturedInitial(fix))
-        #expect(snap.loudnessCompensationEnabled == value)
+  @Test("Cache-miss AutoEQ remains unavailable without changing the enabled selection")
+  func cacheMissPreservesUnavailableSelection() async throws {
+    // Original ID cacheMissTriggersPostActivateNilSet: establish the same nil correction
+    // in complete initial state, while exposing missing data without rewriting its desired ID.
+    let fix = makeFixture()
+    fix.settings.setAutoEQSelection(
+      for: fix.device.uid, to: AutoEQSelection(profileID: "missing-id", isEnabled: true))
+    await fix.activate()
+    if case .commit = fix.lastTap?.events.first {
+    } else {
+      Issue.record("Initial commit was not first event")
     }
-
-    @Test("loudnessEqualizerSettings.enabled mirrors appSettings.loudnessEqualizationEnabled",
-          arguments: [true, false])
-    func loudnessEqualizerFlagMirrored(value: Bool) throws {
-        let fix = makeFixture()
-        var s = fix.settings.appSettings
-        s.loudnessEqualizationEnabled = value
-        fix.settings.updateAppSettings(s)
-
-        fix.engine.setDevice(for: fix.app, deviceUID: fix.device.uid)
-
-        let snap = try #require(capturedInitial(fix))
-        #expect(snap.loudnessEqualizerSettings.enabled == value)
-    }
-
-    @Test("loudnessVolume = currentDeviceVolume × per-app volume")
-    func loudnessVolumeIsProduct() throws {
-        let fix = makeFixture(deviceVolume: 0.5)
-        fix.engine.volumeState.setVolume(for: fix.app.id, to: 0.4, identifier: fix.app.persistenceIdentifier)
-
-        fix.engine.setDevice(for: fix.app, deviceUID: fix.device.uid)
-
-        let snap = try #require(capturedInitial(fix))
-        // applyTapOutputState() runs before tapInitialState() is built, so
-        // currentDeviceVolume is 0.5 (from MockDeviceVolumeProviding.volumes).
-        // loudnessVolume should be deviceVolume (0.5) × appVolume (0.4) = 0.2.
-        #expect(abs(snap.loudnessVolume - 0.2) < 1e-6)
-    }
-
-    // MARK: AutoEQ profile resolution
-
-    @Test("autoEQProfile is nil when the device does not support AutoEQ")
-    func autoEQNilForUnsupportedDevice() throws {
-        let fix = makeFixture(supportsAutoEQ: false)
-        // Even if a selection exists, an unsupported device must skip AutoEQ.
-        fix.settings.setAutoEQSelection(
-            for: fix.device.uid,
-            to: AutoEQSelection(profileID: "any-id", isEnabled: true)
-        )
-
-        fix.engine.setDevice(for: fix.app, deviceUID: fix.device.uid)
-
-        let snap = try #require(capturedInitial(fix))
-        #expect(snap.autoEQProfile?.id == nil)
-    }
-
-    @Test("autoEQProfile is nil when no selection is persisted for the device")
-    func autoEQNilWithNoSelection() throws {
-        let fix = makeFixture(supportsAutoEQ: true)
-        // Don't set any selection.
-
-        fix.engine.setDevice(for: fix.app, deviceUID: fix.device.uid)
-
-        let snap = try #require(capturedInitial(fix))
-        #expect(snap.autoEQProfile?.id == nil)
-    }
-
-    @Test("autoEQProfile is nil when the selection is disabled")
-    func autoEQNilWhenSelectionDisabled() throws {
-        let fix = makeFixture(supportsAutoEQ: true)
-        fix.settings.setAutoEQSelection(
-            for: fix.device.uid,
-            to: AutoEQSelection(profileID: "any-id", isEnabled: false)
-        )
-
-        fix.engine.setDevice(for: fix.app, deviceUID: fix.device.uid)
-
-        let snap = try #require(capturedInitial(fix))
-        #expect(snap.autoEQProfile?.id == nil)
-    }
-
-    @Test("autoEQProfile is nil when selection is enabled but profile is not in the cache")
-    func autoEQNilWhenProfileNotCached() throws {
-        // Default AutoEQProfileManager has no profiles cached for "missing-id".
-        // The pre-activate synchronous lookup must return nil so that
-        // ensureTapExists falls through to the async resolve branch.
-        let fix = makeFixture(supportsAutoEQ: true)
-        fix.settings.setAutoEQSelection(
-            for: fix.device.uid,
-            to: AutoEQSelection(profileID: "missing-id", isEnabled: true)
-        )
-
-        fix.engine.setDevice(for: fix.app, deviceUID: fix.device.uid)
-
-        let snap = try #require(capturedInitial(fix))
-        #expect(snap.autoEQProfile?.id == nil)
-    }
-
-    // MARK: Ordering / post-activation behaviour
-
-    @Test("activate(initial:) is the first event the controller observes")
-    func activateIsFirstEvent() throws {
-        let fix = makeFixture()
-        fix.engine.setDevice(for: fix.app, deviceUID: fix.device.uid)
-
-        let tap = try #require(fix.lastTap())
-        let firstEvent = try #require(tap.events.first)
-        if case .activate = firstEvent {
-            // ok
-        } else {
-            Issue.record("First event was \(firstEvent), expected .activate")
-        }
-    }
-
-    @Test("No EQ/AutoEQ/Loudness mutation runs BEFORE activate(initial:) — the apply-initial-state contract")
-    func noMutationBeforeActivate() throws {
-        // The core PR-1 invariant: every processor-state knob the audio thread
-        // can observe must be set via TapInitialState, not via post-construction
-        // calls that race with AudioDeviceStart. We assert this by checking
-        // that no .updateEQSettings / .updateAutoEQProfile / .setAutoEQPreampEnabled
-        // / .updateLoudnessCompensation / .updateLoudnessEqualization is recorded
-        // BEFORE the .activate event in the tap's event log.
-        //
-        // Exercises a realistic config (AutoEQ-capable device with an enabled
-        // selection whose profile is uncached) so applyAutoEQToTap runs
-        // post-activate — proving the engine's fallback path doesn't accidentally
-        // fire before activate.
-        let fix = makeFixture(supportsAutoEQ: true)
-        fix.settings.setAutoEQSelection(
-            for: fix.device.uid,
-            to: AutoEQSelection(profileID: "missing-id", isEnabled: true)
-        )
-        let custom = EQSettings(bandGains: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1], isEnabled: true)
-        fix.settings.setEQSettings(custom, for: fix.app.persistenceIdentifier)
-        var s = fix.settings.appSettings
-        s.loudnessCompensationEnabled = true
-        s.loudnessEqualizationEnabled = true
-        fix.settings.updateAppSettings(s)
-
-        fix.engine.setDevice(for: fix.app, deviceUID: fix.device.uid)
-
-        let tap = try #require(fix.lastTap())
-        let activateIndex = try #require(tap.events.firstIndex { event in
-            if case .activate = event { return true }
-            return false
-        })
-
-        for event in tap.events.prefix(activateIndex) {
-            switch event {
-            case .updateEQSettings, .updateAutoEQProfile, .setAutoEQPreampEnabled,
-                 .updateLoudnessCompensation, .updateLoudnessEqualization:
-                Issue.record("Pre-activate mutation breaks the apply-initial-state contract: \(event)")
-            case .activate, .invalidate:
-                break
-            }
-        }
-    }
-
-    @Test("Cache-miss AutoEQ remains unavailable without changing the enabled selection")
-    func cacheMissPreservesUnavailableSelection() throws {
-        // Original ID: cacheMissTriggersPostActivateNilSet. The old internal setter
-        // established a nil correction after activation. The new boundary prepares
-        // that same nil state before activation and reports why the selected profile
-        // cannot yet be used, without pretending to fetch/apply it.
-        let fix = makeFixture(supportsAutoEQ: true)
-        fix.settings.setAutoEQSelection(
-            for: fix.device.uid,
-            to: AutoEQSelection(profileID: "missing-id", isEnabled: true)
-        )
-
-        fix.engine.setDevice(for: fix.app, deviceUID: fix.device.uid)
-
-        let tap = try #require(fix.lastTap())
-        // The first event must still be .activate (apply-initial-state ordering)
-        if case .activate = tap.events.first {
-            // ok
-        } else {
-            Issue.record("activate(initial:) was not first event")
-        }
-        // New boundary: a complete nil profile was prepared before activation, so no
-        // redundant post-activation nil mutation is required to establish this state.
-        let initial = try #require(capturedInitial(fix))
-        #expect(initial.autoEQProfile?.id == nil)
-        let snapshot = try #require(fix.engine.routeSnapshots[fix.app.id])
-        #expect(snapshot.initialState?.autoEQProfile == nil)
-        #expect(snapshot.autoEQ == .unavailable(profileID: "missing-id"))
-        #expect(snapshot.isActive)
-        #expect(snapshot.failure == nil)
-        let desired = try #require(fix.settings.getAutoEQSelection(for: fix.device.uid))
-        #expect(desired.profileID == "missing-id")
-        #expect(desired.isEnabled)
-    }
+    #expect(try #require(capturedInitial(fix)).autoEQProfile == nil)
+    #expect(fix.engine.controller.unavailableAutoEQProfiles[fix.device.uid] == "missing-id")
+    #expect(
+      fix.engine.controller.activeDeviceUIDs(for: fix.app.persistenceIdentifier) == [fix.device.uid]
+    )
+    #expect(fix.engine.controller.lastFailure == nil)
+    let desired = try #require(fix.settings.getAutoEQSelection(for: fix.device.uid))
+    #expect(desired.profileID == "missing-id" && desired.isEnabled)
+    await fix.engine.shutdown()
+  }
 }
-
-// MARK: - Helpers
 
 @MainActor
 private func capturedInitial(_ fix: Fixture) -> TapInitialState? {
-    guard let tap = fix.lastTap() else { return nil }
-    for event in tap.events {
-        if case let .activate(snapshot) = event { return snapshot }
-    }
-    return nil
+  guard let route = fix.lastTap else { return nil }
+  for event in route.events { if case .commit(let state) = event { return state.processing } }
+  return nil
 }
 
-// MARK: - Mock contract
-
-@Suite("Audio route — required Control port contract")
+@Suite("Audio route — required Control value contract")
 @MainActor
 struct AudioRoutePortContractTests {
-    @Test("Empty Control state prepares unity volume, independent mute, flat EQ and no correction")
-    func controlInitialStateDefaults() {
-        // Original ID: defaultsMatchProductionController. A test-double's old internal
-        // field defaults are not a product contract; these are actual Control values.
-        let volume = VolumeState()
-        let initial = TapInitialState()
-        #expect(volume.getVolume(for: 1) == 1)
-        #expect(volume.getMute(for: 1) == false)
-        #expect(volume.getBoost(for: 1) == .x1)
-        #expect(initial.eqSettings == .flat)
-        #expect(initial.autoEQProfile == nil)
-        #expect(initial.autoEQPreampEnabled == false)
-        #expect(initial.loudnessVolume == 1)
-        #expect(initial.loudnessCompensationEnabled == false)
-        #expect(initial.loudnessEqualizerSettings.enabled == false)
-    }
-
+  @Test("Empty Control state prepares unity volume, independent mute, flat EQ and no correction")
+  func controlInitialStateDefaults() {
+    let volume = VolumeState()
+    let initial = TapInitialState()
+    #expect(volume.getVolume(for: 1) == 1)
+    #expect(volume.getMute(for: 1) == false)
+    #expect(volume.getBoost(for: 1) == .x1)
+    #expect(initial.eqSettings == .flat)
+    #expect(initial.autoEQProfile == nil)
+    #expect(initial.autoEQPreampEnabled == false)
+    #expect(initial.loudnessVolume == 1)
+    #expect(initial.loudnessCompensationEnabled == false)
+    #expect(initial.loudnessEqualizerSettings.enabled == false)
+  }
 }
 
-// Rewrite-specific contracts: observing success must not be confused with saving a request.
-@Suite("AudioEngine — explicit runtime and authorization failures")
+@Suite("AudioEngine — explicit runtime and capture intent boundaries")
 @MainActor
 struct AudioEngineRouteBoundaryTests {
-    private enum ExpectedFailure: Error { case activation }
+  @Test("Passive capture wish does not construct native resources or discard the requested output")
+  func unknownAuthorizationPreservesRequest() async {
+    // The new contract does not infer authorization. Absence of explicit capture wish is passive.
+    let setup = makeBoundarySetup()
+    let runtime = RecordingAudioRoutingRuntime()
+    let engine = makeEngine(setup, runtime: runtime)
+    engine.setDevice(for: setup.app, deviceUID: setup.device.uid)
+    await engine.controller.waitForCurrentWork()
+    #expect(runtime.requests.isEmpty && engine.controller.captureIntent == .none)
+    #expect(engine.controller.activeDeviceUIDs(for: setup.app.persistenceIdentifier).isEmpty)
+    #expect(
+      setup.settings.getDeviceRouting(for: setup.app.persistenceIdentifier) == setup.device.uid)
+    await engine.shutdown()
+  }
 
-    @Test("Unknown authorization does not construct a runtime or discard the requested output")
-    func unknownAuthorizationPreservesRequest() throws {
-        let setup = makeBoundarySetup()
-        var factoryCalls = 0
-        let engine = AudioEngine(
-            settingsManager: setup.settings,
-            deviceProvider: setup.devices,
-            deviceVolumeMonitor: setup.volume,
-            tapFactory: { app, uids, _ in
-                factoryCalls += 1
-                return RecordingProcessTapController(app: app, deviceUIDs: uids)
-            },
-            startMonitorsAutomatically: false
-        )
+  @Test("An unavailable live adapter reports failure instead of pretending capture started")
+  func unavailableRuntimePreservesRequest() async {
+    let setup = makeBoundarySetup()
+    let engine = makeEngine(setup, runtime: nil)
+    engine.setDevice(for: setup.app, deviceUID: setup.device.uid)
+    engine.controller.perform(.requestCaptureStart)
+    await engine.controller.waitForCurrentWork()
+    #expect(engine.controller.activeDeviceUIDs(for: setup.app.persistenceIdentifier).isEmpty)
+    #expect(engine.controller.lastFailure?.kind == .unavailable)
+    #expect(engine.controller.lastFailure?.stage == "prepare")
+    #expect(
+      setup.settings.getDeviceRouting(for: setup.app.persistenceIdentifier) == setup.device.uid)
+    await engine.shutdown()
+  }
 
-        engine.setDevice(for: setup.app, deviceUID: setup.device.uid)
+  @Test("A failed replacement disposes only the candidate and preserves the active route")
+  func failedActivationKeepsOldRoute() async throws {
+    let setup = makeBoundarySetup()
+    let other = AudioDevice(
+      id: 100, uid: "uid-failed", name: "Other", icon: nil, supportsAutoEQ: true, bindingRevision: 1
+    )
+    setup.devices.addOutputDevice(other)
+    setup.volume.volumes[other.id] = 1
+    let runtime = RecordingAudioRoutingRuntime()
+    let engine = makeEngine(setup, runtime: runtime)
+    engine.setDevice(for: setup.app, deviceUID: setup.device.uid)
+    engine.controller.perform(.requestCaptureStart)
+    await engine.controller.waitForCurrentWork()
+    runtime.activationError = AudioRouteFailure(
+      stage: "activate", message: "Expected activation failure")
+    engine.setDevice(for: setup.app, deviceUID: other.uid)
+    await engine.controller.waitForCurrentWork()
+    #expect(runtime.routes.count == 2)
+    let candidate = try #require(runtime.routes.last)
+    await candidate.waitUntilRetired()
+    #expect(
+      engine.controller.activeDeviceUIDs(for: setup.app.persistenceIdentifier) == [setup.device.uid]
+    )
+    #expect(engine.controller.lastFailure?.stage == "activate")
+    #expect(setup.settings.getDeviceRouting(for: setup.app.persistenceIdentifier) == other.uid)
+    #expect(runtime.routes[0].retired == false)
+    #expect(candidate.events.contains(.cancel) && candidate.retired)
+    await engine.shutdown()
+  }
 
-        #expect(factoryCalls == 0)
-        let snapshot = try #require(engine.routeSnapshots[setup.app.id])
-        #expect(snapshot.isActive == false)
-        #expect(snapshot.failure?.contains("authorizationUnknown") == true)
-        #expect(setup.settings.getDeviceRouting(for: setup.app.persistenceIdentifier) == setup.device.uid)
-    }
+  @Test("A vanished process releases its route but keeps saved app preferences")
+  func vanishedProcessReleasesRoute() async throws {
+    let setup = makeBoundarySetup()
+    let runtime = RecordingAudioRoutingRuntime()
+    let engine = makeEngine(setup, runtime: runtime)
+    engine.setVolume(for: setup.app, to: 0.25)
+    engine.setDevice(for: setup.app, deviceUID: setup.device.uid)
+    engine.controller.perform(.requestCaptureStart)
+    await engine.controller.waitForCurrentWork()
+    let route = try #require(runtime.routes.first)
+    setup.processes.activeApps = []
+    engine.ingestObservations()
+    await route.waitUntilRetired()
+    #expect(engine.apps.isEmpty)
+    #expect(engine.controller.activeDeviceUIDs(for: setup.app.persistenceIdentifier).isEmpty)
+    #expect(
+      engine.volumeState.getVolume(for: setup.app.id)
+        == setup.settings.appSettings.defaultNewAppVolume)
+    #expect(setup.settings.getVolume(for: setup.app.persistenceIdentifier) == 0.25)
+    #expect(
+      setup.settings.getDeviceRouting(for: setup.app.persistenceIdentifier) == setup.device.uid)
+    await engine.shutdown()
+  }
 
-    @Test("An unavailable live adapter reports failure instead of pretending that capture started")
-    func unavailableRuntimePreservesRequest() throws {
-        let setup = makeBoundarySetup()
-        let engine = AudioEngine(
-            permission: AudioCaptureAuthorization(status: .authorized),
-            settingsManager: setup.settings,
-            deviceProvider: setup.devices,
-            deviceVolumeMonitor: setup.volume,
-            startMonitorsAutomatically: false
-        )
+  @Test(
+    "Actual profile cache retains values without inventing absent profiles",
+    arguments: [false, true])
+  func profileCacheRetainsValues(loadAtInitialization: Bool) {
+    let profile = AutoEQProfile(
+      id: "cached", name: "Cached", source: .imported, preampDB: -3,
+      filters: [AutoEQFilter(type: .peaking, frequency: 1000, gainDB: 2, q: 0.7)])
+    let cache = AutoEQProfileCache(profiles: loadAtInitialization ? [profile] : [])
+    if !loadAtInitialization { cache.store(profile) }
+    #expect(cache.profile(for: "cached") == profile)
+    #expect(cache.profile(for: "missing") == nil)
+  }
 
-        engine.setDevice(for: setup.app, deviceUID: setup.device.uid)
-
-        let snapshot = try #require(engine.routeSnapshots[setup.app.id])
-        #expect(snapshot.isActive == false)
-        #expect(snapshot.failure?.contains("liveRuntimeUnavailable") == true)
-        #expect(setup.settings.getDeviceRouting(for: setup.app.persistenceIdentifier) == setup.device.uid)
-    }
-
-    @Test("A failed replacement disposes only the candidate and preserves the active route")
-    func failedActivationKeepsOldRoute() throws {
-        let setup = makeBoundarySetup()
-        let other = AudioDevice(id: 100, uid: "uid-failed", name: "Unavailable Output", icon: nil, supportsAutoEQ: true)
-        setup.devices.addOutputDevice(other)
-        var created: [RecordingProcessTapController] = []
-        let engine = AudioEngine(
-            permission: AudioCaptureAuthorization(status: .authorized),
-            settingsManager: setup.settings,
-            deviceProvider: setup.devices,
-            deviceVolumeMonitor: setup.volume,
-            tapFactory: { app, uids, _ in
-                let route = RecordingProcessTapController(app: app, deviceUIDs: uids)
-                if !created.isEmpty { route.activationError = ExpectedFailure.activation }
-                created.append(route)
-                return route
-            },
-            startMonitorsAutomatically: false
-        )
-        engine.setDevice(for: setup.app, deviceUID: setup.device.uid)
-        engine.setDevice(for: setup.app, deviceUID: other.uid)
-
-        #expect(created.count == 2)
-        let snapshot = try #require(engine.routeSnapshots[setup.app.id])
-        #expect(snapshot.isActive)
-        #expect(snapshot.deviceUIDs == [setup.device.uid])
-        #expect(snapshot.failure?.contains("activation") == true)
-        #expect(setup.settings.getDeviceRouting(for: setup.app.persistenceIdentifier) == other.uid)
-        #expect(!created[0].events.contains { if case .invalidate = $0 { return true }; return false })
-        #expect(created[1].events.contains { if case .invalidate = $0 { return true }; return false })
-    }
-
-    @Test("A vanished process releases its route but keeps the saved app preferences")
-    func vanishedProcessReleasesRoute() throws {
-        let setup = makeBoundarySetup()
-        let processes = StubProcessMonitor()
-        processes.activeApps = [setup.app]
-        var created: RecordingProcessTapController?
-        let engine = AudioEngine(
-            permission: AudioCaptureAuthorization(status: .authorized),
-            settingsManager: setup.settings,
-            deviceProvider: setup.devices,
-            processMonitor: processes,
-            deviceVolumeMonitor: setup.volume,
-            tapFactory: { app, uids, _ in
-                let route = RecordingProcessTapController(app: app, deviceUIDs: uids)
-                created = route
-                return route
-            },
-            startMonitorsAutomatically: false
-        )
-        engine.setVolume(for: setup.app, to: 0.25)
-        engine.setDevice(for: setup.app, deviceUID: setup.device.uid)
-        let route = try #require(created)
-
-        processes.activeApps = []
-        processes.onAppsChanged?([])
-
-        #expect(engine.apps.isEmpty)
-        #expect(engine.routeSnapshots[setup.app.id] == nil)
-        #expect(route.events.contains { if case .invalidate = $0 { return true }; return false })
-        #expect(engine.volumeState.getVolume(for: setup.app.id) == setup.settings.appSettings.defaultNewAppVolume)
-        #expect(setup.settings.getVolume(for: setup.app.persistenceIdentifier) == 0.25)
-        #expect(setup.settings.getDeviceRouting(for: setup.app.persistenceIdentifier) == setup.device.uid)
-    }
-
-    @Test("The actual profile cache retains inserted values and does not invent absent profiles", arguments: [false, true])
-    func profileCacheRetainsValues(loadAtInitialization: Bool) {
-        let profile = AutoEQProfile(
-            id: "cached", name: "Cached profile", source: .imported, preampDB: -3,
-            filters: [AutoEQFilter(type: .peaking, frequency: 1000, gainDB: 2, q: 0.7)]
-        )
-        let cache = AutoEQProfileCache(profiles: loadAtInitialization ? [profile] : [])
-        if !loadAtInitialization { cache.store(profile) }
-        #expect(cache.profile(for: "cached") == profile)
-        #expect(cache.profile(for: "missing") == nil)
-    }
-
-    private func makeBoundarySetup() -> (
-        settings: SettingsManager, devices: MockAudioDeviceMonitor, volume: MockDeviceVolumeProviding,
-        app: AudioApp, device: AudioDevice
-    ) {
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        let settings = SettingsManager(directory: directory, launchAtLoginService: TestLaunchAtLoginService())
-        let devices = MockAudioDeviceMonitor()
-        let device = AudioDevice(id: 99, uid: "uid-existing", name: "Existing Output", icon: nil, supportsAutoEQ: true)
-        devices.addOutputDevice(device)
-        let volume = MockDeviceVolumeProviding(deviceMonitor: devices)
-        let app = AudioApp(id: 12345, processObjectIDs: [], name: "RouteTest", icon: NSImage(), bundleID: "com.test.route")
-        return (settings, devices, volume, app, device)
-    }
+  private typealias Setup = (
+    settings: SettingsManager, devices: MockAudioDeviceMonitor,
+    volume: MockDeviceVolumeProviding, processes: StubProcessMonitor, app: AudioApp,
+    device: AudioDevice
+  )
+  private func makeBoundarySetup() -> Setup {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    let settings = SettingsManager(
+      directory: directory, launchAtLoginService: TestLaunchAtLoginService())
+    let devices = MockAudioDeviceMonitor()
+    let device = AudioDevice(
+      id: 99, uid: "uid-existing", name: "Existing", icon: nil, supportsAutoEQ: true,
+      bindingRevision: 1)
+    devices.addOutputDevice(device)
+    let volume = MockDeviceVolumeProviding(deviceMonitor: devices)
+    volume.defaultDeviceUID = device.uid
+    volume.volumes[device.id] = 1
+    volume.muteStates[device.id] = false
+    let app = AudioApp(
+      id: 12345, processObjectIDs: [], name: "RouteTest", icon: NSImage(),
+      bundleID: "com.test.route", processRevision: 1)
+    let processes = StubProcessMonitor()
+    processes.activeApps = [app]
+    return (settings, devices, volume, processes, app, device)
+  }
+  private func makeEngine(_ setup: Setup, runtime: (any AudioRoutingRuntime)?) -> AudioEngine {
+    let controller = AudioController(
+      settings: setup.settings, runtime: runtime, profileLookup: { _ in nil },
+      readDefaultRoutingDecision: { .followObserved })
+    let engine = AudioEngine(
+      controller: controller, settingsManager: setup.settings,
+      deviceObservations: setup.devices, processObservations: setup.processes,
+      deviceVolumeMonitor: setup.volume, readOutputFailure: { nil })
+    engine.ingestObservations()
+    return engine
+  }
 }

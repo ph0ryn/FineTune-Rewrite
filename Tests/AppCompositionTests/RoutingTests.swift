@@ -30,7 +30,9 @@ struct CommonAudioCommandTests {
   @Test("Inactive URL/raw changes persist while UI editing alone clears mute")
   func inactiveCommandsAndMuteSemantics() {
     let (settings, directory) = routingSettingsFixture()
-    let controller = AudioController(settings: settings, runtime: nil, profileLookup: { _ in nil })
+    let controller = AudioController(
+      settings: settings, runtime: nil, profileLookup: { _ in nil },
+      readDefaultRoutingDecision: { .followObserved })
     let identifier = "unit.inactive"
     controller.perform(.setMuted(identifier: identifier, muted: true))
     controller.perform(.setGain(identifier: identifier, gain: 0.4))
@@ -62,7 +64,9 @@ struct CommonAudioCommandTests {
   @Test("Consecutive snapshot edits apply synchronously without losing fields or capture wish")
   func consecutiveSettingsSnapshots() {
     let (settings, _) = routingSettingsFixture()
-    let controller = AudioController(settings: settings, runtime: nil, profileLookup: { _ in nil })
+    let controller = AudioController(
+      settings: settings, runtime: nil, profileLookup: { _ in nil },
+      readDefaultRoutingDecision: { .followObserved })
     #expect(!settings.appSettings.explicitUserCaptureEnabled)
     controller.perform(.requestCaptureStart)
     #expect(settings.appSettings.explicitUserCaptureEnabled)
@@ -86,7 +90,9 @@ struct CommonAudioCommandTests {
     let (settings, _) = routingSettingsFixture()
     settings.setVolume(for: "unit.pinned", to: 0.25)
     settings.setMute(for: "unit.pinned", to: true)
-    let controller = AudioController(settings: settings, runtime: nil, profileLookup: { _ in nil })
+    let controller = AudioController(
+      settings: settings, runtime: nil, profileLookup: { _ in nil },
+      readDefaultRoutingDecision: { .followObserved })
     controller.perform(.stepVolume(identifier: "unit.pinned", isUp: true, shift: true))
     #expect(settings.getVolume(for: "unit.pinned") == 0.390625)
     #expect(settings.getMute(for: "unit.pinned") == false)
@@ -115,7 +121,8 @@ struct ControlledAudioRoutingTests {
     runtime.holdArmed = ["B"]
     runtime.holdRetirement = ["A"]
     let controller = AudioController(
-      settings: settings, runtime: runtime, profileLookup: { _ in nil })
+      settings: settings, runtime: runtime, profileLookup: { _ in nil },
+      readDefaultRoutingDecision: { .followObserved })
     controller.observeOutputs([a, b], defaultUID: "A")
     controller.observeApplications([application])
     #expect(runtime.requests.isEmpty)
@@ -155,7 +162,8 @@ struct ControlledAudioRoutingTests {
     settings.setBoost(for: application.identifier, to: .x2)
     let runtime = RoutingProbeRuntime()
     let controller = AudioController(
-      settings: settings, runtime: runtime, profileLookup: { _ in nil })
+      settings: settings, runtime: runtime, profileLookup: { _ in nil },
+      readDefaultRoutingDecision: { .followObserved })
     controller.observeOutputs([a], defaultUID: "A")
     controller.observeApplications([application])
     controller.perform(.requestCaptureStart)
@@ -191,7 +199,8 @@ struct ControlledAudioRoutingTests {
       uid: "C", bindingRevision: 1, supportsAutoEQ: true, processingGain: 1, volume: 1,
       isMuted: false)
     let controller = AudioController(
-      settings: settings, runtime: runtime, profileLookup: { _ in nil })
+      settings: settings, runtime: runtime, profileLookup: { _ in nil },
+      readDefaultRoutingDecision: { .followObserved })
     controller.observeOutputs([a, b, c], defaultUID: "A")
     controller.observeApplications([application])
     controller.perform(.requestCaptureStart)
@@ -230,7 +239,8 @@ struct ControlledAudioRoutingTests {
     settings.setAutoEQSelection(for: "B", to: AutoEQSelection(profileID: "pb", isEnabled: true))
     let runtime = RoutingProbeRuntime()
     let controller = AudioController(
-      settings: settings, runtime: runtime, profileLookup: { cache.profile(for: $0) })
+      settings: settings, runtime: runtime, profileLookup: { cache.profile(for: $0) },
+      readDefaultRoutingDecision: { .followObserved })
     controller.observeOutputs([a, b], defaultUID: "A")
     controller.observeApplications([application])
     #expect(runtime.requests.isEmpty && controller.captureIntent == .none)
@@ -265,7 +275,8 @@ struct ControlledAudioRoutingTests {
     runtime.prepareFailure = AudioRouteFailure(
       kind: .permissionDenied, stage: "unit", message: "Known denial")
     let controller = AudioController(
-      settings: settings, runtime: runtime, profileLookup: { _ in nil })
+      settings: settings, runtime: runtime, profileLookup: { _ in nil },
+      readDefaultRoutingDecision: { .followObserved })
     controller.observeOutputs([a], defaultUID: "A")
     controller.observeApplications([application])
     controller.perform(.requestCaptureStart)
@@ -287,7 +298,8 @@ struct ControlledAudioRoutingTests {
     let (settings, _) = routingSettingsFixture()
     let runtime = RoutingProbeRuntime()
     let controller = AudioController(
-      settings: settings, runtime: runtime, profileLookup: { _ in nil })
+      settings: settings, runtime: runtime, profileLookup: { _ in nil },
+      readDefaultRoutingDecision: { .followObserved })
     controller.observeOutputs([a], defaultUID: "A")
     controller.observeApplications([application])
     controller.perform(.requestCaptureStart)
@@ -317,7 +329,8 @@ struct ControlledAudioRoutingTests {
     let runtime = RoutingProbeRuntime()
     runtime.holdRetirement = ["A"]
     let controller = AudioController(
-      settings: settings, runtime: runtime, profileLookup: { _ in nil })
+      settings: settings, runtime: runtime, profileLookup: { _ in nil },
+      readDefaultRoutingDecision: { .followObserved })
     controller.observeOutputs([a, b], defaultUID: "A")
     controller.observeApplications([application])
     controller.perform(.requestCaptureStart)
@@ -344,7 +357,8 @@ struct ControlledAudioRoutingTests {
     let (settings, _) = routingSettingsFixture()
     let runtime = RoutingProbeRuntime()
     let controller = AudioController(
-      settings: settings, runtime: runtime, profileLookup: { _ in nil })
+      settings: settings, runtime: runtime, profileLookup: { _ in nil },
+      readDefaultRoutingDecision: { .followObserved })
     controller.observeOutputs([a, b], defaultUID: "A")
     controller.observeApplications([application])
     controller.perform(.requestCaptureStart)
@@ -377,7 +391,8 @@ struct ControlledAudioRoutingTests {
     let (settings, _) = routingSettingsFixture()
     let runtime = RoutingProbeRuntime()
     let controller = AudioController(
-      settings: settings, runtime: runtime, profileLookup: { _ in nil })
+      settings: settings, runtime: runtime, profileLookup: { _ in nil },
+      readDefaultRoutingDecision: { .followObserved })
     controller.observeOutputs([a], defaultUID: "A")
     controller.observeApplications([application])
     controller.perform(.setRoute(identifier: application.identifier, mode: .single, uids: ["A"]))
@@ -410,7 +425,8 @@ struct ControlledAudioRoutingTests {
     let (settings, _) = routingSettingsFixture()
     let runtime = RoutingProbeRuntime()
     let controller = AudioController(
-      settings: settings, runtime: runtime, profileLookup: { _ in nil })
+      settings: settings, runtime: runtime, profileLookup: { _ in nil },
+      readDefaultRoutingDecision: { .followObserved })
     controller.observeOutputs([a], defaultUID: "A")
     controller.observeApplications([application])
     controller.perform(.requestCaptureStart)
@@ -450,7 +466,8 @@ struct ControlledAudioRoutingTests {
     let (settings, _) = routingSettingsFixture()
     let runtime = RoutingProbeRuntime()
     let controller = AudioController(
-      settings: settings, runtime: runtime, profileLookup: { _ in nil })
+      settings: settings, runtime: runtime, profileLookup: { _ in nil },
+      readDefaultRoutingDecision: { .followObserved })
     controller.observeOutputs([a, b], defaultUID: "A")
     controller.observeApplications([application])
     controller.perform(.requestCaptureStart)
@@ -485,7 +502,8 @@ struct ControlledAudioRoutingTests {
     let (settings, _) = routingSettingsFixture()
     let runtime = RoutingProbeRuntime()
     let controller = AudioController(
-      settings: settings, runtime: runtime, profileLookup: { _ in nil })
+      settings: settings, runtime: runtime, profileLookup: { _ in nil },
+      readDefaultRoutingDecision: { .followObserved })
     controller.observeOutputs([a, b], defaultUID: "A")
     controller.observeApplications([application])
     controller.perform(.requestCaptureStart)
@@ -521,7 +539,8 @@ struct ControlledAudioRoutingTests {
     let (settings, _) = routingSettingsFixture()
     let runtime = RoutingProbeRuntime()
     let controller = AudioController(
-      settings: settings, runtime: runtime, profileLookup: { _ in nil })
+      settings: settings, runtime: runtime, profileLookup: { _ in nil },
+      readDefaultRoutingDecision: { .followObserved })
     controller.observeOutputs([a, b], defaultUID: "A")
     controller.observeApplications([application])
     controller.perform(.requestCaptureStart)
@@ -551,7 +570,8 @@ struct ControlledAudioRoutingTests {
     runtime.commitCleanupFailure = AudioRouteFailure(
       stage: "commit-cleanup", message: "Latched commit cleanup")
     let controller = AudioController(
-      settings: settings, runtime: runtime, profileLookup: { _ in nil })
+      settings: settings, runtime: runtime, profileLookup: { _ in nil },
+      readDefaultRoutingDecision: { .followObserved })
     controller.observeOutputs([a], defaultUID: "A")
     controller.observeApplications([application])
     controller.perform(.requestCaptureStart)
@@ -569,7 +589,8 @@ struct ControlledAudioRoutingTests {
     let (settings, _) = routingSettingsFixture()
     let runtime = RoutingProbeRuntime()
     let controller = AudioController(
-      settings: settings, runtime: runtime, profileLookup: { _ in nil })
+      settings: settings, runtime: runtime, profileLookup: { _ in nil },
+      readDefaultRoutingDecision: { .followObserved })
     controller.observeOutputs([a], defaultUID: "A")
     controller.observeApplications([application])
     controller.perform(.requestCaptureStart)
@@ -598,13 +619,174 @@ struct ControlledAudioRoutingTests {
   }
 
   @Test(
+    "A late default candidate cannot commit after an approved routing target changes",
+    arguments: [false, true])
+  func pendingDefaultCandidateRechecksApprovedTarget(notifySnapshot: Bool) async throws {
+    let (settings, _) = routingSettingsFixture()
+    let runtime = RoutingProbeRuntime()
+    let decision = RoutingDecisionProbe()
+    let controller = AudioController(
+      settings: settings, runtime: runtime, profileLookup: { _ in nil },
+      readDefaultRoutingDecision: { decision.value })
+    controller.observeOutputs([a, b], defaultUID: "A")
+    controller.observeApplications([application])
+    controller.perform(.requestCaptureStart)
+    await controller.waitForCurrentWork()
+    let old = try #require(runtime.handle("A"))
+    runtime.holdPreparation = ["B"]
+    controller.observeOutputs([a, b], defaultUID: "B")
+    await runtime.wait("prepare:B")
+    let candidate = try #require(runtime.handle("B"))
+    decision.value = .routeToApprovedUID("A")
+    if notifySnapshot { controller.observeOutputs([a, b], defaultUID: "B") }
+    runtime.releasePreparation("B")
+    await controller.waitForCurrentWork()
+    #expect(candidate.commits.isEmpty && candidate.cancelled && !candidate.rendering)
+    #expect(
+      old.rendering && !old.retired
+        && controller.activeDeviceUIDs(for: application.identifier) == ["A"])
+    #expect(controller.defaultOutputUID == "B" && controller.outputObservationFailure == nil)
+    decision.value = .followObserved
+    controller.observeOutputs([a, b], defaultUID: "B")
+    await controller.waitForCurrentWork()
+    #expect(controller.activeDeviceUIDs(for: application.identifier) == ["B"] && old.retired)
+    #expect(runtime.requests.filter { $0.key.deviceUID == "B" }.count == 2)
+    await controller.shutdown()
+    #expect(candidate.retired)
+  }
+
+  @Test("An accepted default obsoletes a pending old target before asynchronous snapshot delivery")
+  func acceptedDefaultPrecedesObservedSnapshot() async throws {
+    let (settings, _) = routingSettingsFixture()
+    let runtime = RoutingProbeRuntime()
+    let actual = RoutingDecisionProbe()
+    let clock = DevicePolicyTestClock()
+    var writes: [String] = []
+    let policy = OutputDevicePolicyController(
+      settings: settings,
+      setDefaultOutput: { uid in
+        writes.append(uid)
+        actual.actualUID = uid
+      }, sleep: { try await clock.sleep($0) })
+    defer {
+      policy.suspend()
+      clock.finish()
+    }
+    policy.observe(availableUIDs: ["A", "B"], defaultUID: "A", bluetoothUIDs: [])
+    runtime.holdPreparation = ["A"]
+    let controller = AudioController(
+      settings: settings, runtime: runtime, profileLookup: { _ in nil },
+      readDefaultRoutingDecision: { policy.routingDecision() })
+    controller.observeOutputs([a, b], defaultUID: "A")
+    controller.observeApplications([application])
+    controller.perform(.requestCaptureStart)
+    await runtime.wait("prepare:A")
+    let pending = try #require(runtime.handle("A"))
+    try policy.selectDefaultOutput(uid: "B")
+    #expect(writes == ["B"] && policy.intendedDefaultUID == "B" && actual.actualUID == "B")
+    #expect(controller.defaultOutputUID == "A")
+    runtime.releasePreparation("A")
+    await controller.waitForCurrentWork()
+    #expect(pending.commits.isEmpty && pending.cancelled && !pending.rendering)
+    #expect(controller.activeDeviceUIDs(for: application.identifier).isEmpty)
+    #expect(
+      settings.isFollowingDefault(for: application.identifier)
+        && settings.appSettings.explicitUserCaptureEnabled)
+    policy.observe(availableUIDs: ["A", "B"], defaultUID: "B", bluetoothUIDs: [])
+    controller.observeOutputs([a, b], defaultUID: "B")
+    await controller.waitForCurrentWork()
+    #expect(controller.activeDeviceUIDs(for: application.identifier) == ["B"])
+    await controller.shutdown()
+    #expect(pending.retired)
+  }
+
+  @Test("A new following app routes to the approved UID after physical restoration fails")
+  func newFollowingAppUsesApprovedDefault() async throws {
+    let (settings, _) = routingSettingsFixture()
+    let runtime = RoutingProbeRuntime()
+    let high = AudioOutputDescriptor(
+      uid: "High", bindingRevision: 1, supportsAutoEQ: false, processingGain: 1,
+      volume: 1, isMuted: false)
+    let pinned = AudioApplicationDescriptor(
+      identifier: "unit.pinned", processID: 102, processRevision: 1, displayName: "Pinned",
+      bundleID: "unit.pinned")
+    settings.setDeviceRouting(for: pinned.identifier, deviceUID: "High")
+    var writes: [String] = []
+    let policy = OutputDevicePolicyController(
+      settings: settings,
+      setDefaultOutput: { uid in
+        writes.append(uid)
+        throw AudioRouteFailure(stage: "default-write", message: "Restore rejected")
+      })
+    defer { policy.suspend() }
+    policy.observe(availableUIDs: ["High", "A"], defaultUID: "A", bluetoothUIDs: [])
+    let controller = AudioController(
+      settings: settings, runtime: runtime, profileLookup: { _ in nil },
+      readDefaultRoutingDecision: { policy.routingDecision() }
+    )
+    controller.observeOutputs([high, a], defaultUID: "A")
+    controller.observeApplications([pinned])
+    controller.perform(.requestCaptureStart)
+    await controller.waitForCurrentWork()
+    let pinnedOwner = try #require(runtime.handle("High"))
+    #expect(runtime.handle("A") == nil)
+    policy.observe(availableUIDs: ["High", "A", "B"], defaultUID: "B", bluetoothUIDs: ["B"])
+    controller.observeOutputs([high, a, b], defaultUID: "B")
+    controller.observeApplications([pinned, application])
+    await controller.waitForCurrentWork()
+    #expect(writes == ["A"] && policy.lastFailure?.message == "Restore rejected")
+    #expect(controller.activeDeviceUIDs(for: application.identifier) == ["A"])
+    #expect(runtime.requests.filter { $0.key.deviceUID == "A" }.count == 1)
+    #expect(runtime.requests.allSatisfy { $0.key.deviceUID != "B" })
+    #expect(pinnedOwner.rendering && !pinnedOwner.retired)
+    #expect(controller.defaultOutputUID == "B" && policy.observedDefaultUID == "B")
+    #expect(
+      settings.isFollowingDefault(for: application.identifier)
+        && settings.appSettings.explicitUserCaptureEnabled)
+    await controller.shutdown()
+  }
+
+  @Test(
+    "An unavailable approved default never silently falls back to the rejected actual default",
+    arguments: [false, true])
+  func unavailableApprovedDefaultIsExplicit(hadActive: Bool) async throws {
+    let (settings, _) = routingSettingsFixture()
+    let runtime = RoutingProbeRuntime()
+    let controller = AudioController(
+      settings: settings, runtime: runtime, profileLookup: { _ in nil },
+      readDefaultRoutingDecision: { .routeToApprovedUID("A") })
+    controller.observeApplications([application])
+    if hadActive {
+      controller.observeOutputs([a, b], defaultUID: "A")
+      controller.perform(.requestCaptureStart)
+      await controller.waitForCurrentWork()
+      #expect(controller.activeDeviceUIDs(for: application.identifier) == ["A"])
+    }
+    controller.observeOutputs([b], defaultUID: "B")
+    if !hadActive { controller.perform(.requestCaptureStart) }
+    await controller.waitForCurrentWork()
+    #expect(runtime.requests.count == (hadActive ? 1 : 0))
+    #expect(controller.activeDeviceUIDs(for: application.identifier).isEmpty)
+    #expect(controller.lastFailure?.kind == .unavailable)
+    #expect(controller.defaultOutputUID == "B" && controller.outputs == [b])
+    #expect(
+      controller.outputObservationFailure == nil
+        && settings.isFollowingDefault(for: application.identifier))
+    #expect(settings.appSettings.explicitUserCaptureEnabled)
+    if let old = runtime.handle("A") { #expect(old.cancelled && !old.rendering) }
+    await controller.shutdown()
+    if let old = runtime.handle("A") { #expect(old.retired) }
+  }
+
+  @Test(
     "Confirmed reset-all synchronously clears wishes and cached active state then retires native owners"
   )
   func resetAllUsesSameControllerAndStore() async throws {
     let (settings, directory) = routingSettingsFixture()
     let runtime = RoutingProbeRuntime()
     let controller = AudioController(
-      settings: settings, runtime: runtime, profileLookup: { _ in nil })
+      settings: settings, runtime: runtime, profileLookup: { _ in nil },
+      readDefaultRoutingDecision: { .followObserved })
     controller.observeOutputs([a], defaultUID: "A")
     controller.observeApplications([application])
     controller.perform(.setGain(identifier: application.identifier, gain: 0.49))
@@ -646,6 +828,12 @@ struct ControlledAudioRoutingTests {
     #expect(
       !reloaded.appSettings.explicitUserCaptureEnabled && reloaded.preferredInputDeviceUID == nil)
   }
+}
+
+@MainActor
+private final class RoutingDecisionProbe {
+  var value: ControlDefaultOutputRoutingDecision = .followObserved
+  var actualUID: String? = "A"
 }
 
 enum RoutingRetirementFailureOrder: CaseIterable, Sendable {

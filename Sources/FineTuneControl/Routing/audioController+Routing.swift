@@ -29,8 +29,9 @@ extension AudioController {
     else { return }
     let available = Dictionary(uniqueKeysWithValues: outputs.map { ($0.uid, $0) })
     let wanted: Set<String>
-    if settingsStore.isFollowingDefault(for: identifier) {
-      wanted = Set(defaultOutputUID.map { [$0] } ?? [])
+    let followsDefault = settingsStore.isFollowingDefault(for: identifier)
+    if followsDefault {
+      wanted = Set(defaultRoutingUID().map { [$0] } ?? [])
     } else {
       wanted =
         settingsStore.getSelectedDeviceUIDs(for: identifier)
@@ -40,7 +41,7 @@ extension AudioController {
     if settingsStore.getDeviceSelectionMode(for: identifier) != .multi {
       chosen = Array(chosen.prefix(1))
     }
-    if chosen.isEmpty, let fallback = defaultOutputUID.flatMap({ available[$0] }) {
+    if chosen.isEmpty, !followsDefault, let fallback = defaultOutputUID.flatMap({ available[$0] }) {
       chosen = [fallback]
     }
     guard !chosen.isEmpty else {
@@ -78,6 +79,19 @@ extension AudioController {
     }
     routingTasks[identifier] = task
     allRoutingTasks[workID] = task
+  }
+
+  func defaultRoutingUID() -> String? {
+    switch readDefaultRoutingDecision() {
+    case .followObserved: defaultOutputUID
+    case .routeToApprovedUID(let uid): uid
+    }
+  }
+
+  func defaultPlanIsCurrent(_ identifier: String) -> Bool {
+    guard settingsStore.isFollowingDefault(for: identifier) else { return true }
+    guard let plan = plans[identifier] else { return false }
+    return plan.outputs.map(\.uid) == (defaultRoutingUID().map { [$0] } ?? [])
   }
 
   func usableActiveRoutes(_ identifier: String, plan: AudioRoutePlan) -> [String: AudioRouteKey] {
@@ -169,7 +183,7 @@ extension AudioController {
       routeFailure = nil
     } catch {
       let isCurrent = generations[identifier] == generation && captureIntent != .none
-      if isCurrent {
+      if isCurrent, !(error is CancellationError && !defaultPlanIsCurrent(identifier)) {
         let reason = failure(error, stage: "route")
         routeFailure = reason
         if reason.kind == .permissionDenied,
@@ -194,7 +208,7 @@ extension AudioController {
   func current(_ identifier: String, generation: UInt64) throws {
     try Task.checkCancellation()
     guard generations[identifier] == generation, captureIntent != .none,
-      app(identifier) != nil, !settingsStore.isIgnored(identifier)
+      app(identifier) != nil, !settingsStore.isIgnored(identifier), defaultPlanIsCurrent(identifier)
     else { throw CancellationError() }
   }
 

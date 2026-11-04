@@ -7,6 +7,7 @@ public final class AudioController: AudioCommandHandling {
   let settingsStore: any AudioControlSettingsStore
   let runtime: (any AudioRoutingRuntime)?
   let profileLookup: @MainActor (String) -> AutoEQProfile?
+  let readDefaultRoutingDecision: @MainActor () -> ControlDefaultOutputRoutingDecision
   let deviceCommand: (@MainActor (AudioCommand) throws -> Void)?
   public let volumeState: VolumeState
   public private(set) var applications: [AudioApplicationDescriptor] = []
@@ -38,11 +39,13 @@ public final class AudioController: AudioCommandHandling {
   public init(
     settings: any AudioControlSettingsStore, runtime: (any AudioRoutingRuntime)?,
     profileLookup: @escaping @MainActor (String) -> AutoEQProfile?,
+    readDefaultRoutingDecision: @escaping @MainActor () -> ControlDefaultOutputRoutingDecision,
     deviceCommand: (@MainActor (AudioCommand) throws -> Void)? = nil
   ) {
     settingsStore = settings
     self.runtime = runtime
     self.profileLookup = profileLookup
+    self.readDefaultRoutingDecision = readDefaultRoutingDecision
     self.deviceCommand = deviceCommand
     volumeState = VolumeState(settingsManager: settings)
     if settings.appSettings.explicitUserCaptureEnabled {

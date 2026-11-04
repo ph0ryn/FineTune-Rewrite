@@ -52,6 +52,14 @@ public final class OutputDevicePolicyController {
     echoes.cancelAll()
   }
 
+  /// Keep the approved app-routing target separate from a failed physical-default restoration.
+  public func routingDecision() -> ControlDefaultOutputRoutingDecision {
+    guard let intendedDefaultUID else {
+      return .followObserved
+    }
+    return .routeToApprovedUID(intendedDefaultUID)
+  }
+
   public func observe(
     availableUIDs: [String], defaultUID: String?, bluetoothUIDs: Set<String>, failure: String? = nil
   ) {
