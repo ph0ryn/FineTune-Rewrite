@@ -328,6 +328,72 @@ struct Sample {
                 with self.assertRaises(ValueError):
                     audit.scan_swift(invalid_source, self.path)
 
+    def test_cartesian_collections_count_and_fingerprint_every_input(self):
+        source = '''enum Order: CaseIterable, Sendable { case before, pending, retired, after }
+struct Matrix {
+    @Test(arguments: [false, true], [0, 1])
+    func literals(_ flag: Bool, _ value: Int) { #expect(value < 10) }
+    @Test(arguments: [false, true], Order.allCases)
+    func orders(_ flag: Bool, _ order: Order) { #expect(true) }
+}'''
+        methods = audit.scan_swift(source, self.path)
+        for name, count in (("literals", 4), ("orders", 8)):
+            with self.subTest(name=name):
+                self.assertEqual(methods[self.path + "::Matrix." + name]["invocations"], count)
+        changed = audit.scan_swift(source.replace("[0, 1]", "[0, 2]"), self.path)
+        identifier = self.path + "::Matrix.literals"
+        self.assertNotEqual(methods[identifier]["fingerprints"]["arguments"], changed[identifier]["fingerprints"]["arguments"])
+        identifier = self.path + "::Matrix.orders"
+        changed = audit.scan_swift(source.replace("retired, after", "retired, final"), self.path)
+        self.assertNotEqual(methods[identifier]["fingerprints"]["arguments"], changed[identifier]["fingerprints"]["arguments"])
+        smaller = audit.scan_swift(source.replace("retired, after", "retired"), self.path)
+        self.assertEqual(smaller[identifier]["invocations"], 6)
+        five = audit.scan_swift(source.replace("[0, 1]", "[0, 1, 2, 3, 4]"), self.path)
+        self.assertEqual(five[self.path + "::Matrix.literals"]["invocations"], 10)
+        three = audit.scan_swift(source.replace("[false, true], [0, 1]", "[false, true, false], [0, 1]"), self.path)
+        self.assertEqual(three[self.path + "::Matrix.literals"]["invocations"], 6)
+        single = audit.scan_swift(self.source, self.path)[self.destination_id]
+        casted = audit.scan_swift(self.source.replace("[1, 2]", "[1, 2] as [Int]"), self.path)[self.destination_id]
+        self.assertEqual(casted["invocations"], single["invocations"])
+        self.assertEqual(casted["fingerprints"]["arguments"], single["fingerprints"]["arguments"])
+        named = source.replace("struct Matrix {", "struct Matrix { static let columns = [0, 1]")
+        named = audit.scan_swift(named.replace("[0, 1])", "columns)"), self.path)
+        self.assertEqual(named[self.path + "::Matrix.literals"]["fingerprints"]["arguments"], methods[self.path + "::Matrix.literals"]["fingerprints"]["arguments"])
+
+    def test_typed_array_literal_initializer_uses_values_not_type_brackets(self):
+        source = self.source.replace("[1, 2]", '[String?](arrayLiteral: nil, "A", "B")')
+        method = audit.scan_swift(source, self.path)[self.destination_id]
+        self.assertEqual(method["invocations"], 3)
+        changed = audit.scan_swift(source.replace('"B"', '"C"'), self.path)[self.destination_id]
+        self.assertNotEqual(method["fingerprints"]["arguments"], changed["fingerprints"]["arguments"])
+        smaller = audit.scan_swift(source.replace(', "B"', ''), self.path)[self.destination_id]
+        self.assertEqual(smaller["invocations"], 2)
+        nested = audit.scan_swift(self.source.replace("[1, 2]", "[Int](arrayLiteral: max(1, 2), 3)"), self.path)[self.destination_id]
+        self.assertEqual(nested["invocations"], 2)
+
+    def test_parameter_collections_reject_dynamic_suffix_and_nonfinite_enums(self):
+        enum = "enum Order: CaseIterable { case a, b, c, d }\n"
+        source = enum + self.source.replace("arguments: [1, 2]", "arguments: [1, 2], Order.allCases")
+        invalid = [
+            self.source.replace("[1, 2]", "[1, 2].map { $0 }"),
+            self.source.replace("[1, 2]", "[1, 2], [false, true].reversed()"),
+            self.source.replace("[1, 2]", "[Int](repeating: 1, count: 2)"),
+            self.source.replace("[1, 2]", "[1, 2] as? [Int]"),
+            self.source.replace("[1, 2]", "[1, 2] as! [Int]"),
+            self.source.replace("[1, 2]", "[1], [2], [3]"),
+            source + "\nextension Order { static var allCases: [Self] { [] } }",
+            source.replace("case a, b, c, d", "case a(Int), b, c, d"),
+            source.replace("case a, b, c, d", "case a, b, c, d; static var allCases: [Self] { [] }"),
+            source.replace("case a, b, c, d", "#if DEBUG\ncase a\n#endif"),
+            enum + source,
+            source.replace(enum, ""),
+            source.replace(enum, "struct Other { " + enum + " }\n"),
+        ]
+        for invalid_source in invalid:
+            with self.subTest(source=invalid_source):
+                with self.assertRaises(ValueError):
+                    audit.scan_swift(invalid_source, self.path)
+
     def test_unlisted_native_case_source_fails_closed(self):
         path = "Tests/NativeRuntimeTests/OmittedTests.cpp"
         source = self.root / path

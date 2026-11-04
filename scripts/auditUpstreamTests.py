@@ -186,6 +186,88 @@ def static_literal_start(values, pairs, name, owner):
     return candidates[0]
 
 
+def collection_parts(values, pairs, start, end):
+    """Split only outer commas; nested literal elements remain single inputs."""
+    parts = []
+    while start < end:
+        cursor = start
+        while cursor < end and values[cursor] != ",":
+            cursor = pairs[cursor] + 1 if cursor in pairs else cursor + 1
+        if cursor == start:
+            raise ValueError("Empty parameter collection/element")
+        parts.append((start, cursor))
+        start = cursor + 1
+    return parts
+
+
+def enum_collection(values, pairs, name, owner):
+    """Derive only visible same-source, payload-free CaseIterable declarations."""
+    candidates = []
+    for index in range(len(values) - 2):
+        if values[index:index + 2] == ["extension", name]:
+            raise ValueError(f"Unsupported extended enum collection: {name}")
+        if values[index:index + 2] != ["enum", name]:
+            continue
+        enclosing = max((start for start, end in pairs.items()
+                         if values[start] == "{" and start < index < end), default=None)
+        if enclosing not in (None, owner):
+            continue
+        opening = next(i for i in range(index + 2, len(values)) if values[i] == "{")
+        header = values[index + 2:opening]
+        if (not header or header[0] != ":" or "CaseIterable" not in header[1::2]
+                or any(value not in ("CaseIterable", "Sendable") for value in header[1::2])
+                or any(value != "," for value in header[2::2])):
+            raise ValueError(f"Enum collection lacks simple explicit CaseIterable: {name}")
+        closing, cursor, cases = pairs[opening], opening + 1, []
+        while cursor < closing:
+            if values[cursor] == ";":
+                cursor += 1
+                continue
+            if values[cursor] != "case":
+                raise ValueError(f"Enum collection is not payload-free literal cases: {name}")
+            cursor += 1
+            while True:
+                if cursor >= closing or not re.fullmatch(r"[A-Za-z_][A-Za-z_0-9]*", values[cursor]):
+                    raise ValueError(f"Unsupported enum case: {name}")
+                cases.append(values[cursor])
+                cursor += 1
+                if values[cursor:cursor + 1] != [","]:
+                    break
+                cursor += 1
+        if not cases or len(cases) != len(set(cases)):
+            raise ValueError(f"Empty/duplicate enum cases: {name}")
+        candidates.append((values[index:closing + 1], len(cases)))
+    if len(candidates) != 1:
+        raise ValueError(f"Missing/ambiguous visible enum collection: {name}")
+    return candidates[0]
+
+
+def parameter_collection(values, pairs, start, end, owner):
+    argument = values[start:end]
+    if len(argument) == 1 and re.fullmatch(r"[A-Za-z_][A-Za-z_0-9]*", argument[0]):
+        start = static_literal_start(values, pairs, argument[0], owner)
+        end = pairs[start] + 1
+        argument = values[start:end]
+    if argument and argument[0] == "[":
+        closing = pairs[start]
+        if (closing == end - 1 or
+                (values[closing + 1:closing + 3] == ["as", "["] and pairs[closing + 2] == end - 1)):
+            # Preserve the fixed census's literal-array type cast and single-array fingerprint.
+            return values[start:closing + 1], len(collection_parts(values, pairs, start + 1, closing))
+        initializer = closing + 1
+        type_name = "".join(values[start + 1:closing])
+        if (re.fullmatch(r"[A-Za-z_][A-Za-z_0-9]*(?:\.[A-Za-z_][A-Za-z_0-9]*)*\??", type_name)
+                and values[initializer:initializer + 3] == ["(", "arrayLiteral", ":"]
+                and pairs[initializer] == end - 1):
+            return argument, len(collection_parts(values, pairs, initializer + 3, end - 1))
+    elif len(argument) == 3 and argument[1:] == [".", "allCases"]:
+        # Preserve the sole external nonliteral collection in the fixed upstream census.
+        if argument[0] == "VolumeHotkeyStep":
+            return argument, 4
+        return enum_collection(values, pairs, argument[0], owner)
+    raise ValueError(f"Unrecognized or unconsumed parameter collection: {argument}")
+
+
 def scan_swift(source, path):
     items = tokens(source)
     values = [value for value, _ in items]
@@ -218,27 +300,17 @@ def scan_swift(source, path):
         arguments = []
         count = 1
         if argument_index is not None:
-            start = argument_index + 2
-            argument_tokens = values[start:attr_end - 1]
-            if values[start] != "[" and len(argument_tokens) == 1:
-                owner = max((opening for opening, closing, _ in types
-                             if opening < function < closing), default=None)
-                start = static_literal_start(values, pairs, argument_tokens[0], owner)
-            if values[start] == "[":
-                end = pairs[start]
-                arguments = values[start:end + 1]
-                cursor, count = start + 1, 0
-                while cursor < end:
-                    count += 1
-                    while cursor < end and values[cursor] != ",":
-                        cursor = pairs[cursor] + 1 if cursor in pairs else cursor + 1
-                    cursor += 1
-            else:
-                # The sole nonliteral collection in the verified fixed census.
-                arguments = values[start:attr_end - 1]
-                if arguments != ["VolumeHotkeyStep", ".", "allCases"]:
-                    raise ValueError(f"Unrecognized parameter collection in {identifier}: {arguments}")
-                count = 4
+            collections = collection_parts(values, pairs, argument_index + 2, attr_end - 1)
+            if not 1 <= len(collections) <= 2:
+                raise ValueError(f"Unsupported parameter collection arity in {identifier}")
+            owner = max((opening for opening, closing, _ in types
+                         if opening < function < closing), default=None)
+            for start, end in collections:
+                argument, invocations = parameter_collection(values, pairs, start, end, owner)
+                if arguments:
+                    arguments.append(",")
+                arguments.extend(argument)
+                count *= invocations
         assertions = []
         cursor = opening + 1
         while cursor < closing:
