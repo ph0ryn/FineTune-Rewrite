@@ -33,46 +33,91 @@ struct SettingsUpdateBindings {
 @MainActor
 struct SettingsUpdatesView: View {
   let capability: SettingsUpdateCapability
+  var version: String? =
+    Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
 
   var body: some View {
-    switch capability {
-    case .unavailable(let reason):
-      VStack(spacing: DesignTokens.Spacing.md) {
-        Image(systemName: "arrow.triangle.2.circlepath").font(.system(size: 32))
-        Text("Updates are unavailable in this build.").font(DesignTokens.Typography.rowName)
-        Text(reason).font(DesignTokens.Typography.rowDescription).foregroundStyle(.secondary)
-          .multilineTextAlignment(.center)
-      }
-      .padding(DesignTokens.Spacing.xxl)
-      .frame(maxWidth: .infinity, maxHeight: .infinity)
-    case .available(let read, let actions):
-      let current = read()
-      Form {
-        Section("Software Updates") {
-          Toggle(
-            "Automatic updates",
-            isOn: SettingsUpdateBindings(read: read, actions: actions).automaticChecks
-          )
-          .help("Check for new versions automatically")
+    Form {
+      Section("Software Updates") {
+        switch capability {
+        case .unavailable(let reason):
           HStack {
-            VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
-              Text("Last checked")
-              if let date = current.lastChecked {
-                Text(date, style: .relative).foregroundStyle(.secondary)
-              } else {
-                Text("Never checked").foregroundStyle(.secondary)
-              }
-            }
+            automaticUpdatesLabel
+            Spacer()
+            Text("Not configured").foregroundStyle(.secondary)
+            Toggle("Automatic updates", isOn: .constant(false)).labelsHidden().disabled(true)
+              .accessibilityValue("Not configured")
+          }
+          HStack {
+            lastCheckedLabel(date: nil)
+            Spacer()
+            checkNowButton
+          }
+          VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
+            Text("Updates are unavailable in this build.")
+            Text(reason).foregroundStyle(.secondary)
+          }
+          .font(DesignTokens.Typography.rowDescription)
+        case .available(let read, let actions):
+          let current = read()
+          HStack {
+            automaticUpdatesLabel
+            Spacer()
+            Toggle(
+              "Automatic updates",
+              isOn: SettingsUpdateBindings(read: read, actions: actions).automaticChecks
+            )
+            .labelsHidden()
+          }
+          HStack {
+            lastCheckedLabel(date: current.lastChecked)
             Spacer()
             if current.isChecking { ProgressView().controlSize(.small) }
-            Button("Check Now", action: actions.checkNow).disabled(current.isChecking)
+            checkNowButton
           }
           if let error = current.error {
             Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
           }
         }
       }
-      .formStyle(.grouped).controlSize(.small)
+    }
+    .formStyle(.grouped).controlSize(.small)
+  }
+
+  var canCheckNow: Bool {
+    guard case .available(let read, _) = capability else { return false }
+    return !read().isChecking
+  }
+
+  /// Both rendered branches use this same control and its real capability-specific action.
+  @ViewBuilder var checkNowButton: some View {
+    switch capability {
+    case .unavailable:
+      // An unreachable presentation placeholder, not a supplied update-service action.
+      Button("Check Now") {}.disabled(!canCheckNow)
+    case .available(_, let actions):
+      Button("Check Now", action: actions.checkNow).disabled(!canCheckNow)
+    }
+  }
+
+  private var automaticUpdatesLabel: some View {
+    VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
+      Text("Automatic updates")
+      Text("Check for new versions automatically")
+        .font(DesignTokens.Typography.rowDescription).foregroundStyle(.secondary)
+    }
+  }
+
+  private func lastCheckedLabel(date: Date?) -> some View {
+    VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
+      Text("Last checked")
+      if let date {
+        Text("Version \(version ?? "unavailable") · \(date, style: .relative)")
+          .font(DesignTokens.Typography.rowDescription).foregroundStyle(.secondary)
+      } else {
+        Text("Version \(version ?? "unavailable") · Never checked")
+          .font(DesignTokens.Typography.rowDescription).foregroundStyle(.secondary)
+      }
     }
   }
 }

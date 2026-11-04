@@ -34,7 +34,7 @@ struct FineTuneSettingsView: View {
         .tabItem { Label("Shortcuts", systemImage: "keyboard") }.tag(Tab.shortcuts)
         SettingsUpdatesView(capability: updates)
           .tabItem { Label("Updates", systemImage: "arrow.triangle.2.circlepath") }.tag(Tab.updates)
-        about.tabItem { Label("About", systemImage: "info.circle") }.tag(Tab.about)
+        SettingsAboutView().tabItem { Label("About", systemImage: "info.circle") }.tag(Tab.about)
       }
     }
     .frame(width: 720, height: 560)
@@ -51,18 +51,25 @@ struct FineTuneSettingsView: View {
   private var general: some View {
     Form {
       Section("General") {
-        Toggle("Launch at Login", isOn: bindings.field(\AppSettings.launchAtLogin))
-          .help("Start FineTune when you log in")
+        setting("Launch at Login", description: "Start FineTune when you log in") {
+          Toggle("Launch at Login", isOn: bindings.field(\AppSettings.launchAtLogin)).labelsHidden()
+        }
         setting("Theme", description: "Match macOS, or lock to Light or Dark") {
           Picker("Theme", selection: bindings.field(\AppSettings.appearance)) {
             ForEach(AppearancePreference.allCases) { Text($0.description).tag($0) }
           }
           .pickerStyle(.segmented).labelsHidden().frame(width: 220)
         }
-        Toggle(
-          "Device Disconnect Alerts", isOn: bindings.field(\AppSettings.showDeviceDisconnectAlerts)
-        )
-        .help("Show a notification when an audio device disconnects")
+        setting(
+          "Device Disconnect Alerts",
+          description: "Show notification when an audio device disconnects"
+        ) {
+          Toggle(
+            "Device Disconnect Alerts",
+            isOn: bindings.field(\AppSettings.showDeviceDisconnectAlerts)
+          )
+          .labelsHidden()
+        }
       }
       Section("Menu Bar") {
         setting("Icon Style", description: "How FineTune appears in your menu bar") {
@@ -71,7 +78,10 @@ struct FineTuneSettingsView: View {
           }
           .labelsHidden().fixedSize()
         }
-        setting("Popup Size", description: "Choose how much space the mixer uses") {
+        setting(
+          "Popup Size",
+          description: "Smaller fits more on screen; larger leaves more breathing room."
+        ) {
           Picker("Popup Size", selection: bindings.field(\AppSettings.popupSize)) {
             ForEach(MenuBarPopupSize.allCases) { Text($0.description).tag($0) }
           }
@@ -107,12 +117,15 @@ struct FineTuneSettingsView: View {
               value: bindings.defaultVolume, range: 10...100, label: "Default volume percentage")
           }
         }
-        Toggle("Loudness Compensation", isOn: bindings.unifiedLoudness)
-          .help("Boost low frequencies at low volume")
+        setting("Loudness Compensation", description: "Boost low frequencies at low volume") {
+          Toggle("Loudness Compensation", isOn: bindings.unifiedLoudness).labelsHidden()
+        }
       }
       Section("Devices") {
-        Toggle("Lock Input Device", isOn: bindings.field(\AppSettings.lockInputDevice))
-          .help("Prevent auto-switching when devices connect")
+        setting("Lock Input Device", description: "Prevent auto-switching when devices connect") {
+          Toggle("Lock Input Device", isOn: bindings.field(\AppSettings.lockInputDevice))
+            .labelsHidden()
+        }
         setting("System Sounds", description: "Where alerts and effects play") {
           systemSoundsPicker
         }
@@ -169,8 +182,12 @@ struct FineTuneSettingsView: View {
         }
       }
       Section("Media Keys") {
-        Toggle("Media Keys Control", isOn: bindings.field(\AppSettings.mediaKeyControlEnabled))
-          .help("Use F11/F12 or volume keys to control FineTune")
+        setting(
+          "Media Keys Control", description: "Use F11/F12 (or volume keys) to control FineTune"
+        ) {
+          Toggle("Media Keys Control", isOn: bindings.field(\AppSettings.mediaKeyControlEnabled))
+            .labelsHidden()
+        }
         if !read().isAccessibilityTrusted {
           HStack {
             Text("Allow Accessibility access to control volume with media keys.")
@@ -181,7 +198,14 @@ struct FineTuneSettingsView: View {
         }
         if read().isMediaKeyOffline {
           HStack {
-            Label("Media key control is offline.", systemImage: "exclamationmark.triangle")
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
+              Label("Media key control is offline.", systemImage: "exclamationmark.triangle")
+              Text(
+                "The media-key event tap is unavailable. This can happen after sleep or wake, or a main-thread stall. Try Again to reinstall it."
+              )
+              .font(DesignTokens.Typography.rowDescription).foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+            }
             Spacer()
             Button("Try Again", action: actions.retryMediaKeys)
           }
@@ -208,30 +232,6 @@ struct FineTuneSettingsView: View {
     .formStyle(.grouped).controlSize(.small)
   }
 
-  private var about: some View {
-    VStack(spacing: DesignTokens.Spacing.md) {
-      Spacer()
-      Image(systemName: "waveform").font(.system(size: 64)).accessibilityHidden(true)
-      Text("FineTune").font(.system(size: 22, weight: .semibold))
-      if let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString")
-        as? String
-      {
-        Text("Version \(version)").font(DesignTokens.Typography.percentage).foregroundStyle(
-          .secondary)
-      } else {
-        Text("Development build").font(DesignTokens.Typography.rowDescription).foregroundStyle(
-          .secondary)
-      }
-      Text("Independent rewrite · Original project by Ronit Singh")
-        .font(DesignTokens.Typography.rowDescription).foregroundStyle(.secondary)
-      Link(
-        "Original FineTune", destination: URL(string: "https://github.com/ronitsingh10/FineTune")!)
-      Link("GPL-3.0", destination: URL(string: "https://www.gnu.org/licenses/gpl-3.0.html")!)
-      Spacer()
-    }
-    .frame(maxWidth: .infinity, maxHeight: .infinity)
-  }
-
   private func setting<Content: View>(
     _ title: String, description: String, @ViewBuilder content: () -> Content
   ) -> some View {
@@ -253,5 +253,40 @@ struct FineTuneSettingsView: View {
     case .targetAppVolumeDown: "Lower volume for the app playing audio"
     case .targetAppMuteToggle: "Mute or unmute the app playing audio"
     }
+  }
+}
+
+@MainActor
+struct SettingsAboutView: View {
+  var metadata: SettingsAboutPresentation = .current
+  var appIcon: NSImage? = NSApp?.applicationIconImage
+
+  var body: some View {
+    VStack(spacing: DesignTokens.Spacing.md) {
+      Spacer()
+      if let appIcon {
+        Image(nsImage: appIcon).resizable().interpolation(.high).frame(width: 96, height: 96)
+          .accessibilityLabel("FineTune app icon")
+      } else {
+        Label("App icon unavailable", systemImage: "app")
+          .font(DesignTokens.Typography.rowDescription).foregroundStyle(.secondary)
+      }
+      Text("FineTune").font(.system(size: 22, weight: .semibold))
+      Text(metadata.versionDescription).font(DesignTokens.Typography.percentage)
+        .foregroundStyle(.secondary)
+      Text("Independent rewrite · Original project by Ronit Singh")
+        .font(DesignTokens.Typography.rowDescription).foregroundStyle(.secondary)
+      Spacer()
+      Link(
+        "Star on GitHub", destination: URL(string: "https://github.com/ronitsingh10/FineTune")!)
+      HStack(spacing: DesignTokens.Spacing.xs) {
+        Link("GPL-3.0", destination: URL(string: "https://www.gnu.org/licenses/gpl-3.0.html")!)
+        Text("·")
+        Text(metadata.copyright)
+      }
+      .font(DesignTokens.Typography.caption).foregroundStyle(.tertiary)
+      .padding(.bottom, DesignTokens.Spacing.lg)
+    }
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
   }
 }

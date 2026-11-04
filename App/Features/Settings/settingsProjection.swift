@@ -1,5 +1,6 @@
 import FineTuneControl
 import FineTuneDomain
+import Foundation
 import SwiftUI
 
 struct SettingsSnapshot {
@@ -8,6 +9,29 @@ struct SettingsSnapshot {
   var isMediaKeyOffline: Bool
   var error: String?
   var device: DeviceSettingsPresentation
+}
+
+/// Bundle metadata only; missing release information is never replaced with a shipped version.
+struct SettingsAboutPresentation {
+  var version: String?
+  var build: String?
+  var year: Int
+
+  static var current: Self {
+    Self(
+      version: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String,
+      build: Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String,
+      year: Calendar.current.component(.year, from: .now))
+  }
+
+  var versionDescription: String {
+    "Version \(version ?? "unavailable") (\(build ?? "build unavailable"))"
+  }
+
+  var copyright: String {
+    let years = year == 2026 ? "2026" : "2026–\(year)"
+    return "© \(years) Ronit Singh"
+  }
 }
 
 enum SettingsSystemSoundChoice: Hashable {

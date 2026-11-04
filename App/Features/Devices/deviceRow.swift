@@ -15,6 +15,7 @@ struct DeviceRow: View {
   let onSetDefault: () -> Void
   let onVolumeChange: (Float) -> Void
   let onMuteToggle: () -> Void
+  var autoEQSubtitle: String? = nil
 
   nonisolated static func volumeToSlider(_ volume: Float, backend: VolumeControlTier) -> Double {
     VolumeMapping.sliderFraction(forSystemGain: volume, tier: backend)
@@ -91,7 +92,13 @@ struct DeviceRow: View {
           } else {
             Image(systemName: isInput ? "mic" : "hifispeaker").frame(width: 24, height: 24)
           }
-          Text(device.name).font(DesignTokens.Typography.rowName).lineLimit(1).help(device.name)
+          VStack(alignment: .leading, spacing: 1) {
+            Text(device.name).font(DesignTokens.Typography.rowName).lineLimit(1).help(device.name)
+            if let autoEQSubtitle {
+              Text(autoEQSubtitle).font(DesignTokens.Typography.caption)
+                .foregroundStyle(DesignTokens.Colors.textTertiary).lineLimit(1).help(autoEQSubtitle)
+            }
+          }
           if isDefault { Image(systemName: "checkmark") }
         }
       }
@@ -101,8 +108,11 @@ struct DeviceRow: View {
       Spacer(minLength: 0)
       Button(action: onMuteToggle) {
         Image(
-          systemName: displayedMuteState.map { $0 ? "speaker.slash.fill" : "speaker.wave.2.fill" }
-            ?? "questionmark.circle")
+          systemName: displayedMuteState.map {
+            isInput
+              ? ($0 ? "mic.slash.fill" : "mic.fill")
+              : ($0 ? "speaker.slash.fill" : "speaker.wave.2.fill")
+          } ?? "questionmark.circle")
       }
       .buttonStyle(.plain)
       .disabled(!canToggleMute)
@@ -120,10 +130,15 @@ struct DeviceRow: View {
           .accessibilityLabel(
             "\(device.name) volume \(volume == nil ? "unavailable" : "read-only")")
       }
-      Text(displayedPercentage.map { "\($0)%" } ?? "—")
-        .font(DesignTokens.Typography.percentage)
-        .frame(width: 36, alignment: .trailing)
-        .accessibilityHidden(volume == nil)
+      if let slider {
+        VolumePercentageField(
+          value: slider, range: 0...100, label: "\(device.name) volume percentage")
+      } else {
+        Text(displayedPercentage.map { "\($0)%" } ?? "—")
+          .font(DesignTokens.Typography.percentage)
+          .frame(width: DesignTokens.Dimensions.percentageWidth, alignment: .trailing)
+          .accessibilityHidden(volume == nil)
+      }
     }
     .padding(.vertical, DesignTokens.Spacing.sm)
   }

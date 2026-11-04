@@ -293,22 +293,46 @@ struct DeviceDetailSheet: View {
           .font(DesignTokens.Typography.caption)
           .foregroundStyle(DesignTokens.Colors.textSecondary)
       }
-      if Self.shouldShowToggle(
-        autoTier: autoDetectedTier, isInput: isInput, allowsVolumeOverride: allowsVolumeOverride,
-        hasOverrideAction: onOverrideChange != nil)
-      {
-        Divider()
-        Toggle("Use FineTune's software volume", isOn: useSoftwareBinding).toggleStyle(.switch)
-          .font(DesignTokens.Typography.pickerText)
-        Text(
-          "Turn on only if the volume slider doesn't work. FineTune remembers this for each device."
-        )
-        .font(DesignTokens.Typography.caption).foregroundStyle(DesignTokens.Colors.textTertiary)
-      }
+      softwareVolumeControls
     }
     .padding(.horizontal, 12).padding(.vertical, 10)
     .background(DesignTokens.Colors.recessedBackground, in: RoundedRectangle(cornerRadius: 10))
     .onAppear { inspector.start() }
     .onDisappear { inspector.stop() }
+  }
+
+  /// The rendered override controls are independent of the sheet's HAL-observing lifecycle.
+  @ViewBuilder var softwareVolumeControls: some View {
+    if let autoDetectedTier,
+      Self.shouldShowToggle(
+        autoTier: autoDetectedTier, isInput: isInput, allowsVolumeOverride: allowsVolumeOverride,
+        hasOverrideAction: onOverrideChange != nil)
+    {
+      Divider()
+      HStack(spacing: DesignTokens.Spacing.xs) {
+        Text("Auto: \(Self.tierDisplayName(autoDetectedTier))")
+          .font(DesignTokens.Typography.caption.weight(.semibold))
+          .foregroundStyle(DesignTokens.Colors.textSecondary)
+          .padding(.horizontal, 6).padding(.vertical, 2)
+          .background(DesignTokens.Colors.glassFillStrong, in: Capsule())
+          .fixedSize()
+          .accessibilityLabel(
+            "Auto-detected volume control: \(Self.tierDisplayName(autoDetectedTier))")
+        Toggle("Use FineTune's software volume", isOn: useSoftwareBinding).toggleStyle(.switch)
+          .font(DesignTokens.Typography.pickerText)
+      }
+      Text(
+        "Turn on only if the volume slider doesn't work. FineTune remembers this for each device."
+      )
+      .font(DesignTokens.Typography.caption).foregroundStyle(DesignTokens.Colors.textTertiary)
+    }
+  }
+
+  private static func tierDisplayName(_ tier: VolumeControlTier) -> String {
+    switch tier {
+    case .hardware: "Hardware"
+    case .ddc: "DDC"
+    case .software: "Software"
+    }
   }
 }
