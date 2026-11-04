@@ -26,6 +26,8 @@ struct MixerAppPresentation: Identifiable {
   var isPinned: Bool
   var isIgnored: Bool
   var routeStatus: String?
+  /// Native's observed post-output peak; nil means no current telemetry, not silence.
+  var peakLevel: Float? = nil
 }
 
 struct MixerDevicePresentation: Identifiable {
@@ -85,6 +87,7 @@ struct MixerAppActions {
   let createPreset: (String, EQSettings) -> Void
   let renamePreset: (UUID, String) -> Void
   let deletePreset: (UUID) -> Void
+  let activate: (String) -> Void
 }
 
 @MainActor
@@ -154,23 +157,28 @@ struct MixerBindings {
   }
 
   /// Root and unit tests construct this same real component. DeviceRow owns its only slider mapping.
-  func deviceRow(_ row: MixerDevicePresentation, scope: MixerDeviceScope) -> DeviceRow {
-    let automatic =
-      row.device.icon
-      ?? NSImage(
-        systemSymbolName: row.automaticSymbol(scope: scope), accessibilityDescription: nil)
+  func deviceRow(
+    _ row: MixerDevicePresentation, scope: MixerDeviceScope, autoEQSubtitle: String? = nil
+  ) -> DeviceRow {
     let device = AudioDevice(
       id: row.device.id, uid: row.id, name: row.device.name,
-      icon: DeviceIconResolver.displayIcon(
-        overrideSymbol: row.iconOverride, automatic: automatic, deviceName: row.device.name),
-      supportsAutoEQ: row.device.supportsAutoEQ)
+      icon: deviceIcon(row, scope: scope), supportsAutoEQ: row.device.supportsAutoEQ)
     return DeviceRow(
       device: device, isDefault: row.isDefault, volume: row.volume, isMuted: row.isMuted,
       volumeBackend: row.backend, canSetVolume: row.canSetVolume, canSetMute: row.canSetMute,
       isInput: scope == .input,
       onSetDefault: { actions.device.setDefault(scope, row.id) },
       onVolumeChange: { actions.device.setVolume(scope, row.id, $0) },
-      onMuteToggle: { toggleDeviceMute(scope: scope, uid: row.id) })
+      onMuteToggle: { toggleDeviceMute(scope: scope, uid: row.id) },
+      autoEQSubtitle: autoEQSubtitle)
+  }
+
+  func deviceIcon(_ row: MixerDevicePresentation, scope: MixerDeviceScope) -> NSImage? {
+    let automatic =
+      row.device.icon
+      ?? NSImage(systemSymbolName: row.automaticSymbol(scope: scope), accessibilityDescription: nil)
+    return DeviceIconResolver.displayIcon(
+      overrideSymbol: row.iconOverride, automatic: automatic, deviceName: row.device.name)
   }
 
   /// Mouse and keyboard resolve the current UID's same UI intent; no stale row supplies mute state.
@@ -234,6 +242,10 @@ struct MixerBindings {
     let names = app.selectedDeviceUIDs.sorted().map { uid in
       devices.first { $0.id == uid }?.device.name ?? "Unavailable (\(uid))"
     }
-    return names.isEmpty ? "No output selected" : names.joined(separator: ", ")
+    let outputs = names.isEmpty ? "No output selected" : names.joined(separator: ", ")
+    if app.selectionMode == .multi {
+      return "Multi · \(names.count) \(names.count == 1 ? "device" : "devices") — \(outputs)"
+    }
+    return outputs
   }
 }

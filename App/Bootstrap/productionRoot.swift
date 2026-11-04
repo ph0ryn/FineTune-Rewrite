@@ -28,6 +28,26 @@ final class ProductionRoot {
   let workspaceObservation: WorkspaceTargetObservation
   let keyboard: SystemShortcutRegistration
   private let ddc: DDCVolumeBackend
+  private let quit: () -> Void
+  private var lastMenuBarDefaultUID: String?
+  private lazy var applicationIcons = RootApplicationIconCache(resolve: { bundleID in
+    guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) else {
+      return nil
+    }
+    return NSWorkspace.shared.icon(forFile: url.path)
+  })
+
+  private lazy var menuBarIcon = RootMenuBarIconCoordinator(
+    readBaseline: { [unowned self] in
+      let id = output.defaultDeviceID
+      return MenuBarIconState.baseline(
+        style: graph.settings.appSettings.menuBarIconStyle,
+        volume: output.volumes[id] ?? 0, muted: output.muteStates[id] ?? false,
+        deviceSymbol: currentMenuBarDeviceSymbol())
+    },
+    readDeviceSymbol: { [unowned self] in currentMenuBarDeviceSymbol() },
+    apply: { [unowned self] image in menuBar.statusItem.button?.image = image.nsImage() },
+    clock: .continuous)
 
   lazy var lifecycle: LifecycleCoordinator = LifecycleCoordinator(
     settings: graph.settings,
@@ -46,22 +66,28 @@ final class ProductionRoot {
           observeCurrentPolicies: { self.observeDevicePolicies() })
       },
       suspendInput: { [unowned self] in
+        menuBarIcon.stop()
         Self.suspendInput(shortcuts: shortcuts, stopMediaKeys: { self.mediaKeys.stop() })
       },
       resumeInput: { [unowned self] in
+        menuBarIcon.start()
         Self.resumeInput(shortcuts: shortcuts, refreshMediaKeys: { self.refreshAccessibility() })
       }))
 
   lazy var presentation = RootPresentation(
     graph: graph, devices: deviceControl, native: native, accessibility: accessibility,
     mediaKeyStatus: mediaKeyStatus, lifecycle: lifecycle,
-    hasCaptureUsageDescription: captureRuntime.isConfigured)
+    hasCaptureUsageDescription: captureRuntime.isConfigured,
+    applicationIcon: { [unowned self] in applicationIcons.icon(for: $0) })
 
-  lazy var menuBar = MenuBarPresentation(visibility: popupVisibility) { [unowned self] in
-    MixerView(
-      read: { self.presentation.mixerSnapshot() }, actions: mixerActions,
-      profiles: graph.autoEQAutomation.makeMixerInterface())
-  }
+  lazy var menuBar = MenuBarPresentation(
+    visibility: popupVisibility,
+    willShow: { [unowned self] in deviceControl.backendActions.refreshBluetooth() },
+    content: { [unowned self] in
+      MixerView(
+        read: { self.presentation.mixerSnapshot() }, actions: mixerActions,
+        profiles: graph.autoEQAutomation.makeMixerInterface(), quit: quit)
+    })
 
   lazy var shortcuts = ShortcutsRegistry(
     settings: graph.settings, popupController: menuBar.popupController, resolver: targetResolver,
@@ -82,7 +108,7 @@ final class ProductionRoot {
     return window
   }()
 
-  init(directory: URL, usageDescription: String?) throws {
+  init(directory: URL, usageDescription: String?, quit: @escaping () -> Void) throws {
     let settings = SettingsManager(directory: directory)
     let profiles = try AutoEQProfileRepository(
       directory: directory.appendingPathComponent("Profiles", isDirectory: true),
@@ -203,9 +229,18 @@ final class ProductionRoot {
     workspaceObservation = WorkspaceTargetObservation(resolver: resolver)
     keyboard = SystemShortcutRegistration()
     self.ddc = ddc
+    self.quit = quit
+    mediaKeys.iconCoordinator = menuBarIcon
   }
 
   private func startServices() {
+    primeApplicationIcons()
+    lifecycle.observeWhileStarted(
+      read: { [weak settings = graph.settings] in
+        _ = settings?.getPinnedAppInfo()
+        _ = settings?.getIgnoredAppInfo()
+      },
+      onChange: { [weak self] in self?.primeApplicationIcons() })
     // Created inside the coordinator's current generation, never while it is still idle.
     devices.onObservationChanged = lifecycle.callbackWhileRunning { [weak self] in
       self?.devicesChanged()
@@ -248,8 +283,16 @@ final class ProductionRoot {
             forSliderFraction: fraction,
             tier: output.outputVolumeBackend(for: output.defaultDeviceID))))
     }
-    updateMenuBarIcon()
+    lastMenuBarDefaultUID = output.hasCurrentDefaultOutput ? output.defaultDeviceUID : nil
+    menuBarIcon.start()
     trackDefaultObservations()
+    lifecycle.observeWhileStarted(
+      read: { [weak settings = graph.settings] in
+        _ = settings?.appSettings.menuBarIconStyle
+        _ = settings?.devicePriorityOrder
+        _ = settings?.deviceIconOverrides
+      },
+      onChange: { [weak self] in self?.updateMenuBarIcon() })
   }
 
   static func suspendInput(
@@ -294,6 +337,11 @@ final class ProductionRoot {
         observeDevicePolicies()
         deviceControl.settingsDidChange()
         graph.engine.refreshDeviceLevels()
+        let currentUID = output.hasCurrentDefaultOutput ? output.defaultDeviceUID : nil
+        if let previous = lastMenuBarDefaultUID, let currentUID, previous != currentUID {
+          menuBarIcon.flashDevice()
+        }
+        lastMenuBarDefaultUID = currentUID
         updateMenuBarIcon()
         presentation.invalidate()
       })
@@ -345,6 +393,8 @@ final class ProductionRoot {
   }
 
   private func stopServices() async throws {
+    menuBarIcon.stop()
+    lastMenuBarDefaultUID = nil
     mediaKeys.stop()
     shortcuts.stop()
     workspaceObservation.stop()
@@ -417,9 +467,50 @@ final class ProductionRoot {
       }, device: deviceControl.backendActions)
   }
 
+  private func primeApplicationIcons() {
+    let saved = graph.settings.getPinnedAppInfo() + graph.settings.getIgnoredAppInfo()
+    applicationIcons.prime(bundleIDs: Set(saved.compactMap(\.bundleID)))
+    presentation.invalidate()
+  }
+
+  static func activateApplication(
+    bundleURL: URL?, activate: () -> Bool,
+    reopen: (URL, @escaping @MainActor (String?) -> Void) -> Void,
+    reportFailure: @escaping @MainActor (String?) -> Void
+  ) {
+    guard let bundleURL else {
+      reportFailure(activate() ? nil : "The application could not be activated.")
+      return
+    }
+    reportFailure(nil)
+    reopen(bundleURL, reportFailure)
+  }
+
   private var mixerActions: MixerActions {
     MixerActions(
-      app: graph.bindings.appActions, device: presentation.deviceActions,
+      app: graph.bindings.appActions(activate: { [unowned self] identifier in
+        guard processes.observation.health == .healthy,
+          let app = processes.activeApps.first(where: { $0.persistenceIdentifier == identifier }),
+          let running = NSRunningApplication(processIdentifier: app.id)
+        else { return }
+        let applicationName = app.name
+        Self.activateApplication(
+          bundleURL: running.bundleURL, activate: { running.activate() },
+          reopen: { url, completion in
+            let configuration = NSWorkspace.OpenConfiguration()
+            configuration.createsNewApplicationInstance = false
+            configuration.activates = true
+            NSWorkspace.shared.openApplication(at: url, configuration: configuration) { _, error in
+              let failure = error.map {
+                "Unable to reopen \(applicationName): \($0.localizedDescription)"
+              }
+              Task { @MainActor in completion(failure) }
+            }
+          },
+          reportFailure: { [weak presentation = self.presentation] in
+            presentation?.applicationActivationFailure = $0
+          })
+      }), device: presentation.deviceActions,
       openSettings: { [unowned self] in openSettings() },
       close: { [unowned self] in menuBar.toggle() }, backend: deviceControl.backendActions,
       requestCapturePermission: { [unowned self] in graph.controller.perform(.requestCaptureStart)
@@ -432,12 +523,27 @@ final class ProductionRoot {
       })
   }
 
-  private func updateMenuBarIcon() {
-    let id = output.defaultDeviceID
-    let state = MenuBarIconState.baseline(
-      style: graph.settings.appSettings.menuBarIconStyle,
-      volume: output.volumes[id] ?? 0, muted: output.muteStates[id] ?? false)
-    menuBar.statusItem.button?.image = state.image.nsImage()
+  private func updateMenuBarIcon() { menuBarIcon.refresh() }
+
+  private func currentMenuBarDeviceSymbol() -> String {
+    Self.menuBarDeviceSymbol(
+      outputDevices: devices.observation.health == .healthy ? devices.outputDevices : [],
+      defaultDeviceID: output.hasCurrentDefaultOutput
+        ? output.defaultDeviceID : kAudioObjectUnknown,
+      priorityOrder: graph.settings.devicePriorityOrder,
+      overrideForUID: { graph.settings.getDeviceIconOverride(for: $0) })
+  }
+
+  static func menuBarDeviceSymbol(
+    outputDevices: [AudioDevice], defaultDeviceID: AudioDeviceID,
+    priorityOrder: [String], overrideForUID: (String) -> String?
+  ) -> String {
+    MenuBarDeviceIconResolver.resolveSymbol(
+      priorityOrder: priorityOrder, outputDevices: outputDevices, defaultDeviceID: defaultDeviceID,
+      overrideForUID: overrideForUID, isDeviceAvailable: { $0.id != kAudioObjectUnknown },
+      symbolForDevice: {
+        DeviceIconSymbol.iconSymbol(forName: $0.name, transport: $0.transportType)
+      }, symbolForDefaultID: { _ in MenuBarDeviceIconResolver.fallbackSymbol })
   }
 
   func closePresentation() {

@@ -419,7 +419,7 @@ struct MixerTests {
     let results = source.interface.search("specific headphones", true)
     #expect(source.lastQuery == "specific headphones")
     #expect(source.lastFavoritesOnly == true)
-    #expect(results.map(\.id) == ["catalog-profile"])
+    #expect(results.entries.map(\.id) == ["catalog-profile"])
     let bindings = MixerProfileBindings(deviceUID: "headphones-a", interface: source.interface)
     bindings.toggleFavorite("catalog-profile")
     bindings.preampEnabled.wrappedValue = false
@@ -463,7 +463,9 @@ struct MixerTests {
       message: "System audio permission has not been determined.", action: .requestPermission)
     let host = NSHostingView(
       rootView: MixerView(
-        read: { source.snapshot }, actions: source.actions, profiles: source.profileSource.interface
+        read: { source.snapshot }, actions: source.actions,
+        profiles: source.profileSource.interface,
+        quit: { source.events.append("quit") }
       ))
     host.setFrameSize(NSSize(width: 510, height: 560))
     host.layoutSubtreeIfNeeded()
@@ -478,7 +480,9 @@ struct MixerTests {
     source.snapshot.settings.popupSize = .compact
     let host = NSHostingView(
       rootView: MixerView(
-        read: { source.snapshot }, actions: source.actions, profiles: source.profileSource.interface
+        read: { source.snapshot }, actions: source.actions,
+        profiles: source.profileSource.interface,
+        quit: { source.events.append("quit") }
       ))
     host.setFrameSize(NSSize(width: 470, height: 500))
     host.layoutSubtreeIfNeeded()
@@ -490,7 +494,7 @@ struct MixerTests {
 
 @MainActor
 @Observable
-private final class MixerTestSource {
+final class MixerTestSource {
   var snapshot: MixerSnapshot
   let profileSource = MixerProfileTestSource()
   var events: [String] = []
@@ -587,7 +591,11 @@ private final class MixerTestSource {
         },
         createPreset: { self.events.append("create-preset:\($0):\($1.bandGains.count)") },
         renamePreset: { self.events.append("rename-preset:\($0):\($1)") },
-        deletePreset: { self.events.append("delete-preset:\($0)") }
+        deletePreset: { self.events.append("delete-preset:\($0)") },
+        activate: {
+          self.lastAppID = $0
+          self.events.append("activate")
+        }
       ),
       device: MixerDeviceActions(
         setDefault: {
@@ -623,7 +631,7 @@ private final class MixerTestSource {
 
 @MainActor
 @Observable
-private final class MixerProfileTestSource {
+final class MixerProfileTestSource {
   var snapshot = MixerProfilePresentation(
     catalogState: .ready, selection: nil, profileName: nil, isMissing: false,
     isResolving: false, selectionError: nil, favoriteIDs: [], preampEnabled: true)
@@ -641,7 +649,11 @@ private final class MixerProfileTestSource {
       search: {
         self.lastQuery = $0
         self.lastFavoritesOnly = $1
-        return [MixerProfileChoice(id: "catalog-profile", name: "Headphones", detail: "Measured")]
+        return MixerProfileSearchResult(
+          entries: [
+            MixerProfileChoice(id: "catalog-profile", name: "Headphones", detail: "Measured")
+          ],
+          totalCount: 1)
       },
       importProfile: {
         self.lastDeviceUID = $0

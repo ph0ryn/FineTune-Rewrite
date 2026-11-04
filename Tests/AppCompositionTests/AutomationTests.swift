@@ -166,9 +166,53 @@ struct AutoEQAutomationTests {
     #expect(!presentation.isMissing)
     #expect(!presentation.isResolving)
     #expect(!presentation.preampEnabled)
-    #expect(fixture.automation.search(query: "", favoritesOnly: true).map(\.id) == ["A"])
-    #expect(fixture.automation.search(query: "Profile", favoritesOnly: true).map(\.id) == ["A"])
+    #expect(fixture.automation.search(query: "", favoritesOnly: true).entries.map(\.id) == ["A"])
+    #expect(
+      fixture.automation.search(query: "Profile", favoritesOnly: true).entries.map(\.id) == ["A"])
     #expect(await fixture.http.requestedURLs.isEmpty)
+  }
+
+  @Test("The production Mixer interface retains complete search totals after the fifty-row limit")
+  func mixerSearchRetainsTotalCount() async throws {
+    let fixture = try await fixture(prepareCatalog: false)
+    defer { fixture.cleanUp() }
+    try fixture.files.writeCatalog(
+      (1...80).map {
+        AutoEQCatalogEntry(
+          id: "profile-\($0)", name: "Profile \($0)", measuredBy: "Measurement source",
+          relativePath: "source/Profile \($0)")
+      })
+    try await fixture.repository.loadCatalog()
+    let interface = fixture.automation.makeMixerInterface()
+    let results = interface.search("Profile", false)
+    #expect(results.entries.count == 50)
+    #expect(results.totalCount == 80)
+    fixture.preferences.favoriteAutoEQProfileIDs = ["profile-75", "profile-80"]
+    let favorites = interface.search("Profile", true)
+    #expect(Set(favorites.entries.map(\.id)) == ["profile-75", "profile-80"])
+    #expect(favorites.totalCount == 2)
+    #expect(await fixture.http.requestedURLs.isEmpty)
+    #expect(fixture.commands.commands.isEmpty)
+  }
+
+  @Test(
+    "The production selected profile exposes its measured or imported source",
+    arguments: [AutoEQSource.fetched, .imported])
+  func mixerSelectedProfileRetainsSource(source: AutoEQSource) async throws {
+    let selected = AutoEQProfile(
+      id: "selected", name: "Selected headphones", source: source, preampDB: -3,
+      filters: [AutoEQFilter(type: .peaking, frequency: 500, gainDB: 2, q: 1)],
+      measuredBy: source == .imported ? nil : "Measurement source")
+    let fixture = try await fixture(cachedProfiles: [selected])
+    defer { fixture.cleanUp() }
+    fixture.preferences.selections["origin"] = AutoEQSelection(
+      profileID: selected.id, isEnabled: false)
+    let current = fixture.automation.makeMixerInterface().read("origin")
+    #expect(current.profileName == selected.name)
+    #expect(current.profileDetail == (source == .imported ? "Imported" : "Measurement source"))
+    #expect(current.selection?.isEnabled == false)
+    #expect(await fixture.http.requestedURLs.isEmpty)
+    #expect(fixture.commands.commands.isEmpty)
   }
 
   @Test("Required UI requests use the common commands and do not invent saved state")
@@ -335,7 +379,7 @@ struct AutoEQAutomationTests {
       return
     }
     #expect(message.contains("503"))
-    #expect(fixture.automation.search(query: "Profile", favoritesOnly: false).isEmpty)
+    #expect(fixture.automation.search(query: "Profile", favoritesOnly: false).entries.isEmpty)
   }
 
   @Test(

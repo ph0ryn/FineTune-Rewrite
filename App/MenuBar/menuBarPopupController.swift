@@ -65,16 +65,70 @@ final class MenuBarPopupController: MenuBarPopupControlling {
   }
 }
 
+/// Keeps the hosted content transparent inside the actual glass surface, and publishes ideal size
+/// changes to NSPopover. No screen-sized viewport or scrolling participates in popup sizing.
+@MainActor
+final class MenuBarPopupContentController<Content: View>: NSViewController {
+  private let hosting: NSHostingController<Content>
+  private let sizeDidChange: (NSSize) -> Void
+
+  init(content: Content, sizeDidChange: @escaping (NSSize) -> Void) {
+    hosting = NSHostingController(rootView: content)
+    self.sizeDidChange = sizeDidChange
+    super.init(nibName: nil, bundle: nil)
+    addChild(hosting)
+    hosting.sizingOptions = [.preferredContentSize]
+  }
+
+  @available(*, unavailable)
+  required init?(coder: NSCoder) { return nil }
+
+  override func loadView() {
+    let content = hosting.view
+    if #available(macOS 26, *) {
+      let glass = NSGlassEffectView()
+      glass.style = .regular
+      glass.cornerRadius = DesignTokens.Dimensions.cornerRadius + DesignTokens.Spacing.sm
+      if #available(macOS 27, *) { glass.effectIsInteractive = true }
+      // AppKit only guarantees glass z-order for contentView, not arbitrary subviews.
+      glass.contentView = content
+      view = glass
+    } else {
+      view = content
+    }
+    let size = hosting.sizeThatFits(
+      in: NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude))
+    preferredContentSize = size
+    view.setFrameSize(size)
+    content.frame = view.bounds
+    content.autoresizingMask = [.width, .height]
+    sizeDidChange(size)
+  }
+
+  override func preferredContentSizeDidChange(for viewController: NSViewController) {
+    super.preferredContentSizeDidChange(for: viewController)
+    guard viewController === hosting, isViewLoaded else { return }
+    preferredContentSize = hosting.preferredContentSize
+    sizeDidChange(preferredContentSize)
+  }
+}
+
 /// Concrete menu-bar presentation: visibility changes are shared with HUD guards.
 @MainActor
 final class MenuBarPresentation: NSObject, NSPopoverDelegate {
   let statusItem: NSStatusItem
   let popupController: MenuBarPopupController
-  private let popover = NSPopover()
+  private let popover: NSPopover
   private let visibility: PopupVisibilityService
+  private let willShow: () -> Void
 
-  init<Content: View>(visibility: PopupVisibilityService, @ViewBuilder content: () -> Content) {
+  init<Content: View>(
+    visibility: PopupVisibilityService, willShow: @escaping () -> Void,
+    @ViewBuilder content: () -> Content
+  ) {
     self.visibility = visibility
+    self.willShow = willShow
+    popover = Self.makePopover(content: content())
     statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     popupController = MenuBarPopupController()
     super.init()
@@ -83,16 +137,28 @@ final class MenuBarPresentation: NSObject, NSPopoverDelegate {
       systemSymbolName: "slider.horizontal.3", accessibilityDescription: "FineTune")
     statusItem.button?.target = self
     statusItem.button?.action = #selector(toggle)
-    popover.contentViewController = NSHostingController(rootView: content())
     popover.behavior = .transient
     popover.delegate = self
     popupController.attach(statusItem: statusItem) { [weak self] in self?.toggle() }
+  }
+
+  static func makePopover<Content: View>(content: Content) -> NSPopover {
+    let popover = NSPopover()
+    let controller = MenuBarPopupContentController(content: content) { [weak popover] size in
+      popover?.contentSize = size
+    }
+    popover.contentViewController = controller
+    // NSPopover does not load an arbitrary child controller or infer its later preferred size.
+    controller.loadViewIfNeeded()
+    popover.contentSize = controller.preferredContentSize
+    return popover
   }
 
   @objc func toggle() {
     if popover.isShown {
       popover.performClose(nil)
     } else if let button = statusItem.button {
+      willShow()
       popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
     }
     visibility.isVisible = popover.isShown

@@ -9,6 +9,7 @@ struct MixerView: View {
   let read: () -> MixerSnapshot
   let actions: MixerActions
   let profiles: MixerProfileInterface
+  let quit: () -> Void
   @State private var scope: MixerDeviceScope = .output
   @State private var isEditing = false
   @State private var expandedAppID: String?
@@ -19,6 +20,18 @@ struct MixerView: View {
   @State private var navigation = PopupKeyboardNavModel()
   @State private var keyboard = MixerKeyboardState()
   @FocusState private var anchorFocused: Bool
+
+  init(
+    read: @escaping () -> MixerSnapshot, actions: MixerActions, profiles: MixerProfileInterface,
+    quit: @escaping () -> Void,
+    initialExpandedAppID: String? = nil
+  ) {
+    self.read = read
+    self.actions = actions
+    self.profiles = profiles
+    self.quit = quit
+    _expandedAppID = State(initialValue: initialExpandedAppID)
+  }
 
   private struct DeviceSelection: Identifiable {
     let scope: MixerDeviceScope
@@ -37,7 +50,11 @@ struct MixerView: View {
     content
       .padding(snapshot.settings.popupSize.dimensions.contentPadding)
       .frame(width: snapshot.settings.popupSize.dimensions.width)
-      .background(.regularMaterial)
+      .fixedSize(horizontal: false, vertical: true)
+      .background {
+        // Native glass contains this transparent content on newer systems.
+        if #unavailable(macOS 26) { Rectangle().fill(.regularMaterial) }
+      }
       .background(WindowAppearanceBridge(appearance: snapshot.settings.appearance.nsAppearance))
       .preferredColorScheme(snapshot.settings.appearance.swiftUIColorScheme)
       .environment(\.appearancePreference, snapshot.settings.appearance)
@@ -84,6 +101,15 @@ struct MixerView: View {
         .buttonStyle(.plain)
         Button(action: actions.openSettings) { Image(systemName: "gearshape") }
           .buttonStyle(.plain).accessibilityLabel("Settings")
+        Button("Quit", action: quit)
+          .buttonStyle(.plain).keyboardShortcut("q", modifiers: .command)
+          .accessibilityLabel("Quit FineTune").help("Quit FineTune (⌘Q)")
+      }
+      if isEditing {
+        Text("Drag or type a number to set priority")
+          .font(DesignTokens.Typography.rowDescription).foregroundStyle(.secondary)
+      } else {
+        defaultDevicesStatus
       }
       if let notice = read().captureNotice {
         HStack(spacing: DesignTokens.Spacing.sm) {
@@ -105,43 +131,77 @@ struct MixerView: View {
         Label(error, systemImage: "exclamationmark.triangle.fill")
           .font(DesignTokens.Typography.rowDescription).foregroundStyle(.orange)
       }
-      ScrollViewReader { proxy in
-        ScrollView {
-          VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
-            deviceSection
-            if scope == .output && !isEditing {
-              MixerBluetoothSection(read: { read().backend.bluetooth }, actions: actions.backend)
-            }
-            Divider().padding(.vertical, DesignTokens.Spacing.xs)
-            Text("APPLICATIONS").font(DesignTokens.Typography.sectionHeader)
-              .tracking(DesignTokens.Typography.sectionHeaderTracking)
-              .foregroundStyle(DesignTokens.Colors.sectionHeaderText)
-            let apps = bindings.visibleApps(editing: isEditing)
-            if apps.isEmpty {
-              Text("Apps playing audio appear here.")
-                .font(DesignTokens.Typography.rowName).foregroundStyle(.secondary)
-                .padding(.vertical, DesignTokens.Spacing.md)
-            }
-            ForEach(apps) { app in
-              MixerAppRow(
-                app: app, bindings: bindings, isEditing: isEditing,
-                percentageDraft: keyboard.selectedRow == .app(persistenceID: app.id)
-                  ? keyboard.percentageDraft : nil,
-                isEQExpanded: Binding(
-                  get: { expandedAppID == app.id }, set: { expandedAppID = $0 ? app.id : nil })
-              )
-              .id(PopupKeyboardNavModel.RowID.app(persistenceID: app.id))
-              .background(selectionBackground(.app(persistenceID: app.id)))
-            }
-          }
-        }
-        .scrollIndicators(.never)
-        .frame(maxHeight: read().settings.popupSize.dimensions.maxContentHeight)
-        .onChange(of: keyboard.selectedRow) { _, row in
-          if let row { proxy.scrollTo(row, anchor: .center) }
+      deviceSection
+      if scope == .output && isEditing {
+        MixerBluetoothSection(
+          read: {
+            var current = read().backend.bluetooth
+            let connectedNames = Set(read().outputDevices.map { $0.device.name })
+            current.paired.removeAll { connectedNames.contains($0.name) }
+            return current
+          }, actions: actions.backend)
+      }
+      Divider().padding(.vertical, DesignTokens.Spacing.xs)
+      applicationsSection
+    }
+  }
+
+  private var defaultDevicesStatus: some View {
+    let snapshot = read()
+    let output = snapshot.outputDevices.first(where: \.isDefault)?.device.name ?? "No Output"
+    let input = snapshot.inputDevices.first(where: \.isDefault)?.device.name ?? "No Input"
+    return HStack(spacing: DesignTokens.Spacing.xs) {
+      Label(output, systemImage: "speaker.wave.2.fill")
+        .lineLimit(1).truncationMode(.middle).help(output)
+      Text("·")
+      Label(input, systemImage: "mic.fill")
+        .lineLimit(1).truncationMode(.middle).help(input)
+    }
+    .font(DesignTokens.Typography.rowDescription).foregroundStyle(.secondary)
+  }
+
+  private var applicationsSection: some View {
+    let apps = bindings.visibleApps(editing: isEditing)
+    let ignored = read().apps.filter(\.isIgnored)
+    return VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+      HStack {
+        Text("APPLICATIONS").font(DesignTokens.Typography.sectionHeader)
+          .tracking(DesignTokens.Typography.sectionHeaderTracking)
+        Spacer()
+        if !ignored.isEmpty {
+          Text("\(ignored.count) ignored").font(DesignTokens.Typography.rowDescription)
         }
       }
+      .foregroundStyle(DesignTokens.Colors.sectionHeaderText)
+      if apps.isEmpty {
+        Text(
+          ignored.isEmpty
+            ? "Apps playing audio appear here."
+            : "No apps playing audio. Select Edit to show ignored apps."
+        )
+        .font(DesignTokens.Typography.rowName).foregroundStyle(.secondary)
+        .padding(.vertical, DesignTokens.Spacing.md)
+      }
+      ForEach(apps.filter { !$0.isIgnored }) { app in appRow(app) }
+      if isEditing && !ignored.isEmpty {
+        Text("IGNORED").font(DesignTokens.Typography.sectionHeader)
+          .tracking(DesignTokens.Typography.sectionHeaderTracking)
+          .foregroundStyle(DesignTokens.Colors.sectionHeaderText)
+        ForEach(ignored) { app in appRow(app) }
+      }
     }
+  }
+
+  private func appRow(_ app: MixerAppPresentation) -> some View {
+    MixerAppRow(
+      app: app, bindings: bindings, isEditing: isEditing,
+      percentageDraft: keyboard.selectedRow == .app(persistenceID: app.id)
+        ? keyboard.percentageDraft : nil,
+      isEQExpanded: Binding(
+        get: { expandedAppID == app.id }, set: { expandedAppID = $0 ? app.id : nil })
+    )
+    .id(PopupKeyboardNavModel.RowID.app(persistenceID: app.id))
+    .background(selectionBackground(.app(persistenceID: app.id)))
   }
 
   private var deviceSection: some View {
@@ -156,6 +216,8 @@ struct MixerView: View {
       ForEach(Array(devices.enumerated()), id: \.element.id) { index, device in
         if isEditing {
           HStack(spacing: DesignTokens.Spacing.sm) {
+            Image(systemName: "line.3.horizontal").foregroundStyle(.tertiary)
+              .accessibilityLabel("Drag to reorder \(device.device.name)")
             TextField(
               "Priority",
               value: Binding(
@@ -164,13 +226,16 @@ struct MixerView: View {
             )
             .frame(width: 28).accessibilityLabel("Priority for \(device.device.name)")
             deviceContent(device)
+            if device.isDefault {
+              Text("DEFAULT").font(DesignTokens.Typography.caption).foregroundStyle(.secondary)
+            }
             Button {
               actions.device.setHidden(
                 sectionScope, device.id, !bindings.current(device, scope: sectionScope).isHidden)
             } label: {
               Image(systemName: device.isHidden ? "eye.slash" : "eye")
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.plain).disabled(device.isDefault)
             .accessibilityLabel("\(device.isHidden ? "Show" : "Hide") \(device.device.name)")
           }
           .opacity(device.isHidden ? 0.6 : 1)
@@ -195,9 +260,18 @@ struct MixerView: View {
 
   private func deviceContent(_ device: MixerDevicePresentation) -> some View {
     let renderScope = scope
+    let profile = profiles.read(device.id)
+    let subtitle =
+      renderScope == .output && !isEditing
+      ? profile.selection.flatMap {
+        DeviceRow.autoEQSubtitle(
+          profileName: MixerProfileBindings(deviceUID: device.id, interface: profiles)
+            .selectionLabel,
+          isEnabled: $0.isEnabled)
+      } : nil
     return VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
       HStack(spacing: DesignTokens.Spacing.xs) {
-        bindings.deviceRow(device, scope: renderScope)
+        bindings.deviceRow(device, scope: renderScope, autoEQSubtitle: subtitle)
         if renderScope == .output && device.device.supportsAutoEQ && !isEditing {
           Button("AutoEQ") {
             profileSelection = DeviceSelection(scope: renderScope, uid: device.id)
@@ -293,6 +367,22 @@ struct MixerView: View {
   }
 
   private func handleKey(_ key: KeyPress) -> KeyPress.Result {
+    if key.key == .escape {
+      if keyboard.percentageDraft != nil {
+        _ = keyboard.process(.cancel, navigation: navigation, defaultOutputUID: nil)
+      } else if inspected != nil {
+        inspected = nil
+      } else if isEditing {
+        isEditing = false
+        draggedDeviceUID = nil
+        syncNavigation()
+      } else if expandedAppID != nil {
+        expandedAppID = nil
+      } else {
+        actions.close()
+      }
+      return .handled
+    }
     guard !isEditing, !(NSApp.keyWindow?.firstResponder is NSTextView) else { return .ignored }
     let input: MixerKeyboardInput?
     switch key.key {

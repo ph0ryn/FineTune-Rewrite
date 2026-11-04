@@ -176,28 +176,40 @@ final class AutoEQAutomation {
     commands.perform(.setAutoEQPreampEnabled(enabled))
   }
 
-  func search(query: String, favoritesOnly: Bool) -> [MixerProfileChoice] {
+  func search(query: String, favoritesOnly: Bool) -> MixerProfileSearchResult {
     let entries: [AutoEQCatalogEntry]
+    let totalCount: Int
+    let favorites = preferences.favoriteAutoEQProfileIDs
     if query.isEmpty {
-      // The original empty-query view shows favorites, not the entire remote catalog.
-      entries = repository.entries(eligibleIDs: preferences.favoriteAutoEQProfileIDs)
+      // This local favorites query is uncapped, unlike ranked catalog search.
+      entries = repository.entries(eligibleIDs: favorites)
+      totalCount = entries.count
     } else {
-      entries =
-        repository.search(
-          query: query, eligibleIDs: favoritesOnly ? preferences.favoriteAutoEQProfileIDs : nil
-        ).entries
+      let result = repository.search(query: query, eligibleIDs: favoritesOnly ? favorites : nil)
+      entries = result.entries
+      totalCount = result.totalCount
     }
-    return entries.map { MixerProfileChoice(id: $0.id, name: $0.name, detail: $0.measuredBy) }
+    let ordered =
+      entries.filter { favorites.contains($0.id) }
+      + entries.filter { !favorites.contains($0.id) }
+    return MixerProfileSearchResult(
+      entries: ordered.map { MixerProfileChoice(id: $0.id, name: $0.name, detail: $0.measuredBy) },
+      totalCount: totalCount)
   }
 
   func presentation(for uid: String) -> MixerProfilePresentation {
     let selection = preferences.getAutoEQSelection(for: uid)
     let profile = selection.flatMap { repository.profile(for: $0.profileID) }
-    let name =
-      profile?.name
-      ?? selection.flatMap { saved in
-        repository.entries().first(where: { $0.id == saved.profileID })?.name
-      }
+    let entry = selection.flatMap { saved in
+      repository.entries().first(where: { $0.id == saved.profileID })
+    }
+    let name = profile?.name ?? entry?.name
+    let detail: String?
+    if let profile {
+      detail = profile.source == .imported ? "Imported" : profile.measuredBy
+    } else {
+      detail = entry?.measuredBy
+    }
     let catalogState: MixerProfileCatalogState
     switch repository.catalogState {
     case .idle: catalogState = .notLoaded
@@ -215,7 +227,7 @@ final class AutoEQAutomation {
       isMissing: selection != nil && profile == nil,
       isResolving: !isStopped && selection.map { pendingProfiles[uid] == $0.profileID } == true,
       selectionError: failure ?? startupError, favoriteIDs: preferences.favoriteAutoEQProfileIDs,
-      preampEnabled: preferences.autoEQPreampEnabled)
+      preampEnabled: preferences.autoEQPreampEnabled, profileDetail: detail)
   }
 
   func makeMixerInterface() -> MixerProfileInterface {

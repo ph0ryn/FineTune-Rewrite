@@ -8,6 +8,12 @@ struct MixerProfileChoice: Equatable, Identifiable {
   let detail: String
 }
 
+struct MixerProfileSearchResult {
+  let entries: [MixerProfileChoice]
+  /// Count from the uncapped query, never inferred from the limited displayed rows.
+  let totalCount: Int
+}
+
 enum MixerProfileCatalogState: Equatable {
   case notLoaded, loading, ready
   case failed(String)
@@ -22,6 +28,7 @@ struct MixerProfilePresentation {
   var selectionError: String?
   var favoriteIDs: Set<String>
   var preampEnabled: Bool
+  var profileDetail: String? = nil
 }
 
 /// Required view ports, not another catalog/store. read/search are local observable reads only.
@@ -29,7 +36,7 @@ struct MixerProfilePresentation {
 struct MixerProfileInterface {
   let read: (String) -> MixerProfilePresentation
   /// The backing catalog applies favorites before its existing ranking and result limit.
-  let search: (String, Bool) -> [MixerProfileChoice]
+  let search: (String, Bool) -> MixerProfileSearchResult
   /// Explicit user-selected URL; import and selection retain the originating device UID.
   let importProfile: (String, URL, String) -> Void
   let select: (String, AutoEQSelection?) -> Void

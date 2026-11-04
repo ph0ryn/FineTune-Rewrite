@@ -117,6 +117,160 @@ struct RootPresentationTests {
     )
   }
 
+  @Test(
+    "Inactive saved rows retain cached installed artwork without claiming activity or reading OS metadata"
+  )
+  func savedRowsUseCachedArtwork() async throws {
+    let fixture = try RootPresentationFixture()
+    defer { fixture.cleanUp() }
+    let savedIcon = NSImage(size: NSSize(width: 2, height: 2))
+    let ignoredIcon = NSImage(size: NSSize(width: 3, height: 3))
+    fixture.inactiveIcons = ["unit.saved": savedIcon, "unit.ignored": ignoredIcon]
+    fixture.processes.apps = [
+      fixture.app(id: 101, uid: "unit.saved", name: "Saved"),
+      fixture.app(id: 102, uid: "unit.ignored", name: "Ignored"),
+      fixture.app(id: 103, uid: "unit.missing", name: "Missing"),
+    ]
+    fixture.graph.engine.ingestObservations()
+    fixture.graph.controller.perform(.setPinned(identifier: "unit.saved", pinned: true))
+    fixture.graph.controller.perform(.setIgnored(identifier: "unit.ignored", ignored: true))
+    fixture.graph.controller.perform(.setPinned(identifier: "unit.missing", pinned: true))
+    fixture.processes.apps = []
+    fixture.processes.revision += 1
+    fixture.graph.engine.ingestObservations()
+    let halBaseline = fixture.hal.calls
+    let presentation = fixture.presentation()
+    for _ in 0..<2 {
+      let rows = presentation.mixerSnapshot().apps
+      #expect(rows.count == 3 && rows.allSatisfy { !$0.isActive && $0.peakLevel == nil })
+      #expect(rows.first { $0.id == "unit.saved" }?.icon === savedIcon)
+      #expect(rows.first { $0.id == "unit.ignored" }?.icon === ignoredIcon)
+      #expect(rows.first { $0.id == "unit.missing" }?.icon == nil)
+    }
+    presentation.applicationActivationFailure = "Unit reopen failed"
+    #expect(presentation.mixerSnapshot().error == "Unit reopen failed")
+    #expect(presentation.settingsSnapshot().error == "Unit reopen failed")
+    presentation.applicationActivationFailure = nil
+    #expect(presentation.mixerSnapshot().error == nil)
+    await fixture.expectPassivePorts(halBaseline: halBaseline)
+  }
+
+  @Test(
+    "Mixer reads only the current healthy routes' actual cached peak and clears missing samples")
+  func currentRoutePeaksReadThroughWithoutNativeIO() async throws {
+    let runtime = RoutingProbeRuntime()
+    let fixture = try RootPresentationFixture(runtime: runtime)
+    defer { fixture.cleanUp() }
+    fixture.processes.apps = [fixture.app(id: 101, uid: "unit.player", name: "Player")]
+    fixture.graph.engine.ingestObservations()
+    let presentation = fixture.presentation()
+    #expect(presentation.mixerSnapshot().apps.first?.peakLevel == nil)
+    let controller = fixture.graph.controller
+    controller.observeOutputs(
+      ["speaker", "headphones"].map {
+        AudioOutputDescriptor(
+          uid: $0, bindingRevision: 1, supportsAutoEQ: false,
+          processingGain: 1, volume: 0.5, isMuted: false)
+      }, defaultUID: "speaker")
+    controller.perform(
+      .setRoute(identifier: "unit.player", mode: .multi, uids: ["speaker", "headphones"]))
+    controller.perform(.requestCaptureStart)
+    await controller.waitForCurrentWork()
+    let speaker = try #require(runtime.handle("speaker"))
+    let headphones = try #require(runtime.handle("headphones"))
+    speaker.onObservation?(
+      AudioRouteObservation(key: speaker.key, phase: .firstApplied, peakLevel: 0.25))
+    headphones.onObservation?(
+      AudioRouteObservation(key: headphones.key, phase: .firstApplied, peakLevel: 0.75))
+    let halBaseline = fixture.hal.calls
+    #expect(controller.routeObservations[speaker.key]?.peakLevel == 0.25)
+    #expect(controller.routeObservations[headphones.key]?.peakLevel == 0.75)
+    #expect(presentation.mixerSnapshot().apps.first?.peakLevel == 0.75)
+    headphones.onObservation?(
+      AudioRouteObservation(key: headphones.key, phase: .firstApplied, peakLevel: nil))
+    #expect(controller.routeObservations[headphones.key]?.peakLevel == nil)
+    #expect(presentation.mixerSnapshot().apps.first?.peakLevel == 0.25)
+    speaker.onObservation?(
+      AudioRouteObservation(key: speaker.key, phase: .firstApplied, peakLevel: 0))
+    #expect(presentation.mixerSnapshot().apps.first?.peakLevel == 0)
+
+    fixture.processes.revision = 2
+    fixture.processes.apps = [fixture.app(id: 101, uid: "unit.player", name: "Player")]
+    controller.observeApplications([
+      AudioApplicationDescriptor(
+        identifier: "unit.player", processID: 101, processRevision: 2,
+        displayName: "Player", bundleID: "unit.player")
+    ])
+    await controller.waitForCurrentWork()
+    #expect(presentation.mixerSnapshot().apps.first?.peakLevel == nil)
+    speaker.onObservation?(
+      AudioRouteObservation(key: speaker.key, phase: .firstApplied, peakLevel: 0.95))
+    #expect(presentation.mixerSnapshot().apps.first?.peakLevel == nil)
+    let current = try #require(runtime.handle("speaker"))
+    #expect(current.key.generation > speaker.key.generation)
+    current.onObservation?(
+      AudioRouteObservation(key: current.key, phase: .firstApplied, peakLevel: 0.5))
+    #expect(presentation.mixerSnapshot().apps.first?.peakLevel == 0.5)
+    current.onObservation?(
+      AudioRouteObservation(
+        key: current.key, phase: .firstApplied,
+        cleanupFailure: AudioRouteFailure(stage: "unit-cleanup", message: "Cleanup is unavailable"),
+        peakLevel: 0.9))
+    #expect(controller.routeObservations[current.key]?.peakLevel == nil)
+    #expect(presentation.mixerSnapshot().apps.first?.peakLevel == nil)
+    current.onObservation?(
+      AudioRouteObservation(key: current.key, phase: .firstApplied, peakLevel: 0.9))
+    #expect(controller.routeObservations[current.key]?.peakLevel == nil)
+    current.onObservation?(
+      AudioRouteObservation(key: current.key, phase: .retiring, peakLevel: 0.9))
+    #expect(controller.routeObservations[current.key]?.peakLevel == nil)
+    controller.observeApplications([], failure: "Current process observation is unavailable")
+    #expect(presentation.mixerSnapshot().apps.first?.peakLevel == nil)
+    await controller.shutdown()
+    #expect(presentation.mixerSnapshot().apps.first?.peakLevel == nil)
+    await fixture.expectPassivePorts(halBaseline: halBaseline)
+  }
+
+  @Test("The required activation action forwards exact identity without editing audio")
+  func activationUsesTheRequiredPort() async throws {
+    let fixture = try RootPresentationFixture()
+    defer { fixture.cleanUp() }
+    var activated: [String] = []
+    let actions = fixture.graph.bindings.appActions(activate: { activated.append($0) })
+    actions.activate("Com.Example.Player")
+    #expect(activated == ["Com.Example.Player"])
+    #expect(fixture.graph.controller.captureIntent == .none)
+    #expect(fixture.graph.controller.applications.isEmpty)
+    #expect(fixture.graph.controller.routeObservations.isEmpty)
+    await fixture.expectPassivePorts()
+  }
+
+  @Test("Mixer presents a shared process diagnostic once and retains independent errors")
+  func processDiagnosticAppearsOnce() async throws {
+    let fixture = try RootPresentationFixture()
+    defer { fixture.cleanUp() }
+    let presentation = fixture.presentation()
+    let processFailure = "Application metadata has an invalid or duplicate process identity."
+    fixture.graph.controller.observeApplications([], failure: processFailure)
+    let processOnly = presentation.mixerSnapshot()
+    #expect(processOnly.captureNotice?.message == processFailure)
+    #expect(processOnly.error == nil)
+    #expect(presentation.settingsSnapshot().error == processFailure)
+
+    let outputFailure = "Output role observation is unavailable."
+    fixture.graph.controller.observeOutputs([], defaultUID: nil, failure: outputFailure)
+    let independent = presentation.mixerSnapshot()
+    #expect(independent.captureNotice?.message == processFailure)
+    #expect(independent.error == outputFailure)
+    #expect(
+      presentation.settingsSnapshot().error == "\(processFailure)\n\(outputFailure)")
+
+    let missingUsageDescription = fixture.presentation(hasUsageDescription: false).mixerSnapshot()
+    #expect(missingUsageDescription.captureNotice?.message != processFailure)
+    #expect(missingUsageDescription.error == "\(processFailure)\n\(outputFailure)")
+    await fixture.expectPassivePorts()
+  }
+
   @Test("Eight device actions use the same Common port and failure notices retain their reasons")
   func deviceActionsAndFailureProjection() async throws {
     let fixture = try RootPresentationFixture()
@@ -154,7 +308,7 @@ struct RootPresentationTests {
     fixture.graph.controller.observeApplications([], failure: reason)
     fixture.graph.controller.observeOutputs([], defaultUID: nil, failure: reason)
     #expect(fixture.graph.controller.commandFailure?.message == reason)
-    #expect(presentation.mixerSnapshot().error == reason)
+    #expect(presentation.mixerSnapshot().error == nil)
     #expect(presentation.settingsSnapshot().error == reason)
     #expect(presentation.mixerSnapshot().captureNotice?.message == reason)
     #expect(presentation.mixerSnapshot().captureNotice?.action == nil)
@@ -207,8 +361,9 @@ private final class RootPresentationFixture {
   let native: NativeAudioRoutingRuntime
   let graph: ApplicationGraph
   let lifecycle: LifecycleCoordinator
+  var inactiveIcons: [String: NSImage] = [:]
 
-  init() throws {
+  init(runtime: (any AudioRoutingRuntime)? = nil) throws {
     settings = SettingsManager(directory: directory, launchAtLoginService: hal)
     let clock = DeviceBackendClock { _ in throw CancellationError() }
     let ddc = DDCVolumeBackend(
@@ -241,7 +396,7 @@ private final class RootPresentationFixture {
       profiles: try AutoEQProfileRepository(
         directory: directory.appendingPathComponent("Profiles"), cache: AutoEQProfileCache(),
         transport: transport),
-      devices: devices, processes: processes, volumes: output, runtime: native,
+      devices: devices, processes: processes, volumes: output, runtime: runtime ?? native,
       readOutputFailure: { nil }, readDefaultRoutingDecision: { .followObserved },
       deviceCommand: { command in
         effects.commands.append(command)
@@ -261,7 +416,8 @@ private final class RootPresentationFixture {
     RootPresentation(
       graph: graph, devices: model, native: native, accessibility: trust,
       mediaKeyStatus: mediaKeys, lifecycle: lifecycle,
-      hasCaptureUsageDescription: hasUsageDescription)
+      hasCaptureUsageDescription: hasUsageDescription,
+      applicationIcon: { [unowned self] bundleID in bundleID.flatMap { inactiveIcons[$0] } })
   }
 
   func app(id: pid_t, uid: String, name: String) -> AudioApp {

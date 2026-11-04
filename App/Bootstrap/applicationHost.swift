@@ -19,7 +19,7 @@ final class ApplicationHost: NSObject, NSApplicationDelegate {
       let root = try ProductionRoot(
         directory: support.appendingPathComponent("FineTune-Rewrite", isDirectory: true),
         usageDescription: Bundle.main.object(forInfoDictionaryKey: "NSAudioCaptureUsageDescription")
-          as? String)
+          as? String, quit: { NSApp.terminate(nil) })
       self.root = root
       attachURLAutomation(root.graph.urlAutomation)
       installMenu()

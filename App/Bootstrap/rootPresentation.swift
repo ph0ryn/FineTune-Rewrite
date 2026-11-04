@@ -14,12 +14,15 @@ final class RootPresentation {
   private let mediaKeyStatus: MediaKeyStatus
   private let lifecycle: LifecycleCoordinator
   private let hasCaptureUsageDescription: Bool
+  private let applicationIcon: (String?) -> NSImage?
+  var applicationActivationFailure: String?
   private var revision: UInt64 = 0
 
   init(
     graph: ApplicationGraph, devices: DeviceControlModel, native: NativeAudioRoutingRuntime,
     accessibility: any AccessibilityTrustProviding, mediaKeyStatus: MediaKeyStatus,
-    lifecycle: LifecycleCoordinator, hasCaptureUsageDescription: Bool
+    lifecycle: LifecycleCoordinator, hasCaptureUsageDescription: Bool,
+    applicationIcon: @escaping (String?) -> NSImage?
   ) {
     self.graph = graph
     self.devices = devices
@@ -28,6 +31,7 @@ final class RootPresentation {
     self.mediaKeyStatus = mediaKeyStatus
     self.lifecycle = lifecycle
     self.hasCaptureUsageDescription = hasCaptureUsageDescription
+    self.applicationIcon = applicationIcon
   }
 
   /// Root calls this after a non-Observable diagnostic changes; snapshots still read the real owner.
@@ -35,17 +39,19 @@ final class RootPresentation {
 
   func mixerSnapshot() -> MixerSnapshot {
     _ = revision
+    let notice = captureNotice
     return MixerSnapshot(
       apps: applications, outputDevices: devices.outputDevices, inputDevices: devices.inputDevices,
       settings: graph.settings.appSettings, userPresets: graph.settings.getUserPresets(),
-      error: error, backend: devices.backend, captureNotice: captureNotice)
+      error: error(excluding: notice?.message), backend: devices.backend, captureNotice: notice)
   }
 
   func settingsSnapshot() -> SettingsSnapshot {
     _ = revision
     return SettingsSnapshot(
       settings: graph.settings.appSettings, isAccessibilityTrusted: accessibility.isTrusted,
-      isMediaKeyOffline: mediaKeyStatus.isOffline, error: error, device: devices.backend)
+      isMediaKeyOffline: mediaKeyStatus.isOffline, error: error(excluding: nil),
+      device: devices.backend)
   }
 
   var deviceActions: MixerDeviceActions {
@@ -77,7 +83,8 @@ final class RootPresentation {
     where included.insert(info.persistenceIdentifier).inserted {
       rows.append(
         application(
-          identifier: info.persistenceIdentifier, name: info.displayName, icon: nil, isActive: false
+          identifier: info.persistenceIdentifier, name: info.displayName,
+          icon: applicationIcon(info.bundleID), isActive: false
         ))
     }
     // Presentation has no alternate app-order policy: stable display name, then persistent identity.
@@ -100,7 +107,25 @@ final class RootPresentation {
       isFollowingDefault: settings.isFollowingDefault(for: identifier),
       selectedDeviceUIDs: selected,
       eqSettings: settings.getEQSettings(for: identifier), isPinned: settings.isPinned(identifier),
-      isIgnored: settings.isIgnored(identifier), routeStatus: routeStatus(for: identifier))
+      isIgnored: settings.isIgnored(identifier), routeStatus: routeStatus(for: identifier),
+      peakLevel: peakLevel(for: identifier, isActive: isActive))
+  }
+
+  private func peakLevel(for identifier: String, isActive: Bool) -> Float? {
+    let controller = graph.controller
+    guard isActive, graph.processes.observation.health == .healthy,
+      graph.devices.observation.health == .healthy,
+      controller.applicationObservationFailure == nil, controller.outputObservationFailure == nil
+    else { return nil }
+    let routes = controller.routeObservations.values.filter { $0.key.appIdentifier == identifier }
+    guard let generation = routes.map(\.key.generation).max() else { return nil }
+    return routes.compactMap { route -> Float? in
+      guard route.key.generation == generation, route.phase == .firstApplied,
+        route.failure == nil, route.cleanupFailure == nil,
+        let peak = route.peakLevel, peak.isFinite, peak >= 0
+      else { return nil }
+      return peak
+    }.max()
   }
 
   private func routeStatus(for identifier: String) -> String? {
@@ -113,7 +138,7 @@ final class RootPresentation {
     return phases.sorted().joined(separator: ", ")
   }
 
-  private var error: String? {
+  private func error(excluding notice: String?) -> String? {
     let controller = graph.controller
     var messages: [String?] = [
       controller.commandFailure?.message, controller.applicationObservationFailure?.message,
@@ -122,6 +147,7 @@ final class RootPresentation {
       native.lastCleanupFailure?.cleanupFailure?.message,
       graph.settings.lastLoadError, graph.settings.lastSaveError,
       graph.settings.lastLaunchAtLoginError, devices.lastError, lifecycle.lastError,
+      applicationActivationFailure,
     ]
     let routes = controller.routeObservations.values.sorted {
       let lhs = $0.key
@@ -132,7 +158,9 @@ final class RootPresentation {
     }
     messages += routes.flatMap { [$0.failure?.message, $0.cleanupFailure?.message] }
     var included: Set<String> = []
-    let visible = messages.compactMap { $0 }.filter { included.insert($0).inserted }
+    let visible = messages.compactMap { $0 }.filter {
+      $0 != notice && included.insert($0).inserted
+    }
     return visible.isEmpty ? nil : visible.joined(separator: "\n")
   }
 

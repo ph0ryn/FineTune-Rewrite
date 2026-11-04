@@ -23,8 +23,10 @@ struct MixerBluetoothSection: View {
       if let powered = current.isPoweredOn {
         if powered {
           if current.paired.isEmpty && current.error == nil {
-            Text("No paired audio devices.").font(DesignTokens.Typography.rowDescription)
-              .foregroundStyle(.secondary)
+            Text("No paired audio devices available to connect.").font(
+              DesignTokens.Typography.rowDescription
+            )
+            .foregroundStyle(.secondary)
           }
           ForEach(current.paired) { device in bluetoothRow(device) }
         } else {

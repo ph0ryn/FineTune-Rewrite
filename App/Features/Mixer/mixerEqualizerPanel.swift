@@ -35,16 +35,20 @@ struct MixerEqualizerPanel: View {
       HStack(spacing: 0) {
         ForEach(0..<EQSettings.bandCount, id: \.self) { index in
           VStack(spacing: DesignTokens.Spacing.xs) {
-            Text(String(format: "%+.0f", app.eqSettings.bandGains[index]))
+            Text(String(format: "%+.0f dB", app.eqSettings.bandGains[index]))
               .font(DesignTokens.Typography.eqLabel)
               .foregroundStyle(.secondary)
             Slider(value: bindings.eqBand(app, index: index), in: -12...12)
               .frame(width: 90)
               .rotationEffect(.degrees(-90))
               .frame(width: 24, height: 92)
+              .scrollWheelStep(bindings.eqBand(app, index: index), in: -12...12)
               .disabled(!app.eqSettings.isEnabled)
               .accessibilityLabel("\(frequencyLabels[index]) Hz gain")
-            Text(frequencyLabels[index]).font(DesignTokens.Typography.eqLabel)
+            VStack(spacing: 0) {
+              Text(frequencyLabels[index]).font(DesignTokens.Typography.eqLabel)
+              Text("Hz").font(DesignTokens.Typography.caption).foregroundStyle(.tertiary)
+            }
           }
           .frame(maxWidth: .infinity)
         }
@@ -75,18 +79,27 @@ struct MixerEqualizerPanel: View {
       ForEach(EQPreset.Category.allCases) { category in
         Menu(category.rawValue) {
           ForEach(EQPreset.presets(for: category)) { preset in
-            Button(preset.name) { bindings.applyPreset(preset, to: app) }
+            Button {
+              bindings.applyPreset(preset, to: app)
+            } label: {
+              presetLabel(preset.name, selected: matchingBuiltIn == preset)
+            }
           }
         }
       }
       let presets = bindings.read().userPresets
       if !presets.isEmpty {
-        Divider()
-        ForEach(presets) { preset in
-          Menu(preset.name) {
-            Button("Apply") { bindings.applyCurve(preset.settings, to: app) }
-            Button("Rename…") { beginNaming(preset) }
-            Button("Delete", role: .destructive) { bindings.actions.app.deletePreset(preset.id) }
+        Section("My Presets") {
+          ForEach(presets) { preset in
+            Menu {
+              Button("Apply") { bindings.applyCurve(preset.settings, to: app) }
+              Button("Rename…") { beginNaming(preset) }
+              Button("Delete", role: .destructive) { bindings.actions.app.deletePreset(preset.id) }
+            } label: {
+              presetLabel(
+                preset.name, selected: matchingBuiltIn == nil && matchingUserPreset?.id == preset.id
+              )
+            }
           }
         }
       }
@@ -94,6 +107,10 @@ struct MixerEqualizerPanel: View {
     .font(DesignTokens.Typography.pickerText)
     .fixedSize()
     .accessibilityLabel("EQ preset for \(app.name)")
+  }
+
+  @ViewBuilder private func presetLabel(_ name: String, selected: Bool) -> some View {
+    if selected { Label(name, systemImage: "checkmark") } else { Text(name) }
   }
 
   private func beginNaming(_ preset: UserEQPreset?) {

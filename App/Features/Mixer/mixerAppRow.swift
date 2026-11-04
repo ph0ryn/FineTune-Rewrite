@@ -1,4 +1,5 @@
 import FineTuneDomain
+import Foundation
 import SwiftUI
 
 @MainActor
@@ -12,10 +13,18 @@ struct MixerAppRow: View {
   var body: some View {
     VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
       HStack(spacing: DesignTokens.Spacing.sm) {
-        if let icon = app.icon {
-          Image(nsImage: icon).resizable().frame(width: 22, height: 22)
+        if !isEditing {
+          MixerLevelMeter(level: app.peakLevel, isMuted: app.isMuted, appName: app.name)
+        }
+        if app.isActive && !isEditing {
+          Button {
+            bindings.actions.app.activate(app.id)
+          } label: {
+            appIcon
+          }
+          .buttonStyle(.plain).accessibilityLabel("Open \(app.name)")
         } else {
-          Image(systemName: "app.fill").frame(width: 22, height: 22)
+          appIcon
         }
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxs) {
           Text(app.name).font(DesignTokens.Typography.rowName).lineLimit(1).help(app.name)
@@ -63,15 +72,24 @@ struct MixerAppRow: View {
     }
   }
 
+  @ViewBuilder private var appIcon: some View {
+    if let icon = app.icon {
+      Image(nsImage: icon).resizable().scaledToFit().frame(width: 22, height: 22)
+    } else {
+      Image(systemName: "app.fill").frame(width: 22, height: 22)
+    }
+  }
+
   private var editControls: some View {
     HStack(spacing: DesignTokens.Spacing.md) {
-      Button {
-        bindings.actions.app.setPinned(app.id, !app.isPinned)
-      } label: {
-        Image(systemName: app.isPinned ? "pin.fill" : "pin")
+      if !app.isIgnored {
+        Button {
+          bindings.actions.app.setPinned(app.id, !app.isPinned)
+        } label: {
+          Image(systemName: app.isPinned ? "pin.fill" : "pin")
+        }
+        .accessibilityLabel(app.isPinned ? "Unpin \(app.name)" : "Pin \(app.name)")
       }
-      .accessibilityLabel(app.isPinned ? "Unpin \(app.name)" : "Pin \(app.name)")
-      .disabled(app.isIgnored)
       Button {
         bindings.actions.app.setIgnored(app.id, !app.isIgnored)
       } label: {
@@ -114,15 +132,18 @@ struct MixerAppRow: View {
 
   private var routePicker: some View {
     Menu {
-      Button {
-        bindings.followDefault(app)
-      } label: {
-        if app.isFollowingDefault {
-          Label("System Default", systemImage: "checkmark")
-        } else {
-          Text("System Default")
-        }
+      Toggle(
+        isOn: Binding(
+          get: { bindings.current(app).isFollowingDefault },
+          set: { _ in bindings.followDefault(app) })
+      ) {
+        Label("System Default", systemImage: "speaker.wave.2")
       }
+      .disabled(app.selectionMode == .multi)
+      .help(
+        app.selectionMode == .multi
+          ? "System audio follows one output; choose single output mode to follow it."
+          : "Follow the macOS default output")
       Divider()
       Toggle(
         "Multiple Outputs",
@@ -135,20 +156,27 @@ struct MixerAppRow: View {
           }
         ))
       ForEach(bindings.read().outputDevices.filter { !$0.isHidden }) { device in
-        Button {
-          let current = bindings.current(app)
-          var uids = current.selectionMode == .multi ? current.selectedDeviceUIDs : []
-          if current.selectionMode == .multi && uids.contains(device.id) {
-            uids.remove(device.id)
-          } else {
-            uids.insert(device.id)
-          }
-          bindings.selectRoute(current, mode: current.selectionMode, uids: uids)
-        } label: {
-          if !app.isFollowingDefault && app.selectedDeviceUIDs.contains(device.id) {
-            Label(device.device.name, systemImage: "checkmark")
-          } else {
-            Text(device.device.name)
+        Toggle(
+          isOn: Binding(
+            get: {
+              let current = bindings.current(app)
+              return !current.isFollowingDefault && current.selectedDeviceUIDs.contains(device.id)
+            },
+            set: { _ in
+              let current = bindings.current(app)
+              var uids = current.selectionMode == .multi ? current.selectedDeviceUIDs : []
+              if current.selectionMode == .multi && uids.contains(device.id) {
+                uids.remove(device.id)
+              } else {
+                uids.insert(device.id)
+              }
+              bindings.selectRoute(current, mode: current.selectionMode, uids: uids)
+            })
+        ) {
+          Label {
+            Text(device.device.name + (device.isDefault ? " ★" : ""))
+          } icon: {
+            if let icon = bindings.deviceIcon(device, scope: .output) { Image(nsImage: icon) }
           }
         }
       }
@@ -160,6 +188,56 @@ struct MixerAppRow: View {
     .font(DesignTokens.Typography.pickerText)
     .help(bindings.routeLabel(app))
     .accessibilityLabel("Output for \(app.name): \(bindings.routeLabel(app))")
+  }
+}
+
+/// Displays only cached observed native levels. Missing telemetry is distinct from measured silence.
+@MainActor
+struct MixerLevelMeter: View {
+  let level: Float?
+  let isMuted: Bool
+  let appName: String
+
+  private var decibels: Float? {
+    level.map { $0 == 0 ? -.infinity : 20 * log10($0) }
+  }
+
+  var body: some View {
+    Group {
+      if level == nil {
+        Text("—").font(DesignTokens.Typography.caption).foregroundStyle(.secondary)
+      } else {
+        VStack(spacing: 1) {
+          ForEach((0..<DesignTokens.Dimensions.vuMeterBarCount).reversed(), id: \.self) { index in
+            let threshold = Float([-40, -30, -20, -14, -10, -6, -3, 0][index])
+            let isLit = decibels.map { $0 >= threshold } ?? false
+            RoundedRectangle(cornerRadius: 0.5)
+              .fill(isLit ? barColor(index) : DesignTokens.Colors.vuUnlit)
+          }
+        }
+      }
+    }
+    .frame(width: 10, height: DesignTokens.Dimensions.rowContentHeight - 4)
+    .accessibilityElement(children: .ignore)
+    .accessibilityLabel("Audio level for \(appName)")
+    .accessibilityValue(levelDescription)
+    .help(levelDescription)
+  }
+
+  private var levelDescription: String {
+    guard let decibels else { return "Audio level unavailable" }
+    if isMuted { return "Muted" }
+    return decibels == -.infinity ? "−∞ dB" : String(format: "%.1f dB", decibels)
+  }
+
+  private func barColor(_ index: Int) -> Color {
+    if isMuted { return DesignTokens.Colors.vuMuted }
+    switch index {
+    case 0..<4: return DesignTokens.Colors.vuGreen
+    case 4..<6: return DesignTokens.Colors.vuYellow
+    case 6: return DesignTokens.Colors.vuOrange
+    default: return DesignTokens.Colors.vuRed
+    }
   }
 }
 

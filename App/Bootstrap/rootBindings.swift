@@ -8,7 +8,7 @@ struct RootBindings {
   let controller: AudioController
   let settings: SettingsManager
 
-  var appActions: MixerAppActions {
+  func appActions(activate: @escaping (String) -> Void) -> MixerAppActions {
     MixerAppActions(
       setVolume: { editGain(identifier: $0, gain: $1) },
       setMute: { controller.perform(.setMuted(identifier: $0, muted: $1)) },
@@ -22,7 +22,7 @@ struct RootBindings {
       // Saved preset metadata does not alter already copied active EQ or native execution.
       createPreset: { settings.createUserPreset(name: $0, settings: $1) },
       renamePreset: { settings.updateUserPreset(id: $0, name: $1) },
-      deletePreset: { settings.deleteUserPreset(id: $0) })
+      deletePreset: { settings.deleteUserPreset(id: $0) }, activate: activate)
   }
 
   func resetAllSettings() {

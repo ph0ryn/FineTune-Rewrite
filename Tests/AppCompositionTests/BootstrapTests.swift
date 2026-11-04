@@ -129,7 +129,9 @@ struct BootstrapTests {
     let committed = route.commits
     let updates = route.updates
     let bindings = RootBindings(controller: controller, settings: settings)
-    let actions = bindings.appActions
+    let actions = bindings.appActions(activate: { _ in
+      Issue.record("Preset metadata must not activate an application")
+    })
     actions.createPreset("First", EQPreset.podcast.settings)
     actions.createPreset("Keep", EQPreset.trebleBoost.settings)
     let first = try #require(settings.getUserPresets().first { $0.name == "First" })
