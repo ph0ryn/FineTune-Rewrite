@@ -142,9 +142,10 @@ final class RootPresentation {
     let controller = graph.controller
     var messages: [String?] = [
       controller.commandFailure?.message, controller.applicationObservationFailure?.message,
-      controller.outputObservationFailure?.message, controller.routeFailure?.message,
-      native.lastCleanupFailure?.failure?.message,
-      native.lastCleanupFailure?.cleanupFailure?.message,
+      controller.outputObservationFailure?.message,
+      controller.routeFailure.map { failureMessage($0) },
+      native.lastCleanupFailure?.failure.map { failureMessage($0) },
+      native.lastCleanupFailure?.cleanupFailure.map { failureMessage($0, isCleanup: true) },
       graph.settings.lastLoadError, graph.settings.lastSaveError,
       graph.settings.lastLaunchAtLoginError, devices.lastError, lifecycle.lastError,
       applicationActivationFailure,
@@ -156,12 +157,25 @@ final class RootPresentation {
       if lhs.deviceUID != rhs.deviceUID { return lhs.deviceUID < rhs.deviceUID }
       return lhs.generation < rhs.generation
     }
-    messages += routes.flatMap { [$0.failure?.message, $0.cleanupFailure?.message] }
+    messages += routes.flatMap { route in
+      [
+        route.failure.map { failureMessage($0) },
+        route.cleanupFailure.map { failureMessage($0, isCleanup: true) },
+      ]
+    }
     var included: Set<String> = []
     let visible = messages.compactMap { $0 }.filter {
       $0 != notice && included.insert($0).inserted
     }
     return visible.isEmpty ? nil : visible.joined(separator: "\n")
+  }
+
+  private func failureMessage(_ failure: AudioRouteFailure, isCleanup: Bool = false) -> String {
+    let stageLabel = isCleanup ? "cleanup stage" : "stage"
+    if let code = failure.code {
+      return "\(failure.message) (\(stageLabel): \(failure.stage), native code: \(code))"
+    }
+    return "\(failure.message) (\(stageLabel): \(failure.stage))"
   }
 
   private var captureNotice: MixerCaptureNotice? {
@@ -178,7 +192,7 @@ final class RootPresentation {
         action: .openSettings)
     }
     if let failure = graph.controller.captureRetryFailure {
-      return MixerCaptureNotice(message: failure.message, action: .retryCapture)
+      return MixerCaptureNotice(message: failureMessage(failure), action: .retryCapture)
     }
     if let failure = graph.controller.lastFailure,
       failure.kind == .unavailable || failure.kind == .unsupported

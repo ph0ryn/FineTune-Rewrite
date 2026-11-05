@@ -259,9 +259,11 @@ struct RootPresentationTests {
     let halBaseline = fixture.hal.calls
     for _ in 0..<3 {
       let snapshot = presentation.mixerSnapshot()
-      #expect(snapshot.captureNotice?.message == failure.message)
+      let expected = "\(failure.message) (stage: \(failure.stage), native code: -7201)"
+      #expect(snapshot.captureNotice?.message == expected)
       #expect(snapshot.captureNotice?.action == .retryCapture)
       #expect(snapshot.error == nil)
+      #expect(presentation.settingsSnapshot().error == expected)
     }
     #expect(fixture.effects.nativeResolutions == 1 && fixture.hal.calls == halBaseline)
     // This is the existing command used by the Root's explicit capture action, not a passive read.
@@ -270,6 +272,58 @@ struct RootPresentationTests {
     #expect(fixture.effects.nativeResolutions == 2)
     #expect(!controller.knownPermissionDenied)
     #expect(await fixture.transport.calls == 0)
+    await controller.shutdown()
+  }
+
+  @Test(
+    "Native diagnostics retain the exact optional code and distinguish primary from cleanup",
+    arguments: [Int32?(560_947_818), -7201, nil])
+  func nativeDiagnosticsKeepStageCodeAndCleanupRole(code: Int32?) async throws {
+    let runtime = RoutingProbeRuntime()
+    let fixture = try RootPresentationFixture(runtime: runtime)
+    defer { fixture.cleanUp() }
+    fixture.processes.apps = [fixture.app(id: 101, uid: "unit.player", name: "Player")]
+    fixture.graph.engine.ingestObservations()
+    let controller = fixture.graph.controller
+    controller.observeOutputs(
+      [
+        AudioOutputDescriptor(
+          uid: "speaker", bindingRevision: 1, supportsAutoEQ: false,
+          processingGain: 1, volume: 0.5, isMuted: false)
+      ], defaultUID: "speaker")
+    controller.perform(.requestCaptureStart)
+    await controller.waitForCurrentWork()
+    let route = try #require(runtime.handle("speaker"))
+    let failure = AudioRouteFailure(
+      stage: "createAggregate", code: code,
+      message: "Native audio could not complete the requested operation.")
+    route.onObservation?(
+      AudioRouteObservation(
+        key: route.key, phase: .failed, failure: failure, cleanupFailure: failure))
+    let primary: String
+    let cleanup: String
+    if let code {
+      primary = "\(failure.message) (stage: createAggregate, native code: \(code))"
+      cleanup = "\(failure.message) (cleanup stage: createAggregate, native code: \(code))"
+    } else {
+      primary = "\(failure.message) (stage: createAggregate)"
+      cleanup = "\(failure.message) (cleanup stage: createAggregate)"
+    }
+    let expected = "\(primary)\n\(cleanup)"
+    let presentation = fixture.presentation()
+    let halBaseline = fixture.hal.calls
+    let commands = fixture.effects.commands
+    for _ in 0..<2 {
+      let snapshot = presentation.mixerSnapshot()
+      let visible = [snapshot.captureNotice?.message, snapshot.error].compactMap { $0 }
+        .joined(separator: "\n")
+      #expect(visible == expected)
+      #expect(presentation.settingsSnapshot().error == expected)
+      #expect(!visible.contains("OSStatus"))
+      if code == nil { #expect(!visible.contains("native code")) }
+    }
+    #expect(fixture.effects.commands == commands)
+    await fixture.expectPassivePorts(halBaseline: halBaseline)
     await controller.shutdown()
   }
 
