@@ -128,19 +128,13 @@ final class LifecycleCoordinator {
     }
   }
 
-  /// Save before stopping audio so a disk error does not tear down a healthy graph.
-  /// The caller presents the visible error and must explicitly choose data discard.
-  func requestQuit(choice: QuitChoice = .save) async -> QuitDecision {
-    if choice == .save {
-      settings.flushSync()
-      if let error = settings.lastSaveError {
-        lastError = "Couldn’t save settings. Try again or choose Quit without saving. \(error)"
-        return .cancelled
-      }
-    }
-    await stop()
-    guard phase == .stopped else { return .cancelled }
-    lastError = nil
-    return .terminate
+  /// Match the original will-terminate hook: stop input and flush on this turn.
+  /// Process exit, not an async shutdown/retirement acknowledgement, ends audio ownership.
+  func prepareForTermination() {
+    generation += 1
+    phase = .stopping
+    startupTask?.cancel()
+    ports.suspendInput()
+    settings.flushSync()
   }
 }

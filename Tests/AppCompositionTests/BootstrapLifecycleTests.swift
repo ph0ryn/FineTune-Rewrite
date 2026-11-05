@@ -161,8 +161,36 @@ struct BootstrapLifecycleTests {
     await coordinator.stop()
   }
 
-  @Test("A failed real disk flush defaults to cancelled quit without stopping audio")
-  func failedSaveKeepsServicesRunningUntilExplicitDiscard() async throws {
+  @Test("Termination stops input and saves pending settings without awaiting audio shutdown")
+  func terminationSavesOnTheCurrentTurn() async throws {
+    let fixture = try LifecycleFixture()
+    defer { fixture.cleanUp() }
+    let probe = LifecycleServiceProbe()
+    let coordinator = LifecycleCoordinator(settings: fixture.settings, ports: probe.ports)
+    await coordinator.start()
+    let retainedCallback = coordinator.callbackWhileRunning {
+      fixture.settings.setVolume(for: "unit.application", to: 0.9)
+    }
+    fixture.settings.setVolume(for: "unit.application", to: 0.25)
+
+    coordinator.prepareForTermination()
+    #expect(coordinator.phase == .stopping)
+    #expect(!probe.inputActive)
+    #expect(probe.audioActive && !probe.backgroundFinished)
+    #expect(fixture.settings.lastSaveError == nil)
+    let saved = try JSONDecoder().decode(
+      SavedSettings.self, from: Data(contentsOf: fixture.settingsFile))
+    #expect(saved.appVolumes["unit.application"] == 0.25)
+    retainedCallback()
+    await coordinator.handle(.sessionBecameActive)
+    #expect(!probe.inputActive)
+    #expect(fixture.settings.getVolume(for: "unit.application") == 0.25)
+    // The test process stays alive: clean up its injected async service explicitly.
+    await coordinator.stop()
+  }
+
+  @Test("Like the original, a failed flush stays observable but does not defer termination")
+  func failedTerminationSaveDoesNotWaitForAUserDecision() async throws {
     let fixture = try LifecycleFixture()
     defer { fixture.cleanUp() }
     fixture.settings.setVolume(for: "unit.application", to: 0.25)
@@ -172,23 +200,16 @@ struct BootstrapLifecycleTests {
     let coordinator = LifecycleCoordinator(settings: fixture.settings, ports: probe.ports)
     await coordinator.start()
 
-    let first = await coordinator.requestQuit()
-    #expect(first == .cancelled)
-    #expect(coordinator.lastError != nil)
+    coordinator.prepareForTermination()
     #expect(fixture.settings.lastSaveError != nil)
-    #expect(coordinator.phase == .running)
-    #expect(probe.audioActive && probe.inputActive)
+    #expect(coordinator.phase == .stopping)
+    #expect(probe.audioActive && !probe.inputActive)
     #expect(fixture.settings.getVolume(for: "unit.application") == 0.25)
-
-    let explicitDiscard = await coordinator.requestQuit(choice: .withoutSaving)
-    #expect(explicitDiscard == .terminate)
-    #expect(coordinator.phase == .stopped)
-    #expect(!probe.audioActive && !probe.inputActive)
-    #expect(probe.backgroundFinished)
+    await coordinator.stop()
   }
 
-  @Test("Retry after disk repair saves the latest wish before normal termination")
-  func retrySavesCurrentValues() async throws {
+  @Test("A repaired termination flush saves current values and clears the disk error")
+  func terminationFlushSavesCurrentValues() async throws {
     let fixture = try LifecycleFixture()
     defer { fixture.cleanUp() }
     try FileManager.default.createDirectory(
@@ -197,17 +218,20 @@ struct BootstrapLifecycleTests {
     let coordinator = LifecycleCoordinator(settings: fixture.settings, ports: probe.ports)
     await coordinator.start()
     fixture.settings.setVolume(for: "unit.application", to: 0.2)
-    #expect(await coordinator.requestQuit() == .cancelled)
+    coordinator.prepareForTermination()
+    #expect(fixture.settings.lastSaveError != nil)
     fixture.settings.setVolume(for: "unit.application", to: 0.4)
     try fixture.removeSaveObstruction()
-    #expect(await coordinator.requestQuit() == .terminate)
+    coordinator.prepareForTermination()
     let saved = try JSONDecoder().decode(
       SavedSettings.self, from: Data(contentsOf: fixture.settingsFile))
     #expect(saved.appVolumes["unit.application"] == 0.4)
-    #expect(coordinator.lastError == nil)
-    #expect(!probe.audioActive && !probe.inputActive)
+    #expect(fixture.settings.lastSaveError == nil)
+    #expect(probe.audioActive && !probe.inputActive)
+    await coordinator.stop()
   }
-  @Test("A failed shutdown cannot acknowledge successful termination")
+
+  @Test("Cooperative shutdown failures remain visible and retryable outside app termination")
   func shutdownFailureIsVisibleAndRetryable() async throws {
     let fixture = try LifecycleFixture()
     defer { fixture.cleanUp() }
@@ -215,12 +239,13 @@ struct BootstrapLifecycleTests {
     let coordinator = LifecycleCoordinator(settings: fixture.settings, ports: probe.ports)
     await coordinator.start()
     probe.failShutdown = true
-    #expect(await coordinator.requestQuit() == .cancelled)
+    await coordinator.stop()
     #expect(coordinator.phase == .failed)
     #expect(coordinator.lastError?.contains("injected shutdown failure") == true)
     #expect(probe.audioActive)
     probe.failShutdown = false
-    #expect(await coordinator.requestQuit() == .terminate)
+    await coordinator.stop()
+    #expect(coordinator.phase == .stopped)
     #expect(!probe.audioActive && probe.backgroundFinished)
   }
 

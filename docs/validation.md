@@ -133,6 +133,8 @@ main usage description・armed・first-appliedは権限許可の証明ではな�
 
 実Graph/表示model/Host/lifecycleと外部portを使うcomposition testで、同じControl・store・nativeへの接続を確かめます。
 観測health、default policy、await後の最新payload、early URL、input停止・repeat取消、stop/flushなどは公開結果を検証します。
+Quitは原作同様、終了通知で同期的に入力停止・HUD終了・設定flushを行い、非同期の音声回収を終了条件にはしません。
+Hostの公開delegate capabilityと、入力停止・保存結果をcomponentで確認します。実音声中の終了やOSの全資源回収を証明するものではありません。
 ただしfake-port呼出0は、実Root起動のglobally OS-inert証明ではありません。Root constructorには設定disk load/backupとnon-prompt AX trust queryがあります。
 profile repository/storeのconstructorはURL検証/依存保存だけで、local disk復元はservice開始時です。
 Settingsの同一VM参照をsourceで確認することと、実NSWindowのdeallocationを計測することも別です。

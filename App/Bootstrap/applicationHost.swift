@@ -8,7 +8,6 @@ final class ApplicationHost: NSObject, NSApplicationDelegate {
   private var urlAutomation: URLAutomationController?
   private var pendingURLs: [URL] = []
   private var startupTask: Task<Void, Never>?
-  private var quitTask: Task<Void, Never>?
   private var observations: [NSObjectProtocol] = []
 
   func applicationDidFinishLaunching(_ notification: Notification) {
@@ -76,38 +75,10 @@ final class ApplicationHost: NSObject, NSApplicationDelegate {
     receiveOpenURLs(urls)
   }
 
-  func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-    guard let root else { return .terminateNow }
-    guard quitTask == nil else { return .terminateLater }
-    quitTask = Task { @MainActor in
-      var choice: QuitChoice = .save
-      while true {
-        let decision = await root.lifecycle.requestQuit(choice: choice)
-        if decision == .terminate {
-          root.closePresentation()
-          removeLifecycleNotifications()
-          sender.reply(toApplicationShouldTerminate: true)
-          break
-        }
-        let alert = NSAlert()
-        alert.messageText = "Couldn’t quit FineTune Rewrite"
-        alert.informativeText =
-          root.lifecycle.lastError ?? "Audio cleanup has not completed. Try again."
-        alert.addButton(withTitle: "Try Again")
-        alert.addButton(withTitle: "Quit Without Saving")
-        alert.addButton(withTitle: "Cancel")
-        switch alert.runModal() {
-        case .alertFirstButtonReturn: choice = .save
-        case .alertSecondButtonReturn: choice = .withoutSaving
-        default:
-          sender.reply(toApplicationShouldTerminate: false)
-          quitTask = nil
-          return
-        }
-      }
-      quitTask = nil
-    }
-    return .terminateLater
+  func applicationWillTerminate(_ notification: Notification) {
+    startupTask?.cancel()
+    root?.prepareForTermination()
+    removeLifecycleNotifications()
   }
 
   private func installMenu() {
@@ -139,7 +110,6 @@ final class ApplicationHost: NSObject, NSApplicationDelegate {
 
   isolated deinit {
     startupTask?.cancel()
-    quitTask?.cancel()
     for observation in observations {
       NSWorkspace.shared.notificationCenter.removeObserver(observation)
     }

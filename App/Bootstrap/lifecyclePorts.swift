@@ -19,11 +19,3 @@ enum LifecyclePhase: Equatable {
 enum LifecycleEvent {
   case systemWillSleep, systemDidWake, sessionResigned, sessionBecameActive
 }
-
-enum QuitChoice: Equatable {
-  case save, withoutSaving
-}
-
-enum QuitDecision: Equatable {
-  case cancelled, terminate
-}

@@ -546,8 +546,8 @@ final class ProductionRoot {
       }, symbolForDefaultID: { _ in MenuBarDeviceIconResolver.fallbackSymbol })
   }
 
-  func closePresentation() {
-    settingsWindow.orderOut(nil)
-    menuBar.shutdown()
+  func prepareForTermination() {
+    lifecycle.prepareForTermination()
+    hud.shutdown()
   }
 }

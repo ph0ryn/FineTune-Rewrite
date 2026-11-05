@@ -74,6 +74,19 @@ active icon/name/mute/slider/boost/EQの操作分離と、停止中・ミュー�
 transientな親popup内で出力先pickerを実際に開き、child windowの出力行をクリックしても親を閉じず、対象appへroute actionが届くことを確認します。
 これらの成功を、最小対応OSのnative thumb、実機音声、全UIの操作・見た目の検証へ拡張しません。
 
+## Quitの互換
+
+Quitボタン・⌘Q・アプリメニューは原作と同じ`NSApplication.terminate(nil)`へ通します。
+[Host](<../App/Bootstrap/applicationHost.swift>)は`applicationWillTerminate`で同期的に入力監視を停止し、HUDを終了して設定をflushします。
+比較元は固定版の[Quitボタン](<https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Views/MenuBarPopupView.swift#L368-L382>)と
+[終了通知](<https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/FineTuneApp.swift#L246-L259>)です。
+独自の`terminateLater`・非同期の音声回収待ち・保存失敗時の再試行/取消ダイアログは設けません。
+保存失敗はstoreの`lastSaveError`に残りますが、原作同様、終了を取り消しません。
+音声資源はプロセス終了時のOS回収に従い、通常のcooperative stopの回収結果・安全性契約は変更しません。
+[Hostの回帰テスト](<../Tests/AppCompositionTests/ApplicationHostTerminationTests.swift>)は実delegateの公開capabilityを、
+[lifecycleテスト](<../Tests/AppCompositionTests/BootstrapLifecycleTests.swift>)は同期保存結果・入力停止・古いcallbackの拒否を確認します。
+このcomponent検証は、実音声中の終了や最小対応OSでの動作確認とは別です。
+
 ## 保存設定
 
 [保存schema](<../Sources/FineTunePlatform/Persistence/savedSettings.swift>)と

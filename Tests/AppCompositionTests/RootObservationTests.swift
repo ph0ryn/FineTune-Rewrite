@@ -104,9 +104,9 @@ struct RootObservationTests {
   }
 
   @Test(
-    "Quit rejects current owned cleanup debt but accepts its later retired ACK without erasing history"
+    "Cooperative stop reports owned cleanup debt but accepts a later retired ACK without erasing history"
   )
-  func quitAfterRetiredCleanupRecovery() async throws {
+  func stopAfterRetiredCleanupRecovery() async throws {
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent(
       "FineTuneRootCleanup-\(UUID().uuidString)", isDirectory: true)
     defer { try? FileManager.default.removeItem(at: directory) }
@@ -146,7 +146,8 @@ struct RootObservationTests {
         suspendAudio: { await controller.shutdown() },
         resumeAudio: { controller.resume() }, suspendInput: {}, resumeInput: {}))
     await lifecycle.start()
-    #expect(await lifecycle.requestQuit() == .cancelled)
+    await lifecycle.stop()
+    #expect(lifecycle.phase == .failed)
     #expect(!route.retired)
     #expect(controller.routeObservations[route.key]?.cleanupFailure == cleanup)
     #expect(lifecycle.lastError?.contains(cleanup.message) == true)
@@ -154,7 +155,7 @@ struct RootObservationTests {
     route.finishRetirement()
     #expect(controller.routeObservations[route.key]?.phase == .retired)
     #expect(controller.routeObservations[route.key]?.cleanupFailure == cleanup)
-    #expect(await lifecycle.requestQuit() == .terminate)
+    await lifecycle.stop()
     #expect(lifecycle.phase == .stopped)
     #expect(controller.routeObservations[route.key]?.cleanupFailure == cleanup)
     // This single Controller-owned ACK says nothing about the separate private orphan pool.

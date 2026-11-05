@@ -90,7 +90,10 @@ Mixer・Settingsのread/action、キー操作、URLはこの同じControl/store�
 
 ### Lifecycleと構築時の副作用
 
-[coordinator](<../App/Bootstrap/lifecycleCoordinator.swift>)がstart/stop・sleep/wake・session状態・quit/flushを所有する。
+[coordinator](<../App/Bootstrap/lifecycleCoordinator.swift>)がstart/stop・sleep/wake・session状態・終了時の入力停止/flushを所有する。
+[Host](<../App/Bootstrap/applicationHost.swift>)の終了通知で同期的に入力を止めて設定を保存し、RootはHUDも終了する。
+原作と同じ通常のAppKit終了に従い、`terminateLater`や非同期のroute回収完了は待たない。
+プロセス終了時のOS回収と、通常のstopが返すNative回収結果は別の契約であり、終了できたことを全資源のdrain成功とは扱わない。
 one-shot observationはsuspended中も同じ世代で再登録するが、running時だけ通常のeffectを実行する。
 wakeでは現在のdefault読取healthとEngine観測を先に取り込み、policyをrebaseし、最後にcaptureを再開する。
 input停止はmedia keysだけでなくglobal shortcutsの登録解除とrepeat task取消に及び、suspend/stop中は保持されたRegistry callbackも効果を持たない。
