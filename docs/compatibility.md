@@ -36,6 +36,10 @@ fieldやadapterの存在だけで、製品のconsumer接続や実機動作まで
 音量スライダーと上部・下部の操作は、同じ固定版の原作UIを基準にします。
 [共通スライダー](<../App/Design/mixerVolumeSlider.swift>)は4ptの軌道とhover/drag時のnative mini thumb、
 [ヘッダー・フッター](<../App/Features/Mixer/mixerChrome.swift>)はspeaker/mic切替、鉛筆/checkmark、塗りの歯車、下部の`Quit ⌘Q`を使います。
+[入出力デバイス行](<../App/Features/Devices/deviceRow.swift>)は、名前の隙間と上下の余白を含む行の非操作部分からdefaultを切り替えます。
+ミュート・音量・パーセント入力は行の切り替えを伴わず、すでにdefaultの行を再選択しても再書込しません。
+[選択中バッジ](<../App/Design/deviceBadge.swift>)は原作の28pt円形・アクセント色gradient・白いglyphを使い、未選択時はmono表示にします。
+選択はOSの観測defaultに従い、既存checkmarkも残します。クリック直後の先行表示や切り替え中表示ではありません。
 音量のbinding・未知値/読み取り専用表示・共通command・現行の⌘Q操作・全行の非スクロール表示は維持します。
 原作のDonateや音声処理、機器の欠損値fallbackは移植しません。
 ミュートのdim表示とnative待機時のopacityは分離し、合成opacityがhit-test閾値を下回って音量操作を失うことは再現しません。
@@ -44,6 +48,8 @@ fieldやadapterの存在だけで、製品のconsumer接続や実機動作まで
 [表示回帰テスト](<../Tests/AppCompositionTests/MixerControlAppearanceTests.swift>)はfakeを接続した実コンポーネントをoffscreen描画し、
 3つのpopup sizeとlight/darkのidle軌道・icon headerを確認します。
 専用window内のnative pointer eventで、通常/ミュート時の音量操作とtab・編集・設定・Quitのfake actionも検証します。
+入出力それぞれで3つのpopup sizeの行内余白をクリックし、内部controlとの操作分離とdefault再書込の抑制を確認します。
+選択中バッジはlight/darkの実bitmapと、観測default変更後にaccent表示が消えることを確認します。
 `FINETUNE_MIXER_CONTROL_EVIDENCE`に出力先を指定すると、その描画PNGを保存できます。
 [popupテスト](<../Tests/AppCompositionTests/PopupLayoutTests.swift>)はQuitの下部配置・⌘Qと、表示中の自然な高さ変更も検証します。
 これらの成功を、最小対応OSのnative thumb、実機音声、全UIの操作・見た目の検証へ拡張しません。
@@ -109,6 +115,7 @@ GPL対象を含む製品binaryの配布時は、組合せ・対応source・通�
 | [systemAudioDaemonCatalog](<../Sources/FineTunePlatform/Devices/Observation/systemAudioDaemonCatalog.swift>) | bundle/name prefix語彙 | [AudioProcessMonitor:20–58](<https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Audio/Monitors/AudioProcessMonitor.swift#L20-L58>) |
 | [URLAutomationParser](<../Sources/FineTuneControl/Automation/URLAutomationParser.swift>) | URL grammar・値変換規則 | [URLHandler](<https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Utilities/URLHandler.swift>) |
 | [deviceDefaultEchoes](<../Sources/FineTuneControl/Routing/deviceDefaultEchoes.swift>) | UID別の複数echo token・各2秒失効・消費規則 | [EchoTracker:4–73](<https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Audio/Engine/EchoTracker.swift#L4-L73>) |
+| [deviceBadge](<../App/Design/deviceBadge.swift>) | 選択中の28ptアクセント色gradientと未選択monoの円形バッジ | [DeviceBadge](<https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Views/Components/DeviceBadge.swift>) |
 | [mixerVolumeSlider](<../App/Design/mixerVolumeSlider.swift>) | 4pt軌道・native mini thumbのhover/drag表示 | [LiquidGlassSlider](<https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Views/Components/LiquidGlassSlider.swift>) |
 | [mixerChrome](<../App/Features/Mixer/mixerChrome.swift>) | icon header・tabs・Quit capsuleの表示 | [MenuBarPopupView](<https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Views/MenuBarPopupView.swift>)・[ViewModifiers](<https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Views/DesignSystem/ViewModifiers.swift>) |
 | [AutoEQCatalog](<../Sources/FineTunePlatform/Profiles/AutoEQCatalog.swift>) | INDEX解析・検索順位 | [AutoEQFetcher](<https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Audio/AutoEQ/AutoEQFetcher.swift>)・[AutoEQProfileManager](<https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Audio/AutoEQ/AutoEQProfileManager.swift>) |

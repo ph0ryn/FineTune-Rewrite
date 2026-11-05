@@ -88,11 +88,9 @@ struct DeviceRow: View {
       // Only the name column flexes; every device keeps the same trailing control columns.
       Button(action: selectIfNeeded) {
         HStack(spacing: DesignTokens.Spacing.sm) {
-          if let icon = device.icon {
-            Image(nsImage: icon).resizable().frame(width: 24, height: 24)
-          } else {
-            Image(systemName: isInput ? "mic" : "hifispeaker").frame(width: 24, height: 24)
-          }
+          DeviceBadge(
+            icon: device.icon, isSelected: isDefault,
+            fallbackSymbol: isInput ? "mic" : "speaker.wave.2.fill")
           VStack(alignment: .leading, spacing: 1) {
             Text(device.name).font(DesignTokens.Typography.rowName).lineLimit(1).help(device.name)
             if let autoEQSubtitle {
@@ -109,7 +107,9 @@ struct DeviceRow: View {
       .buttonStyle(.plain)
       .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
       .accessibilityLabel(
-        isInput ? "Use \(device.name) as default input" : "Use \(device.name) as default output")
+        isInput ? "Use \(device.name) as default input" : "Use \(device.name) as default output"
+      )
+      .accessibilityAddTraits(isDefault ? .isSelected : [])
       Button(action: onMuteToggle) {
         Image(
           systemName: displayedMuteState.map {

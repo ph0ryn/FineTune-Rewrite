@@ -35,6 +35,35 @@ struct MixerControlAppearanceTests {
   }
 
   @Test(
+    "Observed input and output defaults have an accent badge that clears on a live default change",
+    arguments: [MixerDeviceScope.output, .input], [AppearancePreference.light, .dark])
+  func selectedDeviceBadge(scope: MixerDeviceScope, appearance: AppearancePreference) async throws {
+    let fixture = MixerControlFixture(size: .comfortable, appearance: appearance)
+    try await fixture.showForPointerInput()
+    defer { fixture.window.orderOut(nil) }
+    let padding = MenuBarPopupSize.comfortable.dimensions.contentPadding
+    if scope == .input {
+      try await fixture.click(CGPoint(x: padding + 44, y: padding + 16))
+    }
+    let percentage = try #require(fixture.percentageFrames().first)
+    let badge = CGRect(x: padding, y: percentage.midY - 14, width: 28, height: 28)
+    let selected = try fixture.bitmap()
+    try fixture.writeArtifact(selected, name: "selected-device-\(scope)-\(appearance)")
+    #expect(try badgeAccentArea(in: badge, bitmap: selected, host: fixture.host) > 250)
+
+    if scope == .output {
+      fixture.source.snapshot.outputDevices[0].isDefault = false
+    } else {
+      fixture.source.snapshot.inputDevices[0].isDefault = false
+    }
+    try await fixture.settle()
+    let unselected = try fixture.bitmap()
+    try fixture.writeArtifact(unselected, name: "unselected-device-\(scope)-\(appearance)")
+    #expect(try badgeAccentArea(in: badge, bitmap: unselected, host: fixture.host) == 0)
+    #expect(fixture.source.events.isEmpty && fixture.source.profileSource.events.isEmpty)
+  }
+
+  @Test(
     "Native slider clicks still send scoped device and application gain actions, including muted rows",
     arguments: [false, true])
   func nativeSliderActions(muted: Bool) async throws {
@@ -250,7 +279,7 @@ private final class MixerControlFixture {
     try await settle()
   }
 
-  private func settle() async throws {
+  func settle() async throws {
     // One bounded display-cycle wait per input, matching the existing native-popup fixtures.
     try await Task.sleep(for: .milliseconds(120))
     host.layoutSubtreeIfNeeded()
