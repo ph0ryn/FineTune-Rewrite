@@ -8,6 +8,7 @@
 #include <cmath>
 #include <cstring>
 #include <memory>
+#include <os/log.h>
 
 namespace finetune::runtime {
 namespace {
@@ -26,25 +27,36 @@ address(AudioObjectPropertySelector selector,
         AudioObjectPropertyScope scope = kAudioObjectPropertyScopeGlobal) {
     return {selector, scope, kAudioObjectPropertyElementMain};
 }
+OSStatus certificationFailure(OSStatus status, const char *role, const char *api,
+                              const AudioObjectPropertyAddress &property) {
+    if (role && status != noErr)
+        os_log_error(OS_LOG_DEFAULT,
+                     "FineTune certifyFormat role=%{public}s api=%{public}s selector=0x%{public}x "
+                     "scope=0x%{public}x native_code=%{public}d",
+                     role, api, property.mSelector, property.mScope, status);
+    return status;
+}
 template <class T>
 OSStatus scalar(AudioObjectID object, AudioObjectPropertySelector selector, T &value,
-                AudioObjectPropertyScope scope = kAudioObjectPropertyScopeGlobal) {
+                AudioObjectPropertyScope scope = kAudioObjectPropertyScopeGlobal,
+                const char *role = nullptr) {
     auto property = address(selector, scope);
     UInt32 bytes = sizeof(T);
     const auto status = AudioObjectGetPropertyData(object, &property, 0, nullptr, &bytes, &value);
     if (status != noErr)
-        return status;
+        return certificationFailure(status, role, "AudioObjectGetPropertyData", property);
     return bytes == sizeof(T) ? OSStatus{0}
                               : static_cast<OSStatus>(kAudioHardwareBadPropertySizeError);
 }
 template <class T>
 OSStatus array(AudioObjectID object, AudioObjectPropertySelector selector, std::vector<T> &values,
-               AudioObjectPropertyScope scope = kAudioObjectPropertyScopeGlobal) {
+               AudioObjectPropertyScope scope = kAudioObjectPropertyScopeGlobal,
+               const char *role = nullptr) {
     auto property = address(selector, scope);
     UInt32 bytes = 0;
     auto status = AudioObjectGetPropertyDataSize(object, &property, 0, nullptr, &bytes);
     if (status != noErr)
-        return status;
+        return certificationFailure(status, role, "AudioObjectGetPropertyDataSize", property);
     if (bytes % sizeof(T) != 0)
         return kAudioHardwareBadPropertySizeError;
     values.resize(bytes / sizeof(T));
@@ -54,7 +66,7 @@ OSStatus array(AudioObjectID object, AudioObjectPropertySelector selector, std::
     if (status == noErr && bytes % sizeof(T) == 0)
         values.resize(bytes / sizeof(T));
     if (status != noErr)
-        return status;
+        return certificationFailure(status, role, "AudioObjectGetPropertyData", property);
     return bytes % sizeof(T) == 0 ? OSStatus{0}
                                   : static_cast<OSStatus>(kAudioHardwareBadPropertySizeError);
 }
@@ -79,18 +91,18 @@ OSStatus stringProperty(AudioObjectID object, AudioObjectPropertySelector select
     return status == noErr ? copyString(text, value) : status;
 }
 OSStatus channelConfiguration(AudioObjectID object, AudioObjectPropertyScope scope,
-                              std::vector<UInt32> &channels) {
+                              std::vector<UInt32> &channels, const char *role = nullptr) {
     auto property = address(kAudioDevicePropertyStreamConfiguration, scope);
     UInt32 bytes = 0;
     auto status = AudioObjectGetPropertyDataSize(object, &property, 0, nullptr, &bytes);
     if (status != noErr)
-        return status;
+        return certificationFailure(status, role, "AudioObjectGetPropertyDataSize", property);
     if (bytes < offsetof(AudioBufferList, mBuffers))
         return kAudioHardwareBadPropertySizeError;
     std::vector<std::byte> storage(bytes);
     status = AudioObjectGetPropertyData(object, &property, 0, nullptr, &bytes, storage.data());
     if (status != noErr)
-        return status;
+        return certificationFailure(status, role, "AudioObjectGetPropertyData", property);
     const auto *buffers = reinterpret_cast<const AudioBufferList *>(storage.data());
     const auto needed =
         offsetof(AudioBufferList, mBuffers) + sizeof(AudioBuffer) * buffers->mNumberBuffers;
@@ -102,12 +114,13 @@ OSStatus channelConfiguration(AudioObjectID object, AudioObjectPropertyScope sco
     return noErr;
 }
 OSStatus layout(AudioObjectID device, AudioObjectPropertyScope scope, StereoLayout &result,
-                std::vector<AudioObjectID> &streams, std::uint32_t *totalChannels = nullptr) {
+                std::vector<AudioObjectID> &streams, std::uint32_t *totalChannels = nullptr,
+                const char *role = nullptr) {
     std::vector<UInt32> channels;
-    auto status = channelConfiguration(device, scope, channels);
+    auto status = channelConfiguration(device, scope, channels, role);
     if (status != noErr)
         return status;
-    status = array(device, kAudioDevicePropertyStreams, streams, scope);
+    status = array(device, kAudioDevicePropertyStreams, streams, scope, role);
     if (status != noErr)
         return status;
     result = {};
@@ -126,10 +139,12 @@ OSStatus layout(AudioObjectID device, AudioObjectPropertyScope scope, StereoLayo
     for (const auto stream : streams) {
         AudioStreamBasicDescription format{};
         UInt32 first = 0;
-        status = scalar(stream, kAudioStreamPropertyVirtualFormat, format);
+        status = scalar(stream, kAudioStreamPropertyVirtualFormat, format,
+                        kAudioObjectPropertyScopeGlobal, role);
         if (status != noErr)
             return status;
-        status = scalar(stream, kAudioStreamPropertyStartingChannel, first);
+        status = scalar(stream, kAudioStreamPropertyStartingChannel, first,
+                        kAudioObjectPropertyScopeGlobal, role);
         if (status != noErr)
             return status;
         if (!nativeFloat32Format(format) || first != nextChannel)
@@ -294,11 +309,13 @@ OSStatus streamUsage(AudioObjectID device, AudioDeviceIOProcID io, AudioObjectPr
     auto status = AudioObjectSetPropertyData(device, &property, 0, nullptr,
                                              static_cast<UInt32>(bytes), usage);
     if (status != noErr)
-        return status;
+        return certificationFailure(status, "certifyFormat.streamUsage",
+                                    "AudioObjectSetPropertyData", property);
     UInt32 actual = static_cast<UInt32>(bytes);
     status = AudioObjectGetPropertyData(device, &property, 0, nullptr, &actual, usage);
     if (status != noErr)
-        return status;
+        return certificationFailure(status, "certifyFormat.streamUsage",
+                                    "AudioObjectGetPropertyData", property);
     if (actual != bytes || usage->mNumberStreams != count)
         return kAudioHardwareBadPropertySizeError;
     for (std::size_t n = 0; n < count; ++n)
@@ -311,15 +328,18 @@ OSStatus certify(void *, AudioObjectID aggregate, AudioDeviceIOProcID io,
                  FormatCertificate &output) {
     CFArrayRef devices = nullptr, taps = nullptr;
     CFStringRef master = nullptr;
-    auto status = scalar(aggregate, kAudioAggregateDevicePropertyFullSubDeviceList, devices);
+    auto status = scalar(aggregate, kAudioAggregateDevicePropertyFullSubDeviceList, devices,
+                         kAudioObjectPropertyScopeGlobal, "certifyFormat.aggregate");
     CFGuard a(devices);
     if (status != noErr)
         return status;
-    status = scalar(aggregate, kAudioAggregateDevicePropertyTapList, taps);
+    status = scalar(aggregate, kAudioAggregateDevicePropertyTapList, taps,
+                    kAudioObjectPropertyScopeGlobal, "certifyFormat.aggregate");
     CFGuard b(taps);
     if (status != noErr)
         return status;
-    status = scalar(aggregate, kAudioAggregateDevicePropertyMainSubDevice, master);
+    status = scalar(aggregate, kAudioAggregateDevicePropertyMainSubDevice, master,
+                    kAudioObjectPropertyScopeGlobal, "certifyFormat.aggregate");
     CFGuard c(master);
     if (status != noErr)
         return status;
@@ -330,29 +350,34 @@ OSStatus certify(void *, AudioObjectID aggregate, AudioDeviceIOProcID io,
     output.intendedPhysicalOutput = oneString(devices, physical.uid) && masterUID == physical.uid;
     output.onlyOwnedTapInput = physical.inputChannels == 0 && oneString(taps, tap.uid);
     std::vector<AudioObjectID> subTaps;
-    status = array(aggregate, kAudioAggregateDevicePropertySubTapList, subTaps);
+    status = array(aggregate, kAudioAggregateDevicePropertySubTapList, subTaps,
+                   kAudioObjectPropertyScopeGlobal, "certifyFormat.aggregate");
     if (status != noErr)
         return status;
     if (subTaps.size() != 1 || subTaps.front() == kAudioObjectUnknown)
         return kAudioHardwareUnsupportedOperationError;
     output.subTap = subTaps.front();
-    status = scalar(output.subTap, kAudioSubTapPropertyDriftCompensation,
-                    output.subTapDriftCompensation);
-    if (status != noErr)
-        return status;
-    status = scalar(output.subTap, kAudioSubTapPropertyDriftCompensationQuality,
-                    output.subTapDriftQuality);
-    if (status != noErr)
-        return status;
-    status = layout(aggregate, kAudioObjectPropertyScopeInput, output.input, output.inputStreams);
+    status =
+        scalar(output.subTap, kAudioSubTapPropertyDriftCompensation, output.subTapDriftCompensation,
+               kAudioObjectPropertyScopeGlobal, "certifyFormat.subTap");
     if (status != noErr)
         return status;
     status =
-        layout(aggregate, kAudioObjectPropertyScopeOutput, output.output, output.outputStreams);
+        scalar(output.subTap, kAudioSubTapPropertyDriftCompensationQuality,
+               output.subTapDriftQuality, kAudioObjectPropertyScopeGlobal, "certifyFormat.subTap");
+    if (status != noErr)
+        return status;
+    status = layout(aggregate, kAudioObjectPropertyScopeInput, output.input, output.inputStreams,
+                    nullptr, "certifyFormat.inputLayout");
+    if (status != noErr)
+        return status;
+    status = layout(aggregate, kAudioObjectPropertyScopeOutput, output.output, output.outputStreams,
+                    nullptr, "certifyFormat.outputLayout");
     if (status != noErr)
         return status;
     AudioValueRange range{};
-    status = scalar(aggregate, kAudioDevicePropertyBufferFrameSizeRange, range);
+    status = scalar(aggregate, kAudioDevicePropertyBufferFrameSizeRange, range,
+                    kAudioObjectPropertyScopeGlobal, "certifyFormat.aggregate");
     if (status != noErr)
         return status;
     if (!std::isfinite(range.mMaximum) || range.mMaximum < 1 || range.mMaximum > 65536 ||
@@ -365,7 +390,8 @@ OSStatus certify(void *, AudioObjectID aggregate, AudioDeviceIOProcID io,
     output.hasVariableBufferFrames = AudioObjectHasProperty(aggregate, &variableProperty);
     if (output.hasVariableBufferFrames) {
         UInt32 largest = 0;
-        status = scalar(aggregate, kAudioDevicePropertyUsesVariableBufferFrameSizes, largest);
+        status = scalar(aggregate, kAudioDevicePropertyUsesVariableBufferFrameSizes, largest,
+                        kAudioObjectPropertyScopeGlobal, "certifyFormat.aggregate");
         if (status != noErr)
             return status; // A read failure is never an absence/range fallback.
         if (largest == 0 || largest > 65536)
