@@ -43,6 +43,16 @@ fieldやadapterの存在だけで、製品のconsumer接続や実機動作まで
 音量のbinding・未知値/読み取り専用表示・共通command・現行の⌘Q操作・全行の非スクロール表示は維持します。
 原作のDonateや音声処理、機器の欠損値fallbackは移植しません。
 ミュートのdim表示とnative待機時のopacityは分離し、合成opacityがhit-test閾値を下回って音量操作を失うことは再現しません。
+[アプリ行](<../App/Features/Mixer/mixerAppRow.swift>)は28pt headerと上下6pt・左右8pt paddingの40pt行にし、
+VU・24pt app icon・名前・mute・共通140pt slider・40pt percentage枠・boost chevrons・出力先icon・EQ iconを1行に並べます。
+名前や余白にはactionを付けず、active appのiconだけが既存activate actionを呼びます。
+停止中の装飾はdimにしますが、sliderの祖先opacityは下げず、音量操作を維持します。
+通常は背景を透明にし、hover・focus・EQ展開時に共通hover surfaceを使います。EQ panelの内部操作は変更しません。
+[出力先picker](<../App/Features/Mixer/mixerAppRoutePicker.swift>)は28pt icon triggerとSingle/Multi・check/checkboxの210pt menuを使い、
+popoverの外側クリック・dismiss・window所有はnative SwiftUIへ任せます。mode/UIDの先行状態は持たず、選択は観測値に従います。
+通常のfollow-defaultは名前の下に表示せず、明示経路・multiの要約だけを9pt subtitleにします。
+機器がなくなったUIDのUnavailable表示、明示routeStatus、観測level欠損と実測0の区別は隠しません。
+この表示変更ではappの既存mute commandを維持し、原作の0%時クリックによるgain 1.0復元までは移植しません。
 全Mixerのpixel単位の一致を保証するものではありません。
 
 [表示回帰テスト](<../Tests/AppCompositionTests/MixerControlAppearanceTests.swift>)はfakeを接続した実コンポーネントをoffscreen描画し、
@@ -51,6 +61,10 @@ fieldやadapterの存在だけで、製品のconsumer接続や実機動作まで
 入出力それぞれで3つのpopup sizeの行内余白をクリックし、内部controlとの操作分離とdefault再書込の抑制を確認します。
 選択中バッジはlight/darkの実bitmapと、観測default変更後にaccent表示が消えることを確認します。
 `FINETUNE_MIXER_CONTROL_EVIDENCE`に出力先を指定すると、その描画PNGを保存できます。
+[アプリ行テスト](<../Tests/AppCompositionTests/AppRowPresentationTests.swift>)は3つの幅で40pt行・percentage位置・非default subtitleを実描画し、
+active icon/name/mute/slider/boost/EQの操作分離と、停止中・ミュート・dark時の共通slider操作をnative pointer eventで確認します。
+実際のpicker menuでもSingle/Multi/default/UID選択をfake actionへ通し、観測更新の前に選択状態を先行変更しないことを確認します。
+`FINETUNE_APP_ROW_EVIDENCE`で行・picker menuの描画PNGを保存できます。
 [popupテスト](<../Tests/AppCompositionTests/PopupLayoutTests.swift>)はQuitの下部配置・⌘Qと、表示中の自然な高さ変更も検証します。
 これらの成功を、最小対応OSのnative thumb、実機音声、全UIの操作・見た目の検証へ拡張しません。
 
@@ -118,6 +132,8 @@ GPL対象を含む製品binaryの配布時は、組合せ・対応source・通�
 | [deviceBadge](<../App/Design/deviceBadge.swift>) | 選択中の28ptアクセント色gradientと未選択monoの円形バッジ | [DeviceBadge](<https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Views/Components/DeviceBadge.swift>) |
 | [mixerVolumeSlider](<../App/Design/mixerVolumeSlider.swift>) | 4pt軌道・native mini thumbのhover/drag表示 | [LiquidGlassSlider](<https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Views/Components/LiquidGlassSlider.swift>) |
 | [mixerChrome](<../App/Features/Mixer/mixerChrome.swift>) | icon header・tabs・Quit capsuleの表示 | [MenuBarPopupView](<https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Views/MenuBarPopupView.swift>)・[ViewModifiers](<https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Views/DesignSystem/ViewModifiers.swift>) |
+| [mixerAppRow](<../App/Features/Mixer/mixerAppRow.swift>) | 40pt行・icon controls・boost chevrons・hover/展開背景 | [AppRow](<https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Views/Rows/AppRow.swift>)・[AppRowControls](<https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Views/Rows/AppRowControls.swift>)・[AppEditRow](<https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Views/Rows/AppEditRow.swift>) |
+| [mixerAppRoutePicker](<../App/Features/Mixer/mixerAppRoutePicker.swift>) | icon trigger・route subtitle・Single/Multi/check/checkbox表示 | [DevicePicker](<https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Views/Components/DevicePicker.swift>)・[ModeToggle](<https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Views/Components/ModeToggle.swift>) |
 | [AutoEQCatalog](<../Sources/FineTunePlatform/Profiles/AutoEQCatalog.swift>) | INDEX解析・検索順位 | [AutoEQFetcher](<https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Audio/AutoEQ/AutoEQFetcher.swift>)・[AutoEQProfileManager](<https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Audio/AutoEQ/AutoEQProfileManager.swift>) |
 | [ParametricEQTextParser](<../Sources/FineTunePlatform/Profiles/ParametricEQTextParser.swift>) | APO grammar・filter規則 | [AutoEQParser](<https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Audio/AutoEQ/AutoEQParser.swift>) |
 | [AutoEQProfileRepository](<../Sources/FineTunePlatform/Profiles/AutoEQProfileRepository.swift>) | 取得/cache/importの振る舞い | [AutoEQFetcher](<https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Audio/AutoEQ/AutoEQFetcher.swift>)・[AutoEQProfileManager](<https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Audio/AutoEQ/AutoEQProfileManager.swift>) |

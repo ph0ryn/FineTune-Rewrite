@@ -1,10 +1,11 @@
 FineTune Rewrite — license notices
 
 This development application contains components with different licenses.
-The application must not be described as MIT-only. The eleven source files
+The application must not be described as MIT-only. The thirteen source files
 listed below are GPL-3.0-only derived components: device catalog and daemon data,
 URL grammar, profile parsing/search, acquisition/cache, file-store behavior,
-default-device echo tracking, and mixer slider/header/footer/device-badge presentation.
+default-device echo tracking, and mixer slider/header/footer/device-badge/app-row
+and output-picker presentation.
 Their whole-file declarations cover derived code as well as data; they do not
 mean every newly written line was copied from or authored by Ronit Singh.
 Other independently written source files retain their stated licenses.
@@ -83,6 +84,22 @@ FineTune mixer volume slider presentation
   Upstream: https://github.com/ronitsingh10/FineTune
   Fixed revision: 2285279d36d3f8115c1c2d4aecd904f1bdf96a51
   Local file: App/Design/mixerVolumeSlider.swift
+  License: GPL-3.0-only, complete text and attribution below.
+
+FineTune compact application row presentation
+  Sources: FineTune/Views/Rows/AppRow.swift, InactiveAppRow.swift, AppRowControls.swift,
+    AppEditRow.swift and Views/Components/ExpandableGlassRow.swift, BoostChevrons.swift,
+    MuteButton.swift
+  Upstream: https://github.com/ronitsingh10/FineTune
+  Fixed revision: 2285279d36d3f8115c1c2d4aecd904f1bdf96a51
+  Local file: App/Features/Mixer/mixerAppRow.swift
+  License: GPL-3.0-only, complete text and attribution below.
+
+FineTune application output-picker presentation
+  Sources: FineTune/Views/Components/DevicePicker.swift and ModeToggle.swift
+  Upstream: https://github.com/ronitsingh10/FineTune
+  Fixed revision: 2285279d36d3f8115c1c2d4aecd904f1bdf96a51
+  Local file: App/Features/Mixer/mixerAppRoutePicker.swift
   License: GPL-3.0-only, complete text and attribution below.
 
 FineTune mixer header and footer presentation
