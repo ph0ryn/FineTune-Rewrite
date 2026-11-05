@@ -85,32 +85,18 @@ struct MixerView: View {
   }
 
   private var content: some View {
-    VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
-      HStack {
-        Picker("Devices", selection: $scope) {
-          ForEach(MixerDeviceScope.allCases) { Text($0.title).tag($0) }
-        }
-        .pickerStyle(.segmented).fixedSize()
-        Spacer()
-        Button(isEditing ? "Done" : "Edit") {
+    let snapshot = read()
+    return VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+      MixerHeader(
+        scope: $scope, isEditing: isEditing,
+        outputName: snapshot.outputDevices.first(where: \.isDefault)?.device.name ?? "No Output",
+        inputName: snapshot.inputDevices.first(where: \.isDefault)?.device.name ?? "No Input",
+        edit: {
           isEditing.toggle()
           keyboard = MixerKeyboardState()
           draggedDeviceUID = nil
           syncNavigation()
-        }
-        .buttonStyle(.plain)
-        Button(action: actions.openSettings) { Image(systemName: "gearshape") }
-          .buttonStyle(.plain).accessibilityLabel("Settings")
-        Button("Quit", action: quit)
-          .buttonStyle(.plain).keyboardShortcut("q", modifiers: .command)
-          .accessibilityLabel("Quit FineTune").help("Quit FineTune (⌘Q)")
-      }
-      if isEditing {
-        Text("Drag or type a number to set priority")
-          .font(DesignTokens.Typography.rowDescription).foregroundStyle(.secondary)
-      } else {
-        defaultDevicesStatus
-      }
+        }, settings: actions.openSettings)
       if let notice = read().captureNotice {
         HStack(spacing: DesignTokens.Spacing.sm) {
           Label(notice.message, systemImage: "exclamationmark.triangle")
@@ -146,21 +132,9 @@ struct MixerView: View {
       }
       Divider().padding(.vertical, DesignTokens.Spacing.xs)
       applicationsSection
+      Divider().padding(.vertical, DesignTokens.Spacing.xs)
+      MixerFooter(quit: quit)
     }
-  }
-
-  private var defaultDevicesStatus: some View {
-    let snapshot = read()
-    let output = snapshot.outputDevices.first(where: \.isDefault)?.device.name ?? "No Output"
-    let input = snapshot.inputDevices.first(where: \.isDefault)?.device.name ?? "No Input"
-    return HStack(spacing: DesignTokens.Spacing.xs) {
-      Label(output, systemImage: "speaker.wave.2.fill")
-        .lineLimit(1).truncationMode(.middle).help(output)
-      Text("·")
-      Label(input, systemImage: "mic.fill")
-        .lineLimit(1).truncationMode(.middle).help(input)
-    }
-    .font(DesignTokens.Typography.rowDescription).foregroundStyle(.secondary)
   }
 
   private var applicationsSection: some View {
@@ -180,7 +154,7 @@ struct MixerView: View {
         Text(
           ignored.isEmpty
             ? "Apps playing audio appear here."
-            : "No apps playing audio. Select Edit to show ignored apps."
+            : "No apps playing audio. Select the pencil to show ignored apps."
         )
         .font(DesignTokens.Typography.rowName).foregroundStyle(.secondary)
         .padding(.vertical, DesignTokens.Spacing.md)

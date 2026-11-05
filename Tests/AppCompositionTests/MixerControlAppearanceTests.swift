@@ -1,0 +1,221 @@
+// Actual production mixer, rendered into owned offscreen windows with fake actions only.
+// The bitmap checks the visible slider silhouette, not private SwiftUI view structure.
+import AppKit
+import FineTuneDomain
+import SwiftUI
+import Testing
+import Vision
+
+@testable import FineTune
+
+@Suite("Mixer control appearance", .serialized)
+@MainActor
+struct MixerControlAppearanceTests {
+  @Test(
+    "Device and application sliders have thin idle tracks, not persistent native thumbs",
+    arguments: [MenuBarPopupSize.compact, .comfortable, .spacious],
+    [AppearancePreference.light, .dark])
+  func idleTracks(size: MenuBarPopupSize, appearance: AppearancePreference) throws {
+    let fixture = MixerControlFixture(size: size, appearance: appearance)
+    let bitmap = try fixture.bitmap()
+    try fixture.writeArtifact(bitmap, name: "mixer-\(size)-\(appearance)")
+    let fields = controlDescendants(fixture.host).compactMap { $0 as? NSTextField }
+      .filter(\.isEditable)
+    try #require(fields.count == 2)
+    for field in fields {
+      let percentage = fixture.host.convert(field.bounds, from: field)
+      let slider = CGRect(
+        x: percentage.minX - DesignTokens.Spacing.sm - DesignTokens.Dimensions.sliderWidth,
+        y: percentage.midY - 14, width: DesignTokens.Dimensions.sliderWidth, height: 28)
+      let height = try accentHeight(in: slider, bitmap: bitmap, host: fixture.host)
+      #expect(height >= 3 && height <= 5, "Idle slider accent silhouette is \(height)pt")
+    }
+    #expect(!fixture.window.isVisible)
+    #expect(fixture.source.events.isEmpty && fixture.source.profileSource.events.isEmpty)
+  }
+
+  @Test(
+    "Native slider clicks still send scoped device and application gain actions, including muted rows",
+    arguments: [false, true])
+  func nativeSliderActions(muted: Bool) async throws {
+    let fixture = MixerControlFixture(size: .comfortable, appearance: .light, muted: muted)
+    try await fixture.showForPointerInput()
+    defer { fixture.window.orderOut(nil) }
+    let fields = fixture.percentageFrames()
+    try #require(fields.count == 2)
+    for (field, event) in zip(fields, ["device-volume", "app-volume"]) {
+      try await fixture.click(
+        CGPoint(
+          x: field.minX - DesignTokens.Spacing.sm - DesignTokens.Dimensions.sliderWidth / 4,
+          y: field.midY))
+      #expect(fixture.source.events.last == event)
+      #expect(try #require(fixture.source.lastGain) > 0.25)
+    }
+    #expect(fixture.source.lastDeviceScope == .output)
+    #expect(fixture.source.lastDeviceUID == "output-uid")
+    #expect(fixture.source.lastAppID == "com.example.player")
+    #expect(fixture.source.events == ["device-volume", "app-volume"])
+  }
+
+  @Test("Icon tabs, edit, settings and footer Quit retain their actual pointer actions")
+  func chromeActions() async throws {
+    let fixture = MixerControlFixture(size: .compact, appearance: .light)
+    try await fixture.showForPointerInput()
+    defer { fixture.window.orderOut(nil) }
+    let padding = MenuBarPopupSize.compact.dimensions.contentPadding
+    let width = fixture.host.bounds.width
+    // The original header's explicit 26pt tabs and 16pt action columns provide stable hit points.
+    try await fixture.click(CGPoint(x: padding + 44, y: padding + 16))
+    let input = try #require(fixture.percentageFrames().first)
+    try await fixture.click(
+      CGPoint(x: input.minX - DesignTokens.Spacing.sm - 35, y: input.midY))
+    #expect(fixture.source.lastDeviceScope == .input)
+    #expect(fixture.source.lastDeviceUID == "input-uid")
+    try await fixture.click(CGPoint(x: padding + 16, y: padding + 16))
+    let output = try #require(fixture.percentageFrames().first)
+    try await fixture.click(
+      CGPoint(x: output.minX - DesignTokens.Spacing.sm - 35, y: output.midY))
+    #expect(fixture.source.lastDeviceScope == .output)
+    try await fixture.click(CGPoint(x: width - padding - 32, y: padding + 8))
+    #expect(fixture.editableFields.contains { $0.stringValue == "1" })
+    try await fixture.click(CGPoint(x: width - padding - 32, y: padding + 8))
+    #expect(!fixture.editableFields.contains { $0.stringValue == "1" })
+    try await fixture.click(CGPoint(x: width - padding - 8, y: padding + 8))
+    try await fixture.click(
+      CGPoint(x: width - padding - 30, y: fixture.host.bounds.height - padding - 10))
+    #expect(fixture.source.events == ["device-volume", "device-volume", "settings", "quit"])
+  }
+
+  @Test("The header uses icon controls rather than raw Edit text or a Devices picker label")
+  func compactIconHeader() throws {
+    let fixture = MixerControlFixture(size: .compact, appearance: .light)
+    let bitmap = try fixture.bitmap()
+    let request = VNRecognizeTextRequest()
+    request.recognitionLevel = .accurate
+    request.recognitionLanguages = ["en-US"]
+    request.usesLanguageCorrection = false
+    try VNImageRequestHandler(cgImage: #require(bitmap.cgImage), options: [:]).perform([request])
+    let text = (request.results ?? []).compactMap { $0.topCandidates(1).first?.string }
+    #expect(text.contains { $0.contains("APPLICATIONS") })
+    #expect(!text.contains { $0 == "Edit" || $0 == "Devices" })
+    #expect(fixture.source.events.isEmpty)
+  }
+}
+
+@MainActor
+private final class MixerControlFixture {
+  let source = MixerTestSource()
+  let host: NSHostingView<AnyView>
+  let window: NSWindow
+
+  init(size: MenuBarPopupSize, appearance: AppearancePreference, muted: Bool = false) {
+    _ = NSApplication.shared
+    source.snapshot.settings.popupSize = size
+    source.snapshot.settings.appearance = appearance
+    source.snapshot.outputDevices[0].isMuted = muted
+    source.snapshot.apps[0].isMuted = muted
+    let source = source
+    let colorScheme: ColorScheme = appearance == .dark ? .dark : .light
+    host = NSHostingView(
+      rootView: AnyView(
+        MixerView(
+          read: { source.snapshot }, actions: source.actions,
+          profiles: source.profileSource.interface, quit: { source.events.append("quit") }
+        )
+        .accentColor(.blue)
+        .environment(\.controlActiveState, .active)
+        .environment(\.colorScheme, colorScheme)
+        .background(Color(nsColor: .windowBackgroundColor))))
+    let nativeAppearance = NSAppearance(named: appearance == .dark ? .darkAqua : .aqua)
+    host.appearance = nativeAppearance
+    window = NSWindow(
+      contentRect: NSRect(x: -10_000, y: -10_000, width: 1, height: 1),
+      styleMask: .borderless, backing: .buffered, defer: false)
+    window.isReleasedWhenClosed = false
+    window.appearance = nativeAppearance
+    window.contentView = host
+    host.setFrameSize(NSSize(width: size.dimensions.width, height: host.fittingSize.height))
+    window.setContentSize(host.frame.size)
+    host.layoutSubtreeIfNeeded()
+  }
+
+  isolated deinit { window.close() }
+
+  var editableFields: [NSTextField] {
+    controlDescendants(host).compactMap { $0 as? NSTextField }.filter(\.isEditable)
+  }
+
+  func percentageFrames() -> [CGRect] {
+    editableFields.map { host.convert($0.bounds, from: $0) }.sorted {
+      host.isFlipped ? $0.midY < $1.midY : $0.midY > $1.midY
+    }
+  }
+
+  func showForPointerInput() async throws {
+    // Order only this fixture's window, still at -10,000pt, without activating any application.
+    window.orderFrontRegardless()
+    try await settle()
+  }
+
+  func click(_ point: CGPoint) async throws {
+    let location = host.convert(point, to: nil)
+    for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
+      let event = try #require(
+        NSEvent.mouseEvent(
+          with: type, location: location, modifierFlags: [], timestamp: 0,
+          windowNumber: window.windowNumber, context: nil, eventNumber: 0,
+          clickCount: 1, pressure: type == .leftMouseDown ? 1 : 0))
+      window.sendEvent(event)
+    }
+    try await settle()
+  }
+
+  private func settle() async throws {
+    // One bounded display-cycle wait per input, matching the existing native-popup fixtures.
+    try await Task.sleep(for: .milliseconds(120))
+    host.layoutSubtreeIfNeeded()
+    window.displayIfNeeded()
+  }
+
+  func bitmap() throws -> NSBitmapImageRep {
+    let bitmap = try #require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+    host.cacheDisplay(in: host.bounds, to: bitmap)
+    return bitmap
+  }
+
+  func writeArtifact(_ bitmap: NSBitmapImageRep, name: String) throws {
+    guard let directory = ProcessInfo.processInfo.environment["FINETUNE_MIXER_CONTROL_EVIDENCE"]
+    else { return }
+    let destination = URL(fileURLWithPath: directory, isDirectory: true)
+    try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
+    let png = try #require(bitmap.representation(using: .png, properties: [:]))
+    try png.write(to: destination.appendingPathComponent("\(name).png"))
+  }
+}
+
+@MainActor
+private func controlDescendants(_ view: NSView) -> [NSView] {
+  view.subviews.flatMap { [$0] + controlDescendants($0) }
+}
+
+@MainActor
+private func accentHeight(in rect: CGRect, bitmap: NSBitmapImageRep, host: NSView) throws -> CGFloat
+{
+  let scaleX = CGFloat(bitmap.pixelsWide) / host.bounds.width
+  let scaleY = CGFloat(bitmap.pixelsHigh) / host.bounds.height
+  let top = host.isFlipped ? rect.minY : host.bounds.height - rect.maxY
+  let xs = Int((rect.minX + 2) * scaleX)..<Int((rect.maxX - 2) * scaleX)
+  let ys = Int(top * scaleY)..<Int((top + rect.height) * scaleY)
+  try #require(xs.lowerBound >= 0 && xs.upperBound <= bitmap.pixelsWide)
+  try #require(ys.lowerBound >= 0 && ys.upperBound <= bitmap.pixelsHigh)
+  let accentRows = ys.filter { y in
+    xs.contains { x in
+      guard let color = bitmap.colorAt(x: x, y: y)?.usingColorSpace(.sRGB) else { return false }
+      return color.blueComponent > color.redComponent + 0.25
+        && color.blueComponent > color.greenComponent + 0.1
+    }
+  }
+  let first = try #require(accentRows.first, "Slider accent must be visible")
+  let last = try #require(accentRows.last)
+  return CGFloat(last - first + 1) / scaleY
+}

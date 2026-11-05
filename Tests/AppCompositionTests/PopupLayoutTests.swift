@@ -77,7 +77,7 @@ struct PopupLayoutTests {
     }
   }
 
-  @Test("Quit is a visible button in the header, not an item hidden below the application list")
+  @Test("Quit and its shortcut stay visible in the original footer below all application rows")
   func quitIsVisible() throws {
     let source = MixerTestSource()
     source.snapshot.apps = popupApps(count: 4)
@@ -87,7 +87,9 @@ struct PopupLayoutTests {
     let quit = try #require(text.first { $0.text.contains("Quit") })
     #expect(quit.bounds.width > 0 && quit.bounds.height > 0)
     #expect(CGRect(x: 0, y: 0, width: 1, height: 1).contains(quit.bounds))
-    #expect(quit.bounds.midY > 0.8)
+    let last = try #require(text.first { $0.text.contains("Player 4") })
+    #expect(quit.bounds.maxY < last.bounds.minY)
+    #expect(quit.bounds.midY < 0.15)
     #expect(source.events.isEmpty)
   }
 
@@ -477,12 +479,22 @@ private func bitmapImage(in view: NSView, rect: NSRect? = nil) throws -> CGImage
 
 @MainActor
 private func recognizedText(in image: CGImage) throws -> [RecognizedPopupText] {
+  // Native popup capture can be 1x on an external display. OCR at 2x avoids losing visible
+  // 10–13pt labels; this resamples only the actual viewport, without changing layout or markers.
+  let context = try #require(
+    CGContext(
+      data: nil, width: image.width * 2, height: image.height * 2,
+      bitsPerComponent: 8, bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(),
+      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+  context.interpolationQuality = .high
+  context.draw(image, in: CGRect(x: 0, y: 0, width: image.width * 2, height: image.height * 2))
+  let input = try #require(context.makeImage())
   let request = VNRecognizeTextRequest()
   request.recognitionLevel = .accurate
   request.recognitionLanguages = ["en-US"]
   request.usesLanguageCorrection = false
   request.minimumTextHeight = 0
-  try VNImageRequestHandler(cgImage: image, options: [:]).perform([request])
+  try VNImageRequestHandler(cgImage: input, options: [:]).perform([request])
   return (request.results ?? []).compactMap { observation in
     observation.topCandidates(1).first.map {
       RecognizedPopupText(text: $0.string, bounds: observation.boundingBox)

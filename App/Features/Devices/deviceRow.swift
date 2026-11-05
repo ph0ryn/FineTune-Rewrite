@@ -123,10 +123,11 @@ struct DeviceRow: View {
       .disabled(!canToggleMute)
       .accessibilityLabel(muteAccessibilityLabel)
       if let slider {
-        Slider(value: slider, in: 0...1)
-          .frame(width: DesignTokens.Dimensions.sliderWidth)
-          .scrollWheelStep(slider, in: 0...1)
-          .accessibilityLabel("\(device.name) volume")
+        MixerVolumeSlider(
+          value: slider, label: "\(device.name) volume", isDimmed: displayedMuteState == true
+        )
+        .frame(width: DesignTokens.Dimensions.sliderWidth)
+        .scrollWheelStep(slider, in: 0...1)
       } else {
         Text(volume == nil ? "Unavailable" : "Read-only")
           .font(DesignTokens.Typography.caption)
