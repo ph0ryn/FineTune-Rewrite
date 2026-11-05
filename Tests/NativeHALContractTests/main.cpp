@@ -191,6 +191,109 @@ void capabilityAndCertificate() {
         CHECK(hal.resources() == 0);
     }
 }
+void switchWithOffsetTapInput() {
+    invocations = 3;
+    for (const UInt32 origin : {3U, 5U, 7U}) {
+        resetFixture();
+        auto initial = state();
+        auto old = prepare(request(initial));
+        if (!old)
+            continue;
+        commit(old, initial);
+        const auto oldIO = hal.ios.back();
+        hal.inputFirstChannel = origin;
+        auto candidate = prepare(request(initial, "fixture-b"));
+        if (!candidate)
+            continue;
+        const auto candidateIO = hal.ios.back();
+        FTNativeError error{};
+        CHECK(ft_native_route_start_muted(candidate.get(), &initial, &error) == FT_NATIVE_OK);
+        Signal warm;
+        warm.render(candidateIO);
+        CHECK(warm.zero() && snapshot(candidate).phase == FT_NATIVE_ARMED);
+        old.reset();
+        commit(candidate, initial);
+        Signal signal;
+        signal.render(candidateIO);
+        for (std::size_t n = 0; n < signal.input.size(); ++n)
+            CHECK(std::fabs(signal.output[n] - signal.input[n] * initial.target_gain) < 1e-7F);
+        CHECK(snapshot(candidate).phase == FT_NATIVE_FIRST_APPLIED);
+        Signal lateOld;
+        lateOld.render(oldIO);
+        CHECK(lateOld.zero());
+        Signal malformed;
+        malformed.in.mBuffers[0].mDataByteSize -= sizeof(float);
+        malformed.render(candidateIO);
+        CHECK(malformed.zero() && snapshot(candidate).failure.kind == FT_NATIVE_BINDING_CHANGED);
+    }
+}
+void streamLayoutChannelOrigins() {
+    resetFixture();
+    invocations = 0;
+    const UInt32 interleaved[]{2}, planar[]{1, 1}, extra[]{1, 1, 1};
+    auto stereo = FakeHAL::asbd();
+    auto mono = stereo;
+    mono.mChannelsPerFrame = 1;
+    mono.mBytesPerFrame = mono.mBytesPerPacket = sizeof(float);
+    const auto verify = [&](std::span<const UInt32> channels,
+                            std::span<const StreamFormatObservation> streams, bool device,
+                            bool ownedTap) {
+        ++invocations;
+        CHECK(decodeStereoLayout(channels, streams).nativePackedFloat32 == device);
+        CHECK(decodeStereoLayout(channels, streams, StreamChannelOrigin::ownedTapInput)
+                  .nativePackedFloat32 == ownedTap);
+    };
+    for (const UInt32 origin : {0U, 1U, 3U, 5U, std::numeric_limits<UInt32>::max()}) {
+        const StreamFormatObservation observed[]{{stereo, origin}};
+        verify(interleaved, observed, origin == 1,
+               origin != 0 && origin != std::numeric_limits<UInt32>::max());
+    }
+    for (const auto channels : {std::array<UInt32, 2>{1, 2},
+                                {5, 6},
+                                {5, 7},
+                                {5, 5},
+                                {6, 5},
+                                {0, 1},
+                                {std::numeric_limits<UInt32>::max(), 0}}) {
+        const StreamFormatObservation observed[]{{mono, channels[0]}, {mono, channels[1]}};
+        verify(planar, observed, channels[0] == 1,
+               (channels[0] == 1 && channels[1] == 2) || (channels[0] == 5 && channels[1] == 6));
+    }
+    const StreamFormatObservation interleavedStream[]{{stereo, 5}};
+    verify(planar, interleavedStream, false, false);
+    auto split = stereo;
+    split.mFormatFlags |= kAudioFormatFlagIsNonInterleaved;
+    split.mBytesPerFrame = split.mBytesPerPacket = sizeof(float);
+    const StreamFormatObservation planarStream[]{{split, 5}};
+    verify(planar, planarStream, false, true);
+    verify(interleaved, planarStream, false, false);
+    stereo.mBitsPerChannel = 16;
+    const StreamFormatObservation invalidFormat[]{{stereo, 5}};
+    verify(interleaved, invalidFormat, false, false);
+    auto differentRate = mono;
+    differentRate.mSampleRate = 44100;
+    const StreamFormatObservation mixedRates[]{{mono, 5}, {differentRate, 6}};
+    verify(planar, mixedRates, false, false);
+    const StreamFormatObservation threeStreams[]{{mono, 5}, {mono, 6}, {mono, 7}};
+    verify(extra, threeStreams, false, false);
+    verify(planar, threeStreams, false, false);
+    verify(interleaved, {}, false, false);
+    verify({}, interleavedStream, false, false);
+    for (const bool foreignTap : {false, true}) {
+        resetFixture();
+        ++invocations;
+        hal.inputFirstChannel = 5;
+        hal.wrongCertificate = foreignTap;
+        hal.wrongPhysicalOutput = !foreignTap;
+        auto r = request(state());
+        FTNativeRoute *p = nullptr;
+        FTNativeError error{};
+        CHECK(ft_native_route_prepare(&r, &p, &error) == FT_NATIVE_FAILED);
+        CHECK(error.kind == FT_NATIVE_UNSUPPORTED && hal.starts == 0);
+        CHECK(p == nullptr && hal.resources() == 0);
+        Route unexpected(p);
+    }
+}
 void partialAcquisition() {
     invocations = 9;
     const std::array faults{Fault::tap, Fault::aggregate, Fault::io, Fault::certify,
@@ -918,10 +1021,13 @@ struct Result {
     void (*run)();
     std::size_t count = 0, checks = 0, failed = 0;
 };
-std::array<Result, 17> results{{
+std::array<Result, 19> results{{
     {"Tests/NativeHALContractTests/main.cpp::latestCommitState", latestCommitState},
     {"Tests/NativeHALContractTests/main.cpp::acquisitionGuards", acquisitionGuards},
     {"Tests/NativeHALContractTests/main.cpp::capabilityAndCertificate", capabilityAndCertificate},
+    {"Tests/NativeHALContractTests/main.cpp::switchWithOffsetTapInput", switchWithOffsetTapInput},
+    {"Tests/NativeHALContractTests/main.cpp::streamLayoutChannelOrigins",
+     streamLayoutChannelOrigins},
     {"Tests/NativeHALContractTests/main.cpp::partialAcquisition", partialAcquisition},
     {"Tests/NativeHALContractTests/main.cpp::privateSubTapUsesAggregatePolicy",
      privateSubTapUsesAggregatePolicy},

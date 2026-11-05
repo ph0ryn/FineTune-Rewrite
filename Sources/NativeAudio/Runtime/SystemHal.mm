@@ -2,6 +2,7 @@
 // Non-real-time CoreAudio/Objective-C boundary. No function here is called by an IOProc.
 #include "AggregateTapPolicy.hpp"
 #include "HalAPI.hpp"
+#include "StreamLayout.hpp"
 #include <CoreAudio/AudioHardwareTapping.h>
 #import <CoreAudio/CATapDescription.h>
 #import <Foundation/Foundation.h>
@@ -114,7 +115,8 @@ OSStatus channelConfiguration(AudioObjectID object, AudioObjectPropertyScope sco
 }
 OSStatus layout(AudioObjectID device, AudioObjectPropertyScope scope, StereoLayout &result,
                 std::vector<AudioObjectID> &streams, std::uint32_t *totalChannels = nullptr,
-                const char *role = nullptr) {
+                const char *role = nullptr,
+                StreamChannelOrigin origin = StreamChannelOrigin::device) {
     std::vector<UInt32> channels;
     auto status = channelConfiguration(device, scope, channels, role);
     if (status != noErr)
@@ -133,36 +135,20 @@ OSStatus layout(AudioObjectID device, AudioObjectPropertyScope scope, StereoLayo
         return noErr;
     if (streams.empty() || streams.size() > 2)
         return noErr;
-    UInt32 nextChannel = 1;
-    std::vector<UInt32> formatBuffers;
+    std::vector<StreamFormatObservation> observed;
     for (const auto stream : streams) {
-        AudioStreamBasicDescription format{};
-        UInt32 first = 0;
-        status = scalar(stream, kAudioStreamPropertyVirtualFormat, format,
+        StreamFormatObservation value{};
+        status = scalar(stream, kAudioStreamPropertyVirtualFormat, value.format,
                         kAudioObjectPropertyScopeGlobal, role);
         if (status != noErr)
             return status;
-        status = scalar(stream, kAudioStreamPropertyStartingChannel, first,
+        status = scalar(stream, kAudioStreamPropertyStartingChannel, value.firstChannel,
                         kAudioObjectPropertyScopeGlobal, role);
         if (status != noErr)
             return status;
-        if (!nativeFloat32Format(format) || first != nextChannel)
-            return noErr;
-        if (result.sampleRate != 0 && result.sampleRate != format.mSampleRate)
-            return noErr;
-        result.sampleRate = format.mSampleRate;
-        nextChannel += format.mChannelsPerFrame;
-        if (format.mFormatFlags & kAudioFormatFlagIsNonInterleaved) {
-            for (UInt32 c = 0; c < format.mChannelsPerFrame; ++c)
-                formatBuffers.push_back(1);
-        } else
-            formatBuffers.push_back(format.mChannelsPerFrame);
+        observed.push_back(value);
     }
-    if (nextChannel != 3 || formatBuffers != channels)
-        return noErr;
-    result.bufferCount = static_cast<UInt32>(channels.size());
-    std::copy(channels.begin(), channels.end(), result.channels.begin());
-    result.nativePackedFloat32 = true;
+    result = decodeStereoLayout(channels, observed, origin);
     return noErr;
 }
 bool hasUsage(void *) {
@@ -372,8 +358,11 @@ OSStatus certify(void *, AudioObjectID aggregate, AudioDeviceIOProcID io,
         return kAudioHardwareUnsupportedOperationError;
     output.subTapDriftCompensation = policy.driftCompensation;
     output.subTapDriftQuality = policy.driftQuality;
+    const auto inputOrigin = output.onlyOwnedTapInput && output.intendedPhysicalOutput
+                                 ? StreamChannelOrigin::ownedTapInput
+                                 : StreamChannelOrigin::device;
     status = layout(aggregate, kAudioObjectPropertyScopeInput, output.input, output.inputStreams,
-                    nullptr, "certifyFormat.inputLayout");
+                    nullptr, "certifyFormat.inputLayout", inputOrigin);
     if (status != noErr)
         return status;
     status = layout(aggregate, kAudioObjectPropertyScopeOutput, output.output, output.outputStreams,

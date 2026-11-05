@@ -87,6 +87,17 @@ transientな親popup内で出力先pickerを実際に開き、child windowの出
 既知のbinding failure・旧sessionの拒否からの復帰と、新しい回収エラーを隠さないことを確認します。
 この保証はControlの復帰契約であり、物理機器のformat検証・実音声・切り替え時の無音や連続性の保証ではありません。
 
+nativeの入力検証では、所有する単一stereo tapと意図した物理機器だけの構成を読み戻した場合に限り、
+streamの開始チャンネル番号が1より大きくても、連続した2chとIOProcのbuffer構成を照合して扱います。
+開始番号5・stereo buffer 1個という実測例を、未対応formatやbuffer内の4ch offsetとは解釈しません。
+[開始チャンネル番号](<https://developer.apple.com/documentation/coreaudio/kaudiostreampropertystartingchannel>)はdeviceのproperty element番号であり、
+[StreamConfiguration](<https://developer.apple.com/documentation/coreaudio/kaudiodevicepropertystreamconfiguration>)がIOProcのbuffer構成に対応します。
+物理/aggregate出力は引き続きchannel 1/2を要求し、余分な入力・不連続な番号・不一致のformat/buffer構成は拒否します。
+[共通のnative decoder](<../Sources/NativeAudio/Runtime/StreamLayout.hpp>)を通す
+[native契約テスト](<../Tests/NativeHALContractTests/main.cpp>)で、開始番号5の新経路を旧経路と併存させて準備し、
+arm・旧経路回収・commit後の左右のサンプル、壊れたbufferの無音化と不正な構成の拒否を確認します。
+実機のprepare-onlyで同じ開始番号5の拒否が解消したことと、音出し・切り替えの連続性は別の検証です。
+
 ## Quitの互換
 
 Quitボタン・⌘Q・アプリメニューは原作と同じ`NSApplication.terminate(nil)`へ通します。

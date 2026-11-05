@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 #pragma once
 #include "../../Sources/NativeAudio/Runtime/HalAPI.hpp"
+#include "../../Sources/NativeAudio/Runtime/StreamLayout.hpp"
 #include <algorithm>
 #include <cstring>
 #include <string>
@@ -50,6 +51,7 @@ struct Aggregate {
 struct FakeHAL {
     bool usage = true, selfPID = false, microphone = false, unsupportedOutput = false;
     bool wrongTapFormat = false, wrongRate = false, wrongCertificate = false, planar = false;
+    bool wrongPhysicalOutput = false;
     bool partial = true, holdAggregate = false;
     Fault fault = Fault::none, cleanupFault = Fault::none;
     bool disabledStreams = false, oversized = false, preferredStereo = true;
@@ -57,7 +59,7 @@ struct FakeHAL {
     bool rejectPrivateSubTapListeners = false, rejectCompositionListener = false;
     bool rejectBufferRangeListener = false, rejectBufferSizeListener = false;
     UInt32 driftCompensation = 1, driftQuality = kAudioAggregateDriftCompensationHighQuality;
-    UInt32 maximumFrames = 64, subTapOffset = 4000;
+    UInt32 maximumFrames = 64, subTapOffset = 4000, inputFirstChannel = 1;
     double nominalRate = 48000;
     std::uint32_t creates = 0, starts = 0, stops = 0, nextID = 1000, listenerAttempts = 0;
     std::vector<Tap> taps;
@@ -201,17 +203,29 @@ struct FakeHAL {
             if (f.fault == Fault::certify)
                 return acquisitionError;
             out = {};
-            out.input = stereo(f.planar);
-            out.output = physical.output;
+            auto format = asbd();
             if (f.wrongRate)
-                out.input.sampleRate = 44100;
+                format.mSampleRate = 44100;
+            if (f.planar) {
+                format.mFormatFlags |= kAudioFormatFlagIsNonInterleaved;
+                format.mBytesPerFrame = format.mBytesPerPacket = sizeof(float);
+            }
+            const auto configuration = stereo(f.planar);
+            const StreamFormatObservation observed[]{{format, f.inputFirstChannel}};
+            out.onlyOwnedTapInput = !f.wrongCertificate && physical.inputChannels == 0;
+            out.intendedPhysicalOutput = !f.wrongPhysicalOutput;
+            const auto origin = out.onlyOwnedTapInput && out.intendedPhysicalOutput
+                                    ? StreamChannelOrigin::ownedTapInput
+                                    : StreamChannelOrigin::device;
+            out.input = decodeStereoLayout(
+                std::span(configuration.channels.data(), configuration.bufferCount), observed,
+                origin);
+            out.output = physical.output;
             out.maximumFrames = f.oversized ? 65537 : f.maximumFrames;
             out.subTap = f.missingSubTap ? kAudioObjectUnknown : device + f.subTapOffset;
             out.subTapDriftCompensation = f.driftCompensation;
             out.subTapDriftQuality = f.driftQuality;
             out.hasVariableBufferFrames = f.variableFrames;
-            out.onlyOwnedTapInput = !f.wrongCertificate;
-            out.intendedPhysicalOutput = true;
             out.ioStreamsEnabled = !f.disabledStreams;
             out.inputStreams = {device + 1000};
             out.outputStreams = {device + 2000};
