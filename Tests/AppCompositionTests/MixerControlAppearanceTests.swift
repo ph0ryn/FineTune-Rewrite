@@ -22,14 +22,17 @@ struct MixerControlAppearanceTests {
     let fields = controlDescendants(fixture.host).compactMap { $0 as? NSTextField }
       .filter(\.isEditable)
     try #require(fields.count == 2)
+    var trackWidths: [CGFloat] = []
     for field in fields {
       let percentage = fixture.host.convert(field.bounds, from: field)
       let slider = CGRect(
         x: percentage.minX - DesignTokens.Spacing.sm - DesignTokens.Dimensions.sliderWidth,
         y: percentage.midY - 14, width: DesignTokens.Dimensions.sliderWidth, height: 28)
-      let height = try accentHeight(in: slider, bitmap: bitmap, host: fixture.host)
-      #expect(height >= 3 && height <= 5, "Idle slider accent silhouette is \(height)pt")
+      let accent = try accentSize(in: slider, bitmap: bitmap, host: fixture.host)
+      #expect(accent.height >= 3 && accent.height <= 5, "Idle slider accent silhouette: \(accent)")
+      trackWidths.append(accent.width)
     }
+    #expect(abs(trackWidths[0] - trackWidths[1]) <= 1, "Device and app share the same slider width")
     #expect(!fixture.window.isVisible)
     #expect(fixture.source.events.isEmpty && fixture.source.profileSource.events.isEmpty)
   }
@@ -308,8 +311,7 @@ private func controlDescendants(_ view: NSView) -> [NSView] {
 }
 
 @MainActor
-private func accentHeight(in rect: CGRect, bitmap: NSBitmapImageRep, host: NSView) throws -> CGFloat
-{
+private func accentSize(in rect: CGRect, bitmap: NSBitmapImageRep, host: NSView) throws -> CGSize {
   let scaleX = CGFloat(bitmap.pixelsWide) / host.bounds.width
   let scaleY = CGFloat(bitmap.pixelsHigh) / host.bounds.height
   let top = host.isFlipped ? rect.minY : host.bounds.height - rect.maxY
@@ -317,14 +319,20 @@ private func accentHeight(in rect: CGRect, bitmap: NSBitmapImageRep, host: NSVie
   let ys = Int(top * scaleY)..<Int((top + rect.height) * scaleY)
   try #require(xs.lowerBound >= 0 && xs.upperBound <= bitmap.pixelsWide)
   try #require(ys.lowerBound >= 0 && ys.upperBound <= bitmap.pixelsHigh)
-  let accentRows = ys.filter { y in
-    xs.contains { x in
-      guard let color = bitmap.colorAt(x: x, y: y)?.usingColorSpace(.sRGB) else { return false }
-      return color.blueComponent > color.redComponent + 0.25
+  var pixels: [CGPoint] = []
+  for y in ys {
+    for x in xs {
+      let color = try #require(bitmap.colorAt(x: x, y: y)?.usingColorSpace(.sRGB))
+      if color.blueComponent > color.redComponent + 0.25
         && color.blueComponent > color.greenComponent + 0.1
+      {
+        pixels.append(CGPoint(x: x, y: y))
+      }
     }
   }
-  let first = try #require(accentRows.first, "Slider accent must be visible")
-  let last = try #require(accentRows.last)
-  return CGFloat(last - first + 1) / scaleY
+  let minX = try #require(pixels.map(\.x).min(), "Slider accent must be visible")
+  let maxX = try #require(pixels.map(\.x).max())
+  let minY = try #require(pixels.map(\.y).min())
+  let maxY = try #require(pixels.map(\.y).max())
+  return CGSize(width: (maxX - minX + 1) / scaleX, height: (maxY - minY + 1) / scaleY)
 }

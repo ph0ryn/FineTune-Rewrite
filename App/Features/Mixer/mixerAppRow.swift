@@ -114,7 +114,7 @@ struct MixerAppRow: View {
         value: bindings.appVolume(app), label: "\(app.name) volume",
         isDimmed: app.isMuted || Int((VolumeMapping.gainToSlider(app.gain) * 100).rounded()) == 0
       )
-      .frame(minWidth: 80, maxWidth: DesignTokens.Dimensions.sliderWidth)
+      .frame(width: DesignTokens.Dimensions.sliderWidth)
       .scrollWheelStep(bindings.appVolume(app), in: 0...1)
       if let percentageDraft {
         Text("\(percentageDraft)%").font(DesignTokens.Typography.percentage)
