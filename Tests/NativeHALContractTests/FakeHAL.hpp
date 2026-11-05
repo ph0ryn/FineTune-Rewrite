@@ -55,6 +55,7 @@ struct FakeHAL {
     bool disabledStreams = false, oversized = false, preferredStereo = true;
     bool variableFrames = false, missingSubTap = false;
     bool rejectPrivateSubTapListeners = false, rejectCompositionListener = false;
+    bool rejectBufferRangeListener = false, rejectBufferSizeListener = false;
     UInt32 driftCompensation = 1, driftQuality = kAudioAggregateDriftCompensationHighQuality;
     UInt32 maximumFrames = 64, subTapOffset = 4000;
     double nominalRate = 48000;
@@ -252,6 +253,13 @@ struct FakeHAL {
                 std::any_of(f.aggregates.begin(), f.aggregates.end(),
                             [&](const auto &aggregate) { return object == aggregate.id; }))
                 return compositionListenerError;
+            if (((f.rejectBufferRangeListener &&
+                  p.mSelector == kAudioDevicePropertyBufferFrameSizeRange) ||
+                 (f.rejectBufferSizeListener &&
+                  p.mSelector == kAudioDevicePropertyBufferFrameSize)) &&
+                std::any_of(f.aggregates.begin(), f.aggregates.end(),
+                            [&](const auto &aggregate) { return object == aggregate.id; }))
+                return kAudioHardwareUnknownPropertyError;
             f.listeners.push_back({object, p, callback, data});
             return noErr;
         };

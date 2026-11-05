@@ -5,8 +5,6 @@
 #include <CoreAudio/AudioHardwareTapping.h>
 #import <CoreAudio/CATapDescription.h>
 #import <Foundation/Foundation.h>
-#include <algorithm>
-#include <cmath>
 #include <cstring>
 #include <memory>
 #include <os/log.h>
@@ -382,15 +380,15 @@ OSStatus certify(void *, AudioObjectID aggregate, AudioDeviceIOProcID io,
                     nullptr, "certifyFormat.outputLayout");
     if (status != noErr)
         return status;
-    AudioValueRange range{};
-    status = scalar(aggregate, kAudioDevicePropertyBufferFrameSizeRange, range,
+    // Certify actual IO capacity, not the device's configurable frame-size range.
+    UInt32 currentFrames = 0;
+    status = scalar(aggregate, kAudioDevicePropertyBufferFrameSize, currentFrames,
                     kAudioObjectPropertyScopeGlobal, "certifyFormat.aggregate");
     if (status != noErr)
         return status;
-    if (!std::isfinite(range.mMaximum) || range.mMaximum < 1 || range.mMaximum > 65536 ||
-        std::floor(range.mMaximum) != range.mMaximum)
+    if (currentFrames == 0 || currentFrames > 65536)
         return kAudioHardwareUnsupportedOperationError;
-    output.maximumFrames = static_cast<UInt32>(range.mMaximum);
+    output.maximumFrames = currentFrames;
     const AudioObjectPropertyAddress variableProperty{
         kAudioDevicePropertyUsesVariableBufferFrameSizes, kAudioObjectPropertyScopeGlobal,
         kAudioObjectPropertyElementMain};
@@ -400,10 +398,10 @@ OSStatus certify(void *, AudioObjectID aggregate, AudioDeviceIOProcID io,
         status = scalar(aggregate, kAudioDevicePropertyUsesVariableBufferFrameSizes, largest,
                         kAudioObjectPropertyScopeGlobal, "certifyFormat.aggregate");
         if (status != noErr)
-            return status; // A read failure is never an absence/range fallback.
-        if (largest == 0 || largest > 65536)
+            return status; // Only absence selects fixed buffers; read failure is an error.
+        if (largest < currentFrames || largest > 65536)
             return kAudioHardwareUnsupportedOperationError;
-        output.maximumFrames = std::max(output.maximumFrames, largest);
+        output.maximumFrames = largest;
     }
     status = streamUsage(aggregate, io, kAudioObjectPropertyScopeInput, output.inputStreams.size());
     if (status != noErr)

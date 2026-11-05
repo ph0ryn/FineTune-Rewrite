@@ -469,7 +469,7 @@ FTNativeError installListeners(FTNativeRoute &route) {
              kAudioAggregateDevicePropertyComposition, kAudioAggregateDevicePropertyTapList,
              kAudioAggregateDevicePropertySubTapList,
              kAudioAggregateDevicePropertyFullSubDeviceList,
-             kAudioAggregateDevicePropertyMainSubDevice, kAudioDevicePropertyBufferFrameSizeRange})
+             kAudioAggregateDevicePropertyMainSubDevice, kAudioDevicePropertyBufferFrameSize})
         if (const auto status = add(route.aggregate, selector); status != noErr)
             return failure(FT_NATIVE_FAILURE, FT_NATIVE_INSTALL_LISTENERS, status);
     auto streams = route.physical.outputStreams;

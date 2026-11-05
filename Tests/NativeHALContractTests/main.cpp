@@ -537,6 +537,100 @@ void callbackSilenceAndInput() {
         CHECK(s.callback_error_count == (mode == 0 ? 0 : 1));
     }
 }
+void ioCapacityDoesNotRequireRangeListener() {
+    invocations = 2;
+    for (bool variable : {false, true}) {
+        resetFixture();
+        // The fake supplies a valid IO certificate, not execution of SystemHal's SDK getter.
+        // Exercise the real C consumer without a nominal configuration-range property.
+        hal.variableFrames = variable;
+        hal.rejectBufferRangeListener = true;
+        auto p = prepare(request(state()));
+        if (!p || hal.ios.empty())
+            continue;
+        const auto io = hal.ios.back();
+        commit(p, state());
+        Signal signal;
+        signal.render(io);
+        CHECK(signal.output[0] == signal.input[0] * state().target_gain);
+        CHECK(signal.output[1] == signal.input[1] * state().target_gain);
+        const auto observed = snapshot(p);
+        CHECK(observed.phase == FT_NATIVE_FIRST_APPLIED);
+        CHECK(observed.failure.kind == FT_NATIVE_NO_FAILURE);
+        p.reset();
+        CHECK(hal.resources() == 0);
+    }
+}
+void bufferFrameSizeChangeInvalidates() {
+    invocations = 2;
+    for (bool variable : {false, true}) {
+        resetFixture();
+        hal.variableFrames = variable;
+        auto p = prepare(request(state()));
+        if (!p || hal.ios.empty())
+            continue;
+        const auto io = hal.ios.back();
+        commit(p, state());
+        Signal before;
+        before.render(io);
+        CHECK(!before.zero());
+        hal.maximumFrames = 128;
+        const AudioObjectPropertyAddress property{kAudioDevicePropertyBufferFrameSize,
+                                                  kAudioObjectPropertyScopeGlobal,
+                                                  kAudioObjectPropertyElementMain};
+        // Emit only the actual-size notification, not a coincident range/vfsz change.
+        for (const auto &listener : hal.listeners) {
+            if (listener.object != io.device || listener.property.mSelector != property.mSelector ||
+                listener.property.mScope != property.mScope)
+                continue;
+            callback_observation::active = true;
+            const auto changed = listener.callback(listener.object, 1, &property, listener.data);
+            callback_observation::active = false;
+            CHECK(changed == noErr);
+        }
+        Signal after;
+        after.render(io);
+        CHECK(after.zero());
+        const auto observed = snapshot(p);
+        CHECK(observed.phase == FT_NATIVE_ROUTE_FAILED);
+        CHECK(observed.failure.kind == FT_NATIVE_BINDING_CHANGED &&
+              observed.failure.operation == FT_NATIVE_CERTIFY_FORMAT);
+        CHECK(observed.callback_error_count == 1);
+        p.reset();
+        CHECK(hal.resources() == 0);
+    }
+}
+void bufferFrameSizeListenerFailureRetainsDebt() {
+    invocations = 2;
+    for (bool debt : {false, true}) {
+        resetFixture();
+        hal.rejectBufferSizeListener = true;
+        if (debt)
+            hal.cleanupFault = Fault::destroyIO;
+        auto r = request(state());
+        FTNativeRoute *raw = nullptr;
+        FTNativeError error{};
+        CHECK(ft_native_route_prepare(&r, &raw, &error) == FT_NATIVE_FAILED);
+        CHECK(error.kind == FT_NATIVE_FAILURE && error.operation == FT_NATIVE_INSTALL_LISTENERS &&
+              error.code == kAudioHardwareUnknownPropertyError);
+        CHECK(hal.starts == 0);
+        Route owner(raw);
+        if (debt) {
+            CHECK(owner != nullptr && hal.resources() != 0);
+            if (owner) {
+                const auto observed = snapshot(owner);
+                CHECK(observed.failure.code == kAudioHardwareUnknownPropertyError);
+                CHECK(observed.cleanup_failure.operation == FT_NATIVE_DESTROY_IOPROC &&
+                      observed.cleanup_failure.code == cleanupError);
+            }
+        } else {
+            CHECK(owner == nullptr && hal.resources() == 0);
+        }
+        hal.cleanupFault = Fault::none;
+        owner.reset();
+        CHECK(hal.resources() == 0);
+    }
+}
 void lateCloseAndReuse() {
     invocations = 10;
     resetFixture();
@@ -824,7 +918,7 @@ struct Result {
     void (*run)();
     std::size_t count = 0, checks = 0, failed = 0;
 };
-std::array<Result, 14> results{{
+std::array<Result, 17> results{{
     {"Tests/NativeHALContractTests/main.cpp::latestCommitState", latestCommitState},
     {"Tests/NativeHALContractTests/main.cpp::acquisitionGuards", acquisitionGuards},
     {"Tests/NativeHALContractTests/main.cpp::capabilityAndCertificate", capabilityAndCertificate},
@@ -843,6 +937,12 @@ std::array<Result, 14> results{{
     {"Tests/NativeHALContractTests/main.cpp::lateCloseAndReuse", lateCloseAndReuse},
     {"Tests/NativeHALContractTests/main.cpp::copiedConfiguration", copiedConfiguration},
     {"Tests/NativeHALContractTests/main.cpp::coalescedCoverage", coalescedCoverage},
+    {"Tests/NativeHALContractTests/main.cpp::ioCapacityDoesNotRequireRangeListener",
+     ioCapacityDoesNotRequireRangeListener},
+    {"Tests/NativeHALContractTests/main.cpp::bufferFrameSizeChangeInvalidates",
+     bufferFrameSizeChangeInvalidates},
+    {"Tests/NativeHALContractTests/main.cpp::bufferFrameSizeListenerFailureRetainsDebt",
+     bufferFrameSizeListenerFailureRetainsDebt},
 }};
 bool report(const char *path, bool complete) {
     auto *f = std::fopen(path, "w");
