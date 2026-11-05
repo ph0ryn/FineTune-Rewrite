@@ -178,6 +178,7 @@ struct RootPresentationTests {
     await controller.waitForCurrentWork()
     let speaker = try #require(runtime.handle("speaker"))
     let headphones = try #require(runtime.handle("headphones"))
+    #expect(presentation.mixerSnapshot().apps.first?.routeStatus == nil)
     speaker.onObservation?(
       AudioRouteObservation(key: speaker.key, phase: .firstApplied, peakLevel: 0.25))
     headphones.onObservation?(
@@ -186,6 +187,7 @@ struct RootPresentationTests {
     #expect(controller.routeObservations[speaker.key]?.peakLevel == 0.25)
     #expect(controller.routeObservations[headphones.key]?.peakLevel == 0.75)
     #expect(presentation.mixerSnapshot().apps.first?.peakLevel == 0.75)
+    #expect(presentation.mixerSnapshot().apps.first?.routeStatus == nil)
     headphones.onObservation?(
       AudioRouteObservation(key: headphones.key, phase: .firstApplied, peakLevel: nil))
     #expect(controller.routeObservations[headphones.key]?.peakLevel == nil)
@@ -211,6 +213,7 @@ struct RootPresentationTests {
     current.onObservation?(
       AudioRouteObservation(key: current.key, phase: .firstApplied, peakLevel: 0.5))
     #expect(presentation.mixerSnapshot().apps.first?.peakLevel == 0.5)
+    #expect(presentation.mixerSnapshot().apps.first?.routeStatus == nil)
     current.onObservation?(
       AudioRouteObservation(
         key: current.key, phase: .firstApplied,
@@ -218,6 +221,9 @@ struct RootPresentationTests {
         peakLevel: 0.9))
     #expect(controller.routeObservations[current.key]?.peakLevel == nil)
     #expect(presentation.mixerSnapshot().apps.first?.peakLevel == nil)
+    #expect(
+      presentation.mixerSnapshot().apps.first?.routeStatus
+        == "Cleanup is unavailable (cleanup stage: unit-cleanup)")
     current.onObservation?(
       AudioRouteObservation(key: current.key, phase: .firstApplied, peakLevel: 0.9))
     #expect(controller.routeObservations[current.key]?.peakLevel == nil)
@@ -318,11 +324,39 @@ struct RootPresentationTests {
       let visible = [snapshot.captureNotice?.message, snapshot.error].compactMap { $0 }
         .joined(separator: "\n")
       #expect(visible == expected)
+      #expect(snapshot.apps.first?.routeStatus == expected)
       #expect(presentation.settingsSnapshot().error == expected)
       #expect(!visible.contains("OSStatus"))
       if code == nil { #expect(!visible.contains("native code")) }
     }
     #expect(fixture.effects.commands == commands)
+    await fixture.expectPassivePorts(halBaseline: halBaseline)
+    await controller.shutdown()
+  }
+
+  @Test("A failed route without details shows a meaningful warning instead of its raw phase")
+  func failedRouteWithoutDetailsStillWarns() async throws {
+    let runtime = RoutingProbeRuntime()
+    let fixture = try RootPresentationFixture(runtime: runtime)
+    defer { fixture.cleanUp() }
+    fixture.processes.apps = [fixture.app(id: 101, uid: "unit.player", name: "Player")]
+    fixture.graph.engine.ingestObservations()
+    let controller = fixture.graph.controller
+    controller.observeOutputs(
+      [
+        AudioOutputDescriptor(
+          uid: "speaker", bindingRevision: 1, supportsAutoEQ: false,
+          processingGain: 1, volume: 0.5, isMuted: false)
+      ], defaultUID: "speaker")
+    controller.perform(.requestCaptureStart)
+    await controller.waitForCurrentWork()
+    let route = try #require(runtime.handle("speaker"))
+    route.onObservation?(AudioRouteObservation(key: route.key, phase: .failed))
+    let halBaseline = fixture.hal.calls
+    let presentation = fixture.presentation()
+    for _ in 0..<2 {
+      #expect(presentation.mixerSnapshot().apps.first?.routeStatus == "Audio routing failed.")
+    }
     await fixture.expectPassivePorts(halBaseline: halBaseline)
     await controller.shutdown()
   }

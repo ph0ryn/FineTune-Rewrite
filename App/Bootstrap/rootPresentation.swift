@@ -133,9 +133,19 @@ final class RootPresentation {
       $0.key.appIdentifier == identifier
     }
     guard let generation = observations.map(\.key.generation).max() else { return nil }
-    let phases = Set(
-      observations.filter { $0.key.generation == generation }.map { String(describing: $0.phase) })
-    return phases.sorted().joined(separator: ", ")
+    var included: Set<String> = []
+    let messages = observations.filter { $0.key.generation == generation }
+      .sorted { $0.key.deviceUID < $1.key.deviceUID }
+      .flatMap { route -> [String] in
+        let failures = [
+          route.failure.map { failureMessage($0) },
+          route.cleanupFailure.map { failureMessage($0, isCleanup: true) },
+        ].compactMap { $0 }
+        if failures.isEmpty, route.phase == .failed { return ["Audio routing failed."] }
+        return failures
+      }
+      .filter { included.insert($0).inserted }
+    return messages.isEmpty ? nil : messages.joined(separator: "\n")
   }
 
   private func error(excluding notice: String?) -> String? {
