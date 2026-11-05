@@ -86,7 +86,8 @@ extension AudioController {
     plans[identifier] = plan
     let workID = AudioRouteWorkID(identifier: identifier, generation: generation)
     let retryRevision = (
-      capture: captureRetryRevision, route: routeRetryRevisions[identifier] ?? 0)
+      capture: captureRetryRevision, route: routeRetryRevisions[identifier] ?? 0
+    )
     let task = Task { [weak self] in
       guard let self else { return }
       await self.apply(

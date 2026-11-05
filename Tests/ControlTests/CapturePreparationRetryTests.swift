@@ -300,7 +300,9 @@ private final class CaptureRetryMemorySettings: AudioControlSettingsStore {
     selections[identifier] = uids
   }
   func getDeviceRouting(for identifier: String) -> String? { routes[identifier] }
-  func setDeviceRouting(for identifier: String, deviceUID: String) { routes[identifier] = deviceUID }
+  func setDeviceRouting(for identifier: String, deviceUID: String) {
+    routes[identifier] = deviceUID
+  }
   func isFollowingDefault(for identifier: String) -> Bool {
     routes[identifier] == nil && selections[identifier] == nil
   }
