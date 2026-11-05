@@ -86,7 +86,7 @@ struct DeviceRow: View {
   var body: some View {
     HStack(spacing: DesignTokens.Spacing.sm) {
       // Only the name column flexes; every device keeps the same trailing control columns.
-      Button(action: onSetDefault) {
+      Button(action: selectIfNeeded) {
         HStack(spacing: DesignTokens.Spacing.sm) {
           if let icon = device.icon {
             Image(nsImage: icon).resizable().frame(width: 24, height: 24)
@@ -147,5 +147,11 @@ struct DeviceRow: View {
       }
     }
     .padding(.vertical, DesignTokens.Spacing.sm)
+    .contentShape(Rectangle())
+    .onTapGesture(perform: selectIfNeeded)
+  }
+
+  private func selectIfNeeded() {
+    if !isDefault { onSetDefault() }
   }
 }

@@ -57,6 +57,86 @@ struct MixerControlAppearanceTests {
     #expect(fixture.source.events == ["device-volume", "app-volume"])
   }
 
+  @Test(
+    "Device selection includes the name gap and whole-row vertical padding for both scopes",
+    arguments: [MixerDeviceScope.output, .input],
+    [MenuBarPopupSize.compact, .comfortable, .spacious])
+  func deviceSelectionHitArea(scope: MixerDeviceScope, size: MenuBarPopupSize) async throws {
+    let fixture = MixerControlFixture(size: size, appearance: .light)
+    fixture.source.snapshot.outputDevices[0].isDefault = false
+    fixture.source.snapshot.inputDevices[0].isDefault = false
+    try await fixture.showForPointerInput()
+    defer { fixture.window.orderOut(nil) }
+    let padding = size.dimensions.contentPadding
+    if scope == .input {
+      try await fixture.click(CGPoint(x: padding + 44, y: padding + 16))
+    }
+    let percentage = try #require(fixture.percentageFrames().first)
+    // Positive control: a click on the existing name button reaches the same scoped action.
+    try await fixture.click(CGPoint(x: padding + 50, y: percentage.midY))
+    #expect(fixture.source.events == ["default"])
+    let muteLeft =
+      percentage.minX - DesignTokens.Spacing.sm
+      - DesignTokens.Dimensions.sliderWidth - DesignTokens.Spacing.sm
+      - DesignTokens.Dimensions.minTouchTarget
+    let blankPoints = [
+      CGPoint(x: muteLeft - DesignTokens.Spacing.sm - 8, y: percentage.midY),
+      CGPoint(x: padding + 12, y: percentage.midY - 17),
+      CGPoint(x: padding + 12, y: percentage.midY + 17),
+      CGPoint(x: percentage.minX - 70, y: percentage.midY + 17),
+    ]
+    for point in blankPoints {
+      fixture.source.events.removeAll()
+      try await fixture.click(point)
+      #expect(fixture.source.events == ["default"], "Non-control row point: \(point)")
+      #expect(fixture.source.lastDeviceScope == scope)
+      #expect(fixture.source.lastDeviceUID == (scope == .output ? "output-uid" : "input-uid"))
+    }
+  }
+
+  @Test(
+    "Controls in an unselected device row do not also switch the default device",
+    arguments: [MixerDeviceScope.output, .input])
+  func deviceControlsDoNotSelectRow(scope: MixerDeviceScope) async throws {
+    let fixture = MixerControlFixture(size: .comfortable, appearance: .light)
+    fixture.source.snapshot.outputDevices[0].isDefault = false
+    fixture.source.snapshot.inputDevices[0].isDefault = false
+    try await fixture.showForPointerInput()
+    defer { fixture.window.orderOut(nil) }
+    let padding = MenuBarPopupSize.comfortable.dimensions.contentPadding
+    if scope == .input {
+      try await fixture.click(CGPoint(x: padding + 44, y: padding + 16))
+    }
+    let percentage = try #require(fixture.percentageFrames().first)
+    let sliderRight = percentage.minX - DesignTokens.Spacing.sm
+    let muteX =
+      sliderRight - DesignTokens.Dimensions.sliderWidth - DesignTokens.Spacing.sm
+      - DesignTokens.Dimensions.minTouchTarget / 2
+    try await fixture.click(CGPoint(x: muteX, y: percentage.midY))
+    #expect(fixture.source.events == ["device-mute"])
+    fixture.source.events.removeAll()
+    try await fixture.click(CGPoint(x: sliderRight - 35, y: percentage.midY))
+    #expect(fixture.source.events == ["device-volume"])
+    fixture.source.events.removeAll()
+    try await fixture.click(CGPoint(x: percentage.midX, y: percentage.midY))
+    // Native field focus can commit its unchanged value, but must never select the row.
+    #expect(fixture.source.events.allSatisfy { $0 == "device-volume" })
+    #expect(fixture.window.firstResponder is NSTextView)
+    #expect(fixture.source.lastDeviceScope == scope)
+  }
+
+  @Test("An already-selected device row does not repeat its default-device command")
+  func selectedDeviceClickIsNoOp() async throws {
+    let fixture = MixerControlFixture(size: .comfortable, appearance: .light)
+    try await fixture.showForPointerInput()
+    defer { fixture.window.orderOut(nil) }
+    let percentage = try #require(fixture.percentageFrames().first)
+    let padding = MenuBarPopupSize.comfortable.dimensions.contentPadding
+    try await fixture.click(CGPoint(x: padding + 50, y: percentage.midY))
+    try await fixture.click(CGPoint(x: padding + 12, y: percentage.midY + 17))
+    #expect(fixture.source.events.isEmpty)
+  }
+
   @Test("Icon tabs, edit, settings and footer Quit retain their actual pointer actions")
   func chromeActions() async throws {
     let fixture = MixerControlFixture(size: .compact, appearance: .light)
