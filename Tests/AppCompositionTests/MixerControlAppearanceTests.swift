@@ -169,6 +169,83 @@ struct MixerControlAppearanceTests {
     #expect(fixture.source.events.isEmpty)
   }
 
+  @Test(
+    "App editing uses two compact columns with independent pin and visibility targets",
+    arguments: [MenuBarPopupSize.compact, .comfortable, .spacious])
+  func appEditGrid(size: MenuBarPopupSize) async throws {
+    let fixture = MixerControlFixture(size: size, appearance: .light)
+    let seed = fixture.source.snapshot.apps[0]
+    fixture.source.snapshot.apps = ["Alpha", "Beta", "Gamma", "Hidden", "Silent"].enumerated().map {
+      index, name in
+      var app = seed
+      app.id = "app-\(name)"
+      app.name = name
+      app.isActive = true
+      app.isPinned = index < 2
+      app.isIgnored = index >= 3
+      return app
+    }
+    try await fixture.showForPointerInput()
+    defer { fixture.window.orderOut(nil) }
+    let padding = size.dimensions.contentPadding
+    let width = fixture.host.bounds.width
+    try await fixture.click(CGPoint(x: width - padding - 32, y: padding + 8))
+    try fixture.writeArtifact(fixture.bitmap(), name: "app-edit-grid-\(size)")
+    let text = try fixture.recognizedText().compactMap { $0.topCandidates(1).first?.string }
+    let columnWidth = (width - 2 * padding - 4) / 2
+    func named(_ name: String) throws -> CGRect {
+      let rightColumn = name == "Beta" || name == "Silent"
+      // Isolate real name pixels. Whole-row OCR merges columns and includes pin/eye glyph bounds.
+      let region = CGRect(
+        x: padding + (rightColumn ? columnWidth + 4 : 0) + 38, y: 0,
+        width: columnWidth - 94, height: fixture.host.bounds.height)
+      let candidates = try fixture.recognizedText(in: region)
+      let observation = try #require(
+        candidates.first { $0.topCandidates(1).first?.string == name },
+        "Expected app \(name) in its visible name column")
+      let bounds = observation.boundingBox
+      return CGRect(
+        x: region.minX + bounds.minX * region.width,
+        y: (fixture.host.isFlipped ? 1 - bounds.maxY : bounds.minY) * region.height,
+        width: bounds.width * region.width, height: bounds.height * region.height)
+    }
+    let alpha = try named("Alpha")
+    let beta = try named("Beta")
+    let gamma = try named("Gamma")
+    let hidden = try named("Hidden")
+    let silent = try named("Silent")
+    #expect(text.contains { $0 == "APPS" })
+    #expect(!text.contains { $0.contains("2 ignored") })
+    // OCR ink bounds vary by glyph by about 2pt in the measured bitmaps, not by row layout.
+    // Use 3pt OCR tolerance; AppRowPresentationTests independently checks the exact 40pt row.
+    #expect(abs(alpha.minY - beta.minY) <= 3)
+    #expect(beta.minX > width / 2)
+    #expect(abs(gamma.minY - alpha.minY - 44) <= 3)
+    // Low-contrast ignored labels get unequal OCR ink boxes. Classify the same 40pt row
+    // by centers (< half a row), rather than treating those boxes as exact text baselines.
+    #expect(abs(hidden.midY - silent.midY) < 20)
+    #expect(hidden.minY > gamma.maxY)
+    #expect(fixture.source.events.isEmpty)
+
+    try await fixture.click(CGPoint(x: padding + columnWidth - 40, y: alpha.midY))
+    #expect(fixture.source.events == ["pin"])
+    #expect(fixture.source.lastAppID == "app-Alpha" && fixture.source.lastBool == false)
+    fixture.source.events.removeAll()
+    try await fixture.click(CGPoint(x: padding + columnWidth - 16, y: alpha.midY))
+    #expect(fixture.source.events == ["ignore"])
+    #expect(fixture.source.lastAppID == "app-Alpha" && fixture.source.lastBool == true)
+    fixture.source.events.removeAll()
+    try await fixture.click(CGPoint(x: width - padding - 16, y: beta.midY))
+    #expect(fixture.source.events == ["ignore"])
+    #expect(fixture.source.lastAppID == "app-Beta")
+    fixture.source.events.removeAll()
+    try await fixture.click(CGPoint(x: padding + columnWidth - 40, y: hidden.midY))
+    #expect(fixture.source.events.isEmpty, "Ignored rows have no pin button")
+    try await fixture.click(CGPoint(x: padding + columnWidth - 16, y: hidden.midY))
+    #expect(fixture.source.events == ["ignore"])
+    #expect(fixture.source.lastAppID == "app-Hidden" && fixture.source.lastBool == false)
+  }
+
   @Test("Icon tabs, edit, settings and footer Quit retain their actual pointer actions")
   func chromeActions() async throws {
     let fixture = MixerControlFixture(size: .compact, appearance: .light)
@@ -201,14 +278,8 @@ struct MixerControlAppearanceTests {
   @Test("The header uses icon controls rather than raw Edit text or a Devices picker label")
   func compactIconHeader() throws {
     let fixture = MixerControlFixture(size: .compact, appearance: .light)
-    let bitmap = try fixture.bitmap()
-    let request = VNRecognizeTextRequest()
-    request.recognitionLevel = .accurate
-    request.recognitionLanguages = ["en-US"]
-    request.usesLanguageCorrection = false
-    try VNImageRequestHandler(cgImage: #require(bitmap.cgImage), options: [:]).perform([request])
-    let text = (request.results ?? []).compactMap { $0.topCandidates(1).first?.string }
-    #expect(text.contains { $0.contains("APPLICATIONS") })
+    let text = try fixture.recognizedText().compactMap { $0.topCandidates(1).first?.string }
+    #expect(text.contains { $0 == "APPS" })
     #expect(!text.contains { $0 == "Edit" || $0 == "Devices" })
     #expect(fixture.source.events.isEmpty)
   }
@@ -285,6 +356,8 @@ private final class MixerControlFixture {
   func settle() async throws {
     // One bounded display-cycle wait per input, matching the existing native-popup fixtures.
     try await Task.sleep(for: .milliseconds(120))
+    host.setFrameSize(NSSize(width: host.bounds.width, height: host.fittingSize.height))
+    window.setContentSize(host.frame.size)
     host.layoutSubtreeIfNeeded()
     window.displayIfNeeded()
   }
@@ -293,6 +366,29 @@ private final class MixerControlFixture {
     let bitmap = try #require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
     host.cacheDisplay(in: host.bounds, to: bitmap)
     return bitmap
+  }
+
+  func recognizedText(in region: CGRect? = nil) throws -> [VNRecognizedTextObservation] {
+    let image = try #require(bitmap().cgImage)
+    let input: CGImage
+    if let region {
+      let scaleX = CGFloat(image.width) / host.bounds.width
+      let scaleY = CGFloat(image.height) / host.bounds.height
+      let top = host.isFlipped ? region.minY : host.bounds.height - region.maxY
+      input = try #require(
+        image.cropping(
+          to: CGRect(
+            x: region.minX * scaleX, y: top * scaleY,
+            width: region.width * scaleX, height: region.height * scaleY)))
+    } else {
+      input = image
+    }
+    let request = VNRecognizeTextRequest()
+    request.recognitionLevel = .accurate
+    request.recognitionLanguages = ["en-US"]
+    request.usesLanguageCorrection = false
+    try VNImageRequestHandler(cgImage: input, options: [:]).perform([request])
+    return request.results ?? []
   }
 
   func writeArtifact(_ bitmap: NSBitmapImageRep, name: String) throws {

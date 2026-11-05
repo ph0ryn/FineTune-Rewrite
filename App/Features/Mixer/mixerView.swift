@@ -1,3 +1,9 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Ronit Singh
+// Derived application section presentation from FineTune/Views/MenuBarPopupView.swift at
+// 2285279d36d3f8115c1c2d4aecd904f1bdf96a51.
+// Modified 2026-11-05: common rewrite bindings, observed app ordering and non-scrolling popup ownership.
+
 import AppKit
 import FineTuneDomain
 import FineTunePlatform
@@ -137,34 +143,64 @@ struct MixerView: View {
     }
   }
 
+  private let appEditColumns = [
+    GridItem(.flexible(), spacing: DesignTokens.Spacing.xs),
+    GridItem(.flexible(), spacing: DesignTokens.Spacing.xs),
+  ]
+
   private var applicationsSection: some View {
-    let apps = bindings.visibleApps(editing: isEditing)
-    let ignored = read().apps.filter(\.isIgnored)
-    return VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+    let apps = bindings.visibleApps(editing: isEditing).filter { !$0.isIgnored }
+    let ignored = bindings.visibleApps(editing: true).filter(\.isIgnored)
+    return VStack(alignment: .leading, spacing: 0) {
       HStack {
-        Text("APPLICATIONS").font(DesignTokens.Typography.sectionHeader)
+        Text("APPS").font(DesignTokens.Typography.sectionHeader)
           .tracking(DesignTokens.Typography.sectionHeaderTracking)
         Spacer()
-        if !ignored.isEmpty {
-          Text("\(ignored.count) ignored").font(DesignTokens.Typography.rowDescription)
+        if !isEditing && !ignored.isEmpty {
+          Text("\(ignored.count) ignored").font(DesignTokens.Typography.caption)
+            .foregroundStyle(DesignTokens.Colors.textTertiary)
         }
       }
       .foregroundStyle(DesignTokens.Colors.sectionHeaderText)
-      if apps.isEmpty {
-        Text(
-          ignored.isEmpty
-            ? "Apps playing audio appear here."
-            : "No apps playing audio. Select the pencil to show ignored apps."
-        )
-        .font(DesignTokens.Typography.rowName).foregroundStyle(.secondary)
-        .padding(.vertical, DesignTokens.Spacing.md)
-      }
-      ForEach(apps.filter { !$0.isIgnored }) { app in appRow(app) }
-      if isEditing && !ignored.isEmpty {
-        Text("IGNORED").font(DesignTokens.Typography.sectionHeader)
-          .tracking(DesignTokens.Typography.sectionHeaderTracking)
-          .foregroundStyle(DesignTokens.Colors.sectionHeaderText)
-        ForEach(ignored) { app in appRow(app) }
+      .padding(.bottom, DesignTokens.Spacing.xs)
+      if isEditing {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
+          LazyVGrid(columns: appEditColumns, spacing: DesignTokens.Spacing.xs) {
+            ForEach(apps) { app in appRow(app) }
+          }
+          if !ignored.isEmpty {
+            Divider().padding(.vertical, DesignTokens.Spacing.xs)
+            Text("IGNORED").font(DesignTokens.Typography.sectionHeader)
+              .tracking(DesignTokens.Typography.sectionHeaderTracking)
+              .foregroundStyle(DesignTokens.Colors.sectionHeaderText)
+              .padding(.bottom, DesignTokens.Spacing.xs)
+            LazyVGrid(columns: appEditColumns, spacing: DesignTokens.Spacing.xs) {
+              ForEach(ignored) { app in appRow(app) }
+            }
+          }
+        }
+      } else if apps.isEmpty {
+        HStack {
+          Spacer()
+          VStack(spacing: DesignTokens.Spacing.sm) {
+            Image(systemName: "speaker.slash").font(.title)
+              .foregroundStyle(DesignTokens.Colors.textTertiary)
+            Text("No apps playing audio").font(.callout)
+              .foregroundStyle(DesignTokens.Colors.textSecondary)
+            if !ignored.isEmpty {
+              Text("\(ignored.count) ignored · edit to manage").font(
+                DesignTokens.Typography.caption
+              )
+              .foregroundStyle(DesignTokens.Colors.textTertiary)
+            }
+          }
+          Spacer()
+        }
+        .padding(.vertical, DesignTokens.Spacing.xl)
+      } else {
+        VStack(alignment: .leading, spacing: 0) {
+          ForEach(apps) { app in appRow(app) }
+        }
       }
     }
   }
@@ -175,10 +211,10 @@ struct MixerView: View {
       percentageDraft: keyboard.selectedRow == .app(persistenceID: app.id)
         ? keyboard.percentageDraft : nil,
       isEQExpanded: Binding(
-        get: { expandedAppID == app.id }, set: { expandedAppID = $0 ? app.id : nil })
+        get: { expandedAppID == app.id }, set: { expandedAppID = $0 ? app.id : nil }),
+      isFocused: keyboard.isEngaged && keyboard.selectedRow == .app(persistenceID: app.id)
     )
     .id(PopupKeyboardNavModel.RowID.app(persistenceID: app.id))
-    .background(selectionBackground(.app(persistenceID: app.id)))
   }
 
   private var deviceSection: some View {

@@ -53,6 +53,10 @@ popoverの外側クリック・dismiss・window所有はnative SwiftUIへ任せ�
 通常のfollow-defaultは名前の下に表示せず、明示経路・multiの要約だけを9pt subtitleにします。
 機器がなくなったUIDのUnavailable表示、明示routeStatus、観測level欠損と実測0の区別は隠しません。
 この表示変更ではappの既存mute commandを維持し、原作の0%時クリックによるgain 1.0復元までは移植しません。
+[アプリsection](<../App/Features/Mixer/mixerView.swift>)はAPPS見出し・通常0pt行間・編集時2列/4pt間隔・独立したIgnored grid・中央の空表示を使います。
+表示順はpinned active→pinned inactive→unpinned activeを基本とし、各group内をlocale-awareなcase-insensitive名順にします。
+同名は永続IDで決定し、編集時のみ出すunpinned inactive metadataとignoredも末尾の別groupで維持します。
+表示とkeyboard navigationは同じprojection順に従い、保存済みのpin/ignore値やRootの経路所有は変更しません。
 全Mixerのpixel単位の一致を保証するものではありません。
 
 [表示回帰テスト](<../Tests/AppCompositionTests/MixerControlAppearanceTests.swift>)はfakeを接続した実コンポーネントをoffscreen描画し、
@@ -65,7 +69,9 @@ popoverの外側クリック・dismiss・window所有はnative SwiftUIへ任せ�
 active icon/name/mute/slider/boost/EQの操作分離と、停止中・ミュート・dark時の共通slider操作をnative pointer eventで確認します。
 実際のpicker menuでもSingle/Multi/default/UID選択をfake actionへ通し、観測更新の前に選択状態を先行変更しないことを確認します。
 `FINETUNE_APP_ROW_EVIDENCE`で行・picker menuの描画PNGを保存できます。
+編集gridは3つの幅で実描画の名前列を調べ、2列・44pt行送りとpin/ignore/unignoreのUID別actionを確認します。
 [popupテスト](<../Tests/AppCompositionTests/PopupLayoutTests.swift>)はQuitの下部配置・⌘Qと、表示中の自然な高さ変更も検証します。
+transientな親popup内で出力先pickerを実際に開き、child windowの出力行をクリックしても親を閉じず、対象appへroute actionが届くことを確認します。
 これらの成功を、最小対応OSのnative thumb、実機音声、全UIの操作・見た目の検証へ拡張しません。
 
 ## 保存設定
@@ -132,6 +138,7 @@ GPL対象を含む製品binaryの配布時は、組合せ・対応source・通�
 | [deviceBadge](<../App/Design/deviceBadge.swift>) | 選択中の28ptアクセント色gradientと未選択monoの円形バッジ | [DeviceBadge](<https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Views/Components/DeviceBadge.swift>) |
 | [mixerVolumeSlider](<../App/Design/mixerVolumeSlider.swift>) | 4pt軌道・native mini thumbのhover/drag表示 | [LiquidGlassSlider](<https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Views/Components/LiquidGlassSlider.swift>) |
 | [mixerChrome](<../App/Features/Mixer/mixerChrome.swift>) | icon header・tabs・Quit capsuleの表示 | [MenuBarPopupView](<https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Views/MenuBarPopupView.swift>)・[ViewModifiers](<https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Views/DesignSystem/ViewModifiers.swift>) |
+| [mixerView](<../App/Features/Mixer/mixerView.swift>) | APPS section・2列編集grid・Ignored/empty表示 | [MenuBarPopupView](<https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Views/MenuBarPopupView.swift>) |
 | [mixerAppRow](<../App/Features/Mixer/mixerAppRow.swift>) | 40pt行・icon controls・boost chevrons・hover/展開背景 | [AppRow](<https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Views/Rows/AppRow.swift>)・[AppRowControls](<https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Views/Rows/AppRowControls.swift>)・[AppEditRow](<https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Views/Rows/AppEditRow.swift>) |
 | [mixerAppRoutePicker](<../App/Features/Mixer/mixerAppRoutePicker.swift>) | icon trigger・route subtitle・Single/Multi/check/checkbox表示 | [DevicePicker](<https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Views/Components/DevicePicker.swift>)・[ModeToggle](<https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Views/Components/ModeToggle.swift>) |
 | [AutoEQCatalog](<../Sources/FineTunePlatform/Profiles/AutoEQCatalog.swift>) | INDEX解析・検索順位 | [AutoEQFetcher](<https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Audio/AutoEQ/AutoEQFetcher.swift>)・[AutoEQProfileManager](<https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Audio/AutoEQ/AutoEQProfileManager.swift>) |

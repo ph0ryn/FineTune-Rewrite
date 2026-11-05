@@ -53,6 +53,42 @@ struct MixerTests {
     #expect(source.events.isEmpty)
   }
 
+  @Test(
+    "App display order groups pinned active, pinned inactive and active apps before ignored metadata"
+  )
+  func appDisplayOrder() {
+    let source = MixerTestSource()
+    let seed = source.snapshot.apps[0]
+    func app(_ name: String, active: Bool, pinned: Bool, ignored: Bool = false)
+      -> MixerAppPresentation
+    {
+      var app = seed
+      app.id = name
+      app.name = name
+      app.isActive = active
+      app.isPinned = pinned
+      app.isIgnored = ignored
+      return app
+    }
+    source.snapshot.apps = [
+      app("Unpinned", active: true, pinned: false),
+      app("Ignored", active: true, pinned: true, ignored: true),
+      app("alpha inactive", active: false, pinned: true),
+      app("Zulu active", active: true, pinned: true),
+      app("Beta active", active: true, pinned: true),
+      app("Saved inactive", active: false, pinned: false),
+    ]
+    #expect(
+      source.bindings.visibleApps(editing: false).map(\.id) == [
+        "Beta active", "Zulu active", "alpha inactive", "Unpinned",
+      ])
+    #expect(
+      source.bindings.visibleApps(editing: true).map(\.id) == [
+        "Beta active", "Zulu active", "alpha inactive", "Unpinned", "Saved inactive", "Ignored",
+      ])
+    #expect(source.events.isEmpty)
+  }
+
   @Test("Hidden defaults remain visible and an all-hidden list never means no connected devices")
   func deviceVisibilityKeepsDefaultAndFallback() {
     let source = MixerTestSource()

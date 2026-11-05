@@ -21,15 +21,15 @@ struct PopupLayoutTests {
     #expect(source.events.isEmpty && source.profileSource.events.isEmpty)
   }
 
-  @Test("Intrinsic height grows with all application rows instead of a fixed content viewport")
+  @Test("Intrinsic height adds 40pt for every compact application row without a fixed viewport")
   func intrinsicHeightIncludesAllRows() {
     let source = MixerTestSource()
-    source.snapshot.apps = []
-    let empty = PopupLayoutFixture(source: source)
-    let emptyHeight = empty.controller.preferredContentSize.height
+    source.snapshot.apps = popupApps(count: 1)
+    let single = PopupLayoutFixture(source: source)
+    let singleHeight = single.controller.preferredContentSize.height
     source.snapshot.apps = popupApps(count: 6)
     let populated = PopupLayoutFixture(source: source)
-    #expect(populated.controller.preferredContentSize.height > emptyHeight + 300)
+    #expect(abs(populated.controller.preferredContentSize.height - singleHeight - 5 * 40) <= 0.5)
     #expect(source.events.isEmpty)
   }
 
@@ -37,17 +37,19 @@ struct PopupLayoutTests {
   func lastApplicationIsVisible() throws {
     let source = MixerTestSource()
     source.snapshot.apps = popupApps(count: 4)
+    source.snapshot.apps[3].isFollowingDefault = false
+    source.snapshot.apps[3].selectedDeviceUIDs = ["output-uid"]
     let fixture = PopupLayoutFixture(source: source)
     let image = try bitmapImage(in: fixture.host)
     let text = try recognizedText(in: image)
-    // Positive control, last row and its lower route must be recognized in the same actual bitmap.
+    // Positive control, last row and its nondefault routing subtitle share the same actual bitmap.
     #expect(text.contains { $0.text.contains("Player 1") })
     let last = try #require(text.first { $0.text.contains("Player 4") })
-    // Representative bottom-row control. The same row's two-letter EQ label is inspected in
-    // the opt-in actual bitmap; Vision did not reliably recognize it, even though it is visible.
+    // The original uses icon-only controls; their actions are covered by AppRowPresentationTests.
+    // Here the actual nondefault subtitle proves the last row's lower text fits, not a hidden menu.
     let route = try #require(
       text.first {
-        $0.text.contains("System Default") && $0.bounds.maxY < last.bounds.minY
+        $0.text.contains("Output") && $0.bounds.maxY < last.bounds.minY
           && $0.bounds.minY > 0
       })
     for item in [last, route] {
@@ -225,16 +227,16 @@ struct PopupNativeLifecycleTests {
     try await fixture.settle()
     _ = try fixture.checkVisible(
       phase: "hidden-warm-first-open",
-      markers: ["Quit", "First Output", "Player 2", "System Default"])
+      markers: ["Quit", "First Output", "Player 4", "APPS"])
     source.snapshot = cold
     try await fixture.settle()
     let coldHeight = try fixture.checkVisible(
-      phase: "cold", markers: ["Quit", "Apps playing audio appear here"])
+      phase: "cold", markers: ["Quit", "No apps playing audio"])
 
     source.snapshot = warm
     try await fixture.settle()
     let warmHeight = try fixture.checkVisible(
-      phase: "warm", markers: ["Quit", "First Output", "Player 2", "System Default"])
+      phase: "warm", markers: ["Quit", "First Output", "Player 4", "APPS"])
     #expect(warmHeight > coldHeight + 100)
 
     source.profileSource.snapshot.selection = AutoEQSelection(profileID: "studio", isEnabled: true)
@@ -243,14 +245,14 @@ struct PopupNativeLifecycleTests {
     // The 9pt caption can be misread as "Studio Proflle" by Vision. Its live-layout change is
     // checked geometrically and retained in the bitmap; do not use that glyph ambiguity as clipping.
     _ = try fixture.checkVisible(
-      phase: "subtitle", markers: ["Quit", "First Output", "Player 2", "System Default"])
+      phase: "subtitle", markers: ["Quit", "First Output", "Player 4", "APPS"])
 
     source.snapshot = cold
     source.profileSource.snapshot.selection = nil
     source.profileSource.snapshot.profileName = nil
     try await fixture.settle()
     let shrunkHeight = try fixture.checkVisible(
-      phase: "shrink", markers: ["Quit", "Apps playing audio appear here"])
+      phase: "shrink", markers: ["Quit", "No apps playing audio"])
     #expect(abs(shrunkHeight - coldHeight) < 2)
 
     fixture.popover.close()
@@ -259,9 +261,65 @@ struct PopupNativeLifecycleTests {
     fixture.show()
     try await fixture.settle()
     let reopenedHeight = try fixture.checkVisible(
-      phase: "reopen", markers: ["Quit", "First Output", "Player 2", "System Default"])
+      phase: "reopen", markers: ["Quit", "First Output", "Player 4", "APPS"])
     #expect(abs(reopenedHeight - warmHeight) < 2)
     #expect(source.events.isEmpty && source.profileSource.events.isEmpty)
+  }
+
+  @Test(
+    "An app output picker opens inside the transient popup and routes without closing its parent")
+  func nativeAppRoutePicker() async throws {
+    let source = MixerTestSource()
+    source.snapshot.settings.appearance = .light
+    source.snapshot = warmPopupSnapshot(source)
+    let fixture = try ShownPopupFixture(source: source)
+    fixture.popover.behavior = .transient
+    defer { fixture.close() }
+    fixture.show()
+    try await fixture.settle()
+    let hosting = try fixture.hostingController()
+    let host = hosting.view
+    let parentWindow = try #require(host.window)
+    parentWindow.makeKey()
+    try #require(parentWindow.makeFirstResponder(host))
+    let fields = descendants(of: host).compactMap { $0 as? NSTextField }.filter(\.isEditable)
+      .map { host.convert($0.bounds, from: $0) }
+      .sorted { host.isFlipped ? $0.midY < $1.midY : $0.midY > $1.midY }
+    let percentage = try #require(fields.last)
+    try fixture.sendClick(CGPoint(x: percentage.maxX + 44, y: percentage.midY), in: host)
+    // Allow the framework-owned child popover's presentation/dismissal animation to complete.
+    try await Task.sleep(for: .milliseconds(300))
+    #expect(fixture.popover.isShown && parentWindow.isVisible)
+    let child = try #require(parentWindow.childWindows?.first { $0.isVisible })
+    let content = try #require(child.contentView)
+    content.layoutSubtreeIfNeeded()
+    child.displayIfNeeded()
+    if let directory = ProcessInfo.processInfo.environment["FINETUNE_POPUP_LAYOUT_EVIDENCE"] {
+      try writePNG(
+        of: content,
+        to: URL(fileURLWithPath: directory).appendingPathComponent("native-app-route-picker.png"))
+    }
+    let text = try recognizedText(
+      in: bitmapImage(in: content), opaqueBackground: CGColor(gray: 1, alpha: 1))
+    print(
+      "Native app route picker: window=\(child.frame), content=\(content.bounds), text=\(text.map(\.text))"
+    )
+    #expect(text.contains { $0.text.contains("Single") })
+    #expect(text.contains { $0.text.contains("Multi") })
+    #expect(text.contains { $0.text.contains("System Audio") })
+    let output = try #require(text.first { $0.text.contains("Second Output") })
+    #expect(source.events.isEmpty)
+    let point = CGPoint(
+      x: output.bounds.midX * content.bounds.width,
+      y: (content.isFlipped ? 1 - output.bounds.midY : output.bounds.midY) * content.bounds.height)
+    try fixture.sendClick(point, in: content)
+    try await Task.sleep(for: .milliseconds(300))
+    #expect(source.events == ["route"])
+    #expect(source.lastAppID == "com.example.player-4")
+    #expect(source.lastMode == .single && source.lastUIDs == ["second-output"])
+    #expect(!child.isVisible)
+    _ = try fixture.checkVisible(
+      phase: "after-app-route-picker", markers: ["Quit", "Player 4", "APPS"])
   }
 
   @Test("Expanding EQ through the shown popup's own key events naturally resizes its actual window")
@@ -274,7 +332,7 @@ struct PopupNativeLifecycleTests {
     fixture.show()
     try await fixture.settle()
     let initialHeight = try fixture.checkVisible(
-      phase: "before-eq", markers: ["Quit", "First Output", "Player 2", "System Default"])
+      phase: "before-eq", markers: ["Quit", "First Output", "Player 4", "APPS"])
     let hosting = try fixture.hostingController()
     let popupWindow = try #require(hosting.view.window)
     popupWindow.makeKey()
@@ -284,7 +342,7 @@ struct PopupNativeLifecycleTests {
     try fixture.sendKey("\r", keyCode: 36)
     try await fixture.settle()
     let expandedHeight = try fixture.checkVisible(
-      phase: "expanded-eq", markers: ["Quit", "First Output", "Player 2", "System Default"])
+      phase: "expanded-eq", markers: ["Quit", "First Output", "Player 4", "APPS"])
     #expect(expandedHeight > initialHeight + 100)
     #expect(source.events.isEmpty && source.profileSource.events.isEmpty)
   }
@@ -301,7 +359,8 @@ private func warmPopupSnapshot(_ source: MixerTestSource) -> MixerSnapshot {
     id: 202, uid: "second-output", name: "Second Output", icon: nil, supportsAutoEQ: true)
   second.isDefault = false
   snapshot.outputDevices.append(second)
-  snapshot.apps = popupApps(count: 2)
+  // Four compact rows still exercise substantial native growth beyond the taller original empty state.
+  snapshot.apps = popupApps(count: 4)
   return snapshot
 }
 
@@ -350,6 +409,19 @@ private final class ShownPopupFixture {
     try #require(controller.children.first as? NSHostingController<AnyView>)
   }
 
+  func sendClick(_ point: CGPoint, in view: NSView) throws {
+    let window = try #require(view.window)
+    let location = view.convert(point, to: nil)
+    for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
+      let event = try #require(
+        NSEvent.mouseEvent(
+          with: type, location: location, modifierFlags: [], timestamp: 0,
+          windowNumber: window.windowNumber, context: nil, eventNumber: 0,
+          clickCount: 1, pressure: type == .leftMouseDown ? 1 : 0))
+      window.sendEvent(event)
+    }
+  }
+
   func sendKey(_ characters: String, keyCode: UInt16) throws {
     let window = try #require(controller.view.window)
     let event = try #require(
@@ -387,7 +459,8 @@ private final class ShownPopupFixture {
 
     // Render only this owned view's visible viewport; no desktop/window-server capture API.
     let image = try bitmapImage(in: root, rect: visible)
-    let text = try recognizedText(in: image)
+    // Native materials leave alpha holes in cacheDisplay. This fixture explicitly uses light content.
+    let text = try recognizedText(in: image, opaqueBackground: CGColor(gray: 1, alpha: 1))
     for marker in markers {
       #expect(
         text.contains { $0.text.localizedCaseInsensitiveContains(marker) },
@@ -479,21 +552,30 @@ private func bitmapImage(in view: NSView, rect: NSRect? = nil) throws -> CGImage
 }
 
 @MainActor
-private func recognizedText(in image: CGImage) throws -> [RecognizedPopupText] {
-  // Native popup capture can be 1x on an external display. OCR at 2x avoids losing visible
-  // 10–13pt labels; this resamples only the actual viewport, without changing layout or markers.
+private func recognizedText(in image: CGImage, opaqueBackground: CGColor? = nil) throws
+  -> [RecognizedPopupText]
+{
+  // Native capture can be 1x. Resample the actual viewport for small labels and use standard
+  // English language correction for measured i/l raster ambiguity in Quit. No custom words or
+  // accepted misspellings are injected; exact expected markers and their bounds stay unchanged.
+  let scale = 3
   let context = try #require(
     CGContext(
-      data: nil, width: image.width * 2, height: image.height * 2,
+      data: nil, width: image.width * scale, height: image.height * scale,
       bitsPerComponent: 8, bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(),
       bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
   context.interpolationQuality = .high
-  context.draw(image, in: CGRect(x: 0, y: 0, width: image.width * 2, height: image.height * 2))
+  let canvas = CGRect(x: 0, y: 0, width: image.width * scale, height: image.height * scale)
+  if let opaqueBackground {
+    context.setFillColor(opaqueBackground)
+    context.fill(canvas)
+  }
+  context.draw(image, in: canvas)
   let input = try #require(context.makeImage())
   let request = VNRecognizeTextRequest()
   request.recognitionLevel = .accurate
   request.recognitionLanguages = ["en-US"]
-  request.usesLanguageCorrection = false
+  request.usesLanguageCorrection = true
   request.minimumTextHeight = 0
   try VNImageRequestHandler(cgImage: input, options: [:]).perform([request])
   return (request.results ?? []).compactMap { observation in

@@ -132,7 +132,19 @@ struct MixerBindings {
   }
 
   func visibleApps(editing: Bool) -> [MixerAppPresentation] {
-    read().apps.filter { editing || (!$0.isIgnored && ($0.isActive || $0.isPinned)) }
+    func group(_ app: MixerAppPresentation) -> Int {
+      if app.isIgnored { return 4 }
+      if app.isPinned { return app.isActive ? 0 : 1 }
+      return app.isActive ? 2 : 3
+    }
+    return read().apps.filter { editing || (!$0.isIgnored && ($0.isActive || $0.isPinned)) }
+      .sorted { first, second in
+        let firstGroup = group(first)
+        let secondGroup = group(second)
+        if firstGroup != secondGroup { return firstGroup < secondGroup }
+        let nameOrder = first.name.localizedCaseInsensitiveCompare(second.name)
+        return nameOrder == .orderedSame ? first.id < second.id : nameOrder == .orderedAscending
+      }
   }
 
   func devices(scope: MixerDeviceScope, editing: Bool) -> [MixerDevicePresentation] {
