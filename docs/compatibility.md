@@ -74,6 +74,19 @@ active icon/name/mute/slider/boost/EQの操作分離と、停止中・ミュー�
 transientな親popup内で出力先pickerを実際に開き、child windowの出力行をクリックしても親を閉じず、対象appへroute actionが届くことを確認します。
 これらの成功を、最小対応OSのnative thumb、実機音声、全UIの操作・見た目の検証へ拡張しません。
 
+## デバイス切り替えと失敗からの復帰
+
+出力デバイスの明示選択が成功したときは、default追従中のアプリの失敗した経路を再試行します。
+入力の選択、失敗したdefault書込、固定先を持つアプリへは再試行を広げません。
+経路先はpolicyが承認したUIDを使い、非同期のOS観測を待つ間に旧defaultへ再取得しません。
+受動的な機器・process通知だけで失敗した取得を繰り返さないこと、既知の権限拒否は明示的な`Retry Audio`まで解除しないことは維持します。
+
+旧経路の既知のprimary failureは回収後も診断履歴に残しますが、成功した回収を失敗扱いして新経路のcommitを妨げません。
+回収中の新しいfailureやcleanup failureは区別して引き続きhandoffを止め、PENDINGは実際のretired通知まで待ちます。
+[経路の回帰テスト](<../Tests/AppCompositionTests/RoutingTests.swift>)で、default選択による再試行範囲、即時/PENDING回収、
+既知のbinding failure・旧sessionの拒否からの復帰と、新しい回収エラーを隠さないことを確認します。
+この保証はControlの復帰契約であり、物理機器のformat検証・実音声・切り替え時の無音や連続性の保証ではありません。
+
 ## Quitの互換
 
 Quitボタン・⌘Q・アプリメニューは原作と同じ`NSApplication.terminate(nil)`へ通します。

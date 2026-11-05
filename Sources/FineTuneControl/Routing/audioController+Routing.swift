@@ -376,14 +376,19 @@ extension AudioController {
     routeObservations[incoming.key] = merged
     if let error = merged.failure ?? merged.cleanupFailure {
       armWaiters.removeValue(forKey: incoming.key)?.resume(throwing: error)
-      retirementWaiters.removeValue(forKey: incoming.key)?.resume(throwing: error)
     } else {
       if phase == .armed || phase == .committed || phase == .firstApplied {
         armWaiters.removeValue(forKey: incoming.key)?.resume()
       }
       if phase == .retired {
         armWaiters.removeValue(forKey: incoming.key)?.resume(throwing: CancellationError())
-        retirementWaiters.removeValue(forKey: incoming.key)?.resume()
+      }
+    }
+    if let waiter = retirementWaiters[incoming.key] {
+      if let error = retirementFailure(merged, priorFailure: waiter.priorFailure) {
+        retirementWaiters.removeValue(forKey: incoming.key)?.continuation.resume(throwing: error)
+      } else if phase == .retired {
+        retirementWaiters.removeValue(forKey: incoming.key)?.continuation.resume()
       }
     }
     if let error = incoming.failure ?? incoming.cleanupFailure {
@@ -397,7 +402,10 @@ extension AudioController {
         {
           knownPermissionDenied = true
         }
-        if error.kind == .bindingChanged, prior != merged, captureIntent != .none {
+        if error.kind == .bindingChanged, prior?.failure != error,
+          phase != .retiring, phase != .retired, retirementTasks[incoming.key] == nil,
+          captureIntent != .none
+        {
           reconcile(record.key.appIdentifier, force: true)
         }
       }
@@ -430,9 +438,17 @@ extension AudioController {
     try await withCheckedThrowingContinuation { armWaiters[key] = $0 }
   }
 
+  func retirementFailure(
+    _ value: AudioRouteObservation, priorFailure: AudioRouteFailure?
+  ) -> AudioRouteFailure? {
+    // Native snapshots retain the route's primary fault even after successful teardown.
+    // Only that pre-existing fault is historical; every cleanup/new failure still vetoes handoff.
+    value.cleanupFailure ?? (value.failure == priorFailure ? nil : value.failure)
+  }
+
   func retire(_ record: ManagedAudioRoute) async throws {
     if let value = routeObservations[record.key], value.phase == .retired {
-      try receiptSucceeded(value)
+      if let error = value.cleanupFailure { throw error }
       return
     }
     try await retirement(record).value
@@ -441,6 +457,7 @@ extension AudioController {
   /// Register before the first await: handoff, stop and shutdown join one native retirement.
   func retirement(_ record: ManagedAudioRoute) -> Task<Void, any Error> {
     if let existing = retirementTasks[record.key] { return existing }
+    let priorFailure = routeObservations[record.key]?.failure
     let task = Task<Void, any Error> {
       defer { self.retirementTasks[record.key] = nil }
       do {
@@ -450,12 +467,19 @@ extension AudioController {
         case .failed(let error): throw error
         case .pending:
           if let value = self.routeObservations[record.key] {
-            try self.receiptSucceeded(value)
+            if let error = self.retirementFailure(value, priorFailure: priorFailure) { throw error }
             if value.phase == .retired { return }
           }
-          try await withCheckedThrowingContinuation { self.retirementWaiters[record.key] = $0 }
+          try await withCheckedThrowingContinuation {
+            self.retirementWaiters[record.key] = AudioRetirementWaiter(
+              continuation: $0, priorFailure: priorFailure)
+          }
         }
-        if let value = self.routeObservations[record.key] { try self.receiptSucceeded(value) }
+        if let value = self.routeObservations[record.key],
+          let error = self.retirementFailure(value, priorFailure: priorFailure)
+        {
+          throw error
+        }
       } catch {
         self.routeFailure = self.failure(error, stage: "retire")
         throw error

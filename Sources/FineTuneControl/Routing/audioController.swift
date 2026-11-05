@@ -39,8 +39,7 @@ public final class AudioController: AudioCommandHandling {
   @ObservationIgnored var updateTasks: [AudioRouteKey: Task<Void, Never>] = [:]
   @ObservationIgnored var retirementTasks: [AudioRouteKey: Task<Void, any Error>] = [:]
   @ObservationIgnored var armWaiters: [AudioRouteKey: CheckedContinuation<Void, any Error>] = [:]
-  @ObservationIgnored var retirementWaiters: [AudioRouteKey: CheckedContinuation<Void, any Error>] =
-    [:]
+  @ObservationIgnored var retirementWaiters: [AudioRouteKey: AudioRetirementWaiter] = [:]
 
   public init(
     settings: any AudioControlSettingsStore, runtime: (any AudioRoutingRuntime)?,
@@ -287,6 +286,13 @@ public final class AudioController: AudioCommandHandling {
             message: "The device command backend is unavailable.")
         }
         try deviceCommand(command)
+        if case .setDefaultDevice(.output, _) = command {
+          // A successful user selection is an explicit retry only for following apps.
+          // The device policy supplies the approved UID before its OS observation arrives.
+          changed(
+            applications.map(\.identifier).filter { settingsStore.isFollowingDefault(for: $0) },
+            explicitRetry: true)
+        }
       }
     } catch { commandFailure = failure(error, stage: "command") }
   }
@@ -377,6 +383,11 @@ public final class AudioController: AudioCommandHandling {
     error as? AudioRouteFailure
       ?? AudioRouteFailure(stage: stage, message: String(describing: error))
   }
+}
+
+struct AudioRetirementWaiter {
+  let continuation: CheckedContinuation<Void, any Error>
+  let priorFailure: AudioRouteFailure?
 }
 
 @MainActor

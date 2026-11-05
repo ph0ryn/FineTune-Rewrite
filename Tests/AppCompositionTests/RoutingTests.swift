@@ -276,20 +276,25 @@ struct ControlledAudioRoutingTests {
       kind: .permissionDenied, stage: "unit", message: "Known denial")
     let controller = AudioController(
       settings: settings, runtime: runtime, profileLookup: { _ in nil },
-      readDefaultRoutingDecision: { .followObserved })
-    controller.observeOutputs([a], defaultUID: "A")
+      readDefaultRoutingDecision: { .followObserved }, deviceCommand: { _ in })
+    controller.observeOutputs([a, b], defaultUID: "A")
     controller.observeApplications([application])
     controller.perform(.requestCaptureStart)
     await controller.waitForCurrentWork()
     #expect(controller.knownPermissionDenied && runtime.requests.count == 1)
-    controller.observeOutputs([a], defaultUID: "A")
+    controller.observeOutputs([a, b], defaultUID: "A")
     controller.perform(.profileAvailabilityChanged(profileID: "anything"))
     await controller.waitForCurrentWork()
     #expect(runtime.requests.count == 1 && settings.appSettings.explicitUserCaptureEnabled)
     runtime.prepareFailure = nil
+    controller.perform(.setDefaultDevice(scope: .output, uid: "B"))
+    controller.observeOutputs([a, b], defaultUID: "B")
+    await controller.waitForCurrentWork()
+    #expect(controller.knownPermissionDenied && runtime.requests.count == 1)
     controller.perform(.requestCaptureStart)
     await controller.waitForCurrentWork()
     #expect(!controller.knownPermissionDenied && runtime.requests.count == 2)
+    #expect(controller.activeDeviceUIDs(for: application.identifier) == ["B"])
     await controller.shutdown()
   }
 
@@ -320,6 +325,142 @@ struct ControlledAudioRoutingTests {
     replacement.arm()
     await controller.waitForCurrentWork()
     #expect(!controller.knownPermissionDenied)
+    #expect(controller.activeDeviceUIDs(for: application.identifier) == ["A"])
+    #expect(replacement.rendering && !replacement.retired && old.retired)
+    #expect(controller.captureRetryFailure == nil && controller.lastFailure == nil)
+    #expect(controller.routeObservations[old.key]?.failure == denied.failure)
+    await controller.shutdown()
+  }
+
+  @Test(
+    "A binding failure remains diagnostic history, not a failure of successful old-route retirement",
+    arguments: [false, true], [false, true])
+  func bindingChangeRecoversAfterOldRouteRetires(pending: Bool, switchOutput: Bool) async throws {
+    let (settings, _) = routingSettingsFixture()
+    let runtime = RoutingProbeRuntime()
+    let controller = AudioController(
+      settings: settings, runtime: runtime, profileLookup: { _ in nil },
+      readDefaultRoutingDecision: { .followObserved })
+    controller.observeOutputs([a, b], defaultUID: "A")
+    controller.observeApplications([application])
+    controller.perform(.requestCaptureStart)
+    await controller.waitForCurrentWork()
+    let old = try #require(runtime.handle("A"))
+    let failure = AudioRouteFailure(
+      kind: .bindingChanged, stage: "certifyFormat", code: -5101, message: "Old binding changed")
+    if pending { runtime.holdRetirement = ["A"] }
+    old.rendering = false
+    old.onObservation?(AudioRouteObservation(key: old.key, phase: .failed, failure: failure))
+    let target = switchOutput ? "B" : "A"
+    if switchOutput {
+      controller.perform(
+        .setRoute(identifier: application.identifier, mode: .single, uids: [target]))
+    }
+    await runtime.wait("retire:A")
+    let replacement = try #require(runtime.handle(target))
+    #expect(replacement.key != old.key)
+    if pending {
+      #expect(replacement.commits.isEmpty)
+      old.finishRetirement(failure: failure)
+      runtime.holdRetirement = []
+    }
+    await controller.waitForCurrentWork()
+    #expect(runtime.requests.count == 2)
+    #expect(old.retired && old.retirementAttempts == 1)
+    #expect(controller.routeObservations[old.key]?.failure == failure)
+    #expect(controller.activeDeviceUIDs(for: application.identifier) == [target])
+    #expect(replacement.rendering && !replacement.retired)
+    #expect(controller.captureRetryFailure == nil && controller.lastFailure == nil)
+    await controller.shutdown()
+  }
+
+  @Test(
+    "A failed old route still rejects handoff on a new retirement or cleanup error",
+    arguments: [false, true])
+  func oldRouteFailureDoesNotHideRetirementError(cleanupChannel: Bool) async throws {
+    let (settings, _) = routingSettingsFixture()
+    let runtime = RoutingProbeRuntime()
+    let controller = AudioController(
+      settings: settings, runtime: runtime, profileLookup: { _ in nil },
+      readDefaultRoutingDecision: { .followObserved })
+    controller.observeOutputs([a, b], defaultUID: "A")
+    controller.observeApplications([application])
+    controller.perform(.requestCaptureStart)
+    await controller.waitForCurrentWork()
+    let old = try #require(runtime.handle("A"))
+    old.onObservation?(
+      AudioRouteObservation(
+        key: old.key, phase: .failed,
+        failure: AudioRouteFailure(stage: "process", message: "Historical processing error")))
+    let cleanup = AudioRouteFailure(stage: "retire-callback", message: "New retirement failure")
+    runtime.holdRetirement = ["A"]
+    runtime.retirementCallbackFailure = cleanup
+    runtime.retirementCallbackUsesCleanup = cleanupChannel
+    controller.perform(.setRoute(identifier: application.identifier, mode: .single, uids: ["B"]))
+    await runtime.wait("retire:A")
+    let candidate = try #require(runtime.handle("B"))
+    old.finishRetirement()
+    await controller.waitForCurrentWork()
+    #expect(candidate.commits.isEmpty && !candidate.rendering)
+    #expect(controller.lastFailure == cleanup)
+    await controller.shutdown()
+  }
+
+  @Test(
+    "Selecting an output retries failed following routes, not pinned routes or input selections")
+  func defaultOutputSelectionRetriesFailedFollowingRoutes() async throws {
+    let (settings, _) = routingSettingsFixture()
+    let pinned = AudioApplicationDescriptor(
+      identifier: "unit.pinned", processID: 102, processRevision: 1, displayName: "Pinned",
+      bundleID: "unit.pinned")
+    settings.setDeviceRouting(for: pinned.identifier, deviceUID: "A")
+    let runtime = RoutingProbeRuntime()
+    let failure = AudioRouteFailure(
+      kind: .unsupported, stage: "certifyFormat", code: -5101, message: "Initial format rejected")
+    runtime.prepareFailure = failure
+    let writer = RoutingDefaultWriter()
+    writer.failure = AudioRouteFailure(stage: "output-write", message: "Write rejected")
+    let policy = OutputDevicePolicyController(
+      settings: settings, setDefaultOutput: { try writer.write($0) })
+    defer { policy.suspend() }
+    policy.observe(availableUIDs: ["A", "B"], defaultUID: "A", bluetoothUIDs: [])
+    let controller = AudioController(
+      settings: settings, runtime: runtime, profileLookup: { _ in nil },
+      readDefaultRoutingDecision: { policy.routingDecision() },
+      deviceCommand: { command in
+        if case .setDefaultDevice(.output, let uid) = command {
+          try policy.selectDefaultOutput(uid: uid)
+        }
+      })
+    controller.observeOutputs([a, b], defaultUID: "A")
+    controller.observeApplications([application, pinned])
+    controller.perform(.requestCaptureStart)
+    await controller.waitForCurrentWork()
+    #expect(runtime.requests.count == 2 && controller.captureRetryFailure == failure)
+    let session = controller.captureIntent
+    runtime.prepareFailure = nil
+    controller.observeOutputs([a, b], defaultUID: "A")
+    controller.perform(.setDefaultDevice(scope: .input, uid: "microphone"))
+    await controller.waitForCurrentWork()
+    #expect(runtime.requests.count == 2 && controller.captureRetryFailure == failure)
+    controller.perform(.setDefaultDevice(scope: .output, uid: "B"))
+    await controller.waitForCurrentWork()
+    #expect(runtime.requests.count == 2 && controller.commandFailure?.stage == "output-write")
+    writer.failure = nil
+    controller.perform(.setDefaultDevice(scope: .output, uid: "B"))
+    await controller.waitForCurrentWork()
+    // Policy approval precedes the physical default's asynchronous observation.
+    #expect(controller.defaultOutputUID == "A" && policy.intendedDefaultUID == "B")
+    #expect(controller.activeDeviceUIDs(for: application.identifier) == ["B"])
+    #expect(runtime.requests.count == 3 && runtime.requests.last?.key.deviceUID == "B")
+    #expect(controller.activeDeviceUIDs(for: pinned.identifier).isEmpty)
+    #expect(runtime.requests.filter { $0.key.appIdentifier == pinned.identifier }.count == 1)
+    #expect(settings.getDeviceRouting(for: pinned.identifier) == "A")
+    #expect(settings.isFollowingDefault(for: application.identifier))
+    #expect(controller.captureIntent == session && !controller.knownPermissionDenied)
+    controller.observeOutputs([a, b], defaultUID: "B")
+    await controller.waitForCurrentWork()
+    #expect(runtime.requests.count == 3)
     await controller.shutdown()
   }
 
@@ -827,6 +968,14 @@ struct ControlledAudioRoutingTests {
         && reloaded.getDeviceRouting(for: application.identifier) == nil)
     #expect(
       !reloaded.appSettings.explicitUserCaptureEnabled && reloaded.preferredInputDeviceUID == nil)
+  }
+}
+
+@MainActor
+private final class RoutingDefaultWriter {
+  var failure: AudioRouteFailure?
+  func write(_ uid: String) throws {
+    if let failure { throw failure }
   }
 }
 
