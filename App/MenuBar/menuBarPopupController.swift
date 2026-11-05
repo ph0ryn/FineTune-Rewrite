@@ -98,7 +98,7 @@ final class MenuBarPopupContentController: NSViewController {
       let glass = NSGlassEffectView()
       glass.style = .regular
       glass.cornerRadius = DesignTokens.Dimensions.cornerRadius + DesignTokens.Spacing.sm
-      if #available(macOS 27, *) { glass.effectIsInteractive = true }
+      if #available(macOS 27, *) { glass.effectIsInteractive = false }
       // AppKit only guarantees glass z-order for contentView, not arbitrary subviews.
       glass.contentView = content
       view = glass
