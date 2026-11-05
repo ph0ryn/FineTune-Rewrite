@@ -64,7 +64,8 @@ struct MixerView: View {
       .background(WindowAppearanceBridge(appearance: snapshot.settings.appearance.nsAppearance))
       .preferredColorScheme(snapshot.settings.appearance.swiftUIColorScheme)
       .environment(\.appearancePreference, snapshot.settings.appearance)
-      .focusable().focused($anchorFocused)
+      // Suppress only the anchor's outline; actual controls keep their own focus effects.
+      .focusable().focusEffectDisabled(anchorFocused).focused($anchorFocused)
       .onKeyPress { handleKey($0) }
       .onAppear {
         syncNavigation()

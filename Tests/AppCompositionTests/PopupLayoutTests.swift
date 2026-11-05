@@ -4,6 +4,7 @@
 import AppKit
 import FineTuneDomain
 import FineTunePlatform
+import ScreenCaptureKit
 import SwiftUI
 import Testing
 import Vision
@@ -264,6 +265,83 @@ struct PopupNativeLifecycleTests {
       phase: "reopen", markers: ["Quit", "First Output", "Player 4", "APPS"])
     #expect(abs(reopenedHeight - warmHeight) < 2)
     #expect(source.events.isEmpty && source.profileSource.events.isEmpty)
+  }
+
+  @Test("Maximum app volume keeps the device slider silhouette in the shown native popup")
+  @available(macOS 14.4, *)
+  func maximumAppVolumeSliders() async throws {
+    let source = MixerTestSource()
+    source.snapshot.settings.appearance = .light
+    source.snapshot = warmPopupSnapshot(source)
+    source.snapshot.apps = Array(source.snapshot.apps.prefix(2))
+    for index in source.snapshot.apps.indices { source.snapshot.apps[index].gain = 1 }
+    source.snapshot.outputDevices[0].volume = 1
+    let fixture = try ShownPopupFixture(source: source)
+    fixture.popover.animates = false
+    defer { fixture.close() }
+    fixture.show()
+    let hosting = try fixture.hostingController()
+    let window = try #require(hosting.view.window)
+    let host = try #require(window.contentView)
+    window.makeKey()
+    try #require(window.makeFirstResponder(hosting.view))
+    try await fixture.settle()
+    // This CLI test process cannot become the foreground application. This checks maximum-value
+    // rendering in its shown window; foreground-only focus effects require installed-app acceptance.
+    // cacheDisplay omits native window-level focus effects. Capture this owned popup only,
+    // using the current-process API which exposes content capturable without TCC consent.
+    // Never enumerate other processes, request screen access, capture a display, or capture audio.
+    let content = try await SCShareableContent.currentProcess
+    let ownWindow = try #require(
+      content.windows.first { $0.windowID == CGWindowID(window.windowNumber) })
+    try #require(
+      ownWindow.owningApplication?.processID == ProcessInfo.processInfo.processIdentifier)
+    let configuration = SCStreamConfiguration()
+    configuration.width = Int(window.frame.width * 2)
+    configuration.height = Int(window.frame.height * 2)
+    configuration.showsCursor = false
+    configuration.capturesAudio = false
+    configuration.ignoreShadowsSingleWindow = true
+    configuration.includeChildWindows = false
+    configuration.scalesToFit = true
+    let filter = SCContentFilter(desktopIndependentWindow: ownWindow)
+    let image = try await SCScreenshotManager.captureImage(
+      contentFilter: filter,
+      configuration: configuration)
+    let bitmap = NSBitmapImageRep(cgImage: image)
+    if let directory = ProcessInfo.processInfo.environment["FINETUNE_POPUP_LAYOUT_EVIDENCE"] {
+      let png = try #require(bitmap.representation(using: .png, properties: [:]))
+      try png.write(
+        to: URL(fileURLWithPath: directory).appendingPathComponent("native-max-volume-sliders.png"))
+    }
+    let scaleX = CGFloat(image.width) / window.frame.width
+    let scaleY = CGFloat(image.height) / window.frame.height
+    let fields = descendants(of: host).compactMap { $0 as? NSTextField }.filter(\.isEditable)
+      .map { host.convert($0.bounds, from: $0) }
+      .sorted { host.isFlipped ? $0.midY < $1.midY : $0.midY > $1.midY }
+    try #require(fields.count == 4)
+    for (index, field) in fields.enumerated() {
+      let local = CGRect(x: field.minX - 8 - 140 - 4, y: field.midY - 14, width: 148, height: 28)
+      let region = host.convert(local, to: nil)
+      let top = window.frame.height - region.maxY
+      var blueY: [Int] = []
+      for y in Int(top * scaleY)..<Int((top + region.height) * scaleY) {
+        for x in Int(region.minX * scaleX)..<Int(region.maxX * scaleX) {
+          let color = try #require(bitmap.colorAt(x: x, y: y)?.usingColorSpace(.sRGB))
+          if color.blueComponent > color.redComponent + 0.25
+            && color.blueComponent > color.greenComponent + 0.1
+          {
+            blueY.append(y)
+          }
+        }
+      }
+      let minimum = try #require(blueY.min())
+      let maximum = try #require(blueY.max())
+      let height = CGFloat(maximum - minimum + 1) / scaleY
+      #expect(
+        height >= 3 && height <= 5, "Native slider \(index) blue silhouette height: \(height)")
+    }
+    #expect(source.events.isEmpty)
   }
 
   @Test(
