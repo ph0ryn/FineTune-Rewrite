@@ -464,12 +464,10 @@ FTNativeError installListeners(FTNativeRoute &route) {
             status != noErr)
             return failure(FT_NATIVE_FAILURE, FT_NATIVE_INSTALL_LISTENERS, status);
     }
-    for (auto selector : std::array<AudioObjectPropertySelector, 2>{
-             kAudioSubTapPropertyDriftCompensation, kAudioSubTapPropertyDriftCompensationQuality})
-        if (const auto status = add(route.render->format.subTap, selector); status != noErr)
-            return failure(FT_NATIVE_FAILURE, FT_NATIVE_INSTALL_LISTENERS, status);
-    for (auto selector : std::array<AudioObjectPropertySelector, 5>{
-             kAudioAggregateDevicePropertyTapList, kAudioAggregateDevicePropertySubTapList,
+    // This route's private tap policy is immutable after creation; observe its composition.
+    for (auto selector : std::array<AudioObjectPropertySelector, 6>{
+             kAudioAggregateDevicePropertyComposition, kAudioAggregateDevicePropertyTapList,
+             kAudioAggregateDevicePropertySubTapList,
              kAudioAggregateDevicePropertyFullSubDeviceList,
              kAudioAggregateDevicePropertyMainSubDevice, kAudioDevicePropertyBufferFrameSizeRange})
         if (const auto status = add(route.aggregate, selector); status != noErr)

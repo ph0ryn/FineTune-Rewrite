@@ -88,7 +88,7 @@ test-native-hal configuration="debug":
     Sources/NativeAudio/BiquadBridge.cpp Sources/NativeAudio/DynamicsBridge.cpp \
     Sources/NativeAudio/PipelineBridge.cpp Sources/NativeAudio/Runtime/NativeRuntime.cpp \
     Tests/NativeHALContractTests/main.cpp "-Wl,-map,$directory/link-map.txt" \
-    -o "$executable" 2>&1 | tee "$directory/build.log"
+    -framework CoreFoundation -o "$executable" 2>&1 | tee "$directory/build.log"
   symbols="$(xcrun nm -u "$executable")"
   printf '%s\n' "$symbols" > "$directory/undefined-symbols.log"
   if [[ "$symbols" =~ _Audio(Device|Hardware|Object) ]]; then

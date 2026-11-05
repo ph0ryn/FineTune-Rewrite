@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Non-real-time CoreAudio/Objective-C boundary. No function here is called by an IOProc.
+#include "AggregateTapPolicy.hpp"
 #include "HalAPI.hpp"
 #include <CoreAudio/AudioHardwareTapping.h>
 #import <CoreAudio/CATapDescription.h>
@@ -356,17 +357,23 @@ OSStatus certify(void *, AudioObjectID aggregate, AudioDeviceIOProcID io,
         return status;
     if (subTaps.size() != 1 || subTaps.front() == kAudioObjectUnknown)
         return kAudioHardwareUnsupportedOperationError;
+    // Active-member identity, not an assumption that child properties are addressable.
     output.subTap = subTaps.front();
-    status =
-        scalar(output.subTap, kAudioSubTapPropertyDriftCompensation, output.subTapDriftCompensation,
-               kAudioObjectPropertyScopeGlobal, "certifyFormat.subTap");
+    CFDictionaryRef composition = nullptr;
+    status = scalar(aggregate, kAudioAggregateDevicePropertyComposition, composition,
+                    kAudioObjectPropertyScopeGlobal, "certifyFormat.aggregate");
+    CFGuard compositionGuard(composition);
     if (status != noErr)
         return status;
-    status =
-        scalar(output.subTap, kAudioSubTapPropertyDriftCompensationQuality,
-               output.subTapDriftQuality, kAudioObjectPropertyScopeGlobal, "certifyFormat.subTap");
-    if (status != noErr)
-        return status;
+    auto expectedUID = CFStringCreateWithCString(nullptr, tap.uid.c_str(), kCFStringEncodingUTF8);
+    CFGuard uidGuard(expectedUID);
+    if (!expectedUID)
+        return kAudioHardwareUnspecifiedError;
+    AggregateTapPolicy policy{};
+    if (!decodeAggregateTapPolicy(composition, expectedUID, policy))
+        return kAudioHardwareUnsupportedOperationError;
+    output.subTapDriftCompensation = policy.driftCompensation;
+    output.subTapDriftQuality = policy.driftQuality;
     status = layout(aggregate, kAudioObjectPropertyScopeInput, output.input, output.inputStreams,
                     nullptr, "certifyFormat.inputLayout");
     if (status != noErr)

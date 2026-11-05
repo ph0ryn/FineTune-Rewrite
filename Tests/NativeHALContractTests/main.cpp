@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Real C exports + real runtime/DSP, only the external OS provider is replaced.
+#include "../../Sources/NativeAudio/Runtime/AggregateTapPolicy.hpp"
 #include "AllocationWatch.hpp"
 #include "FakeHAL.hpp"
 #include <array>
@@ -220,6 +221,173 @@ void partialAcquisition() {
     p.reset();
     CHECK(hal.resources() == 0 && hal.stops == 1);
 }
+void aggregateTapPolicyDecoding() {
+    resetFixture();
+    invocations = 0;
+    const auto uidKey = CFSTR(kAudioSubTapUIDKey);
+    const auto driftKey = CFSTR(kAudioSubTapDriftCompensationKey);
+    const auto qualityKey = CFSTR(kAudioSubTapDriftCompensationQualityKey);
+    const auto tapsKey = CFSTR(kAudioAggregateDeviceTapListKey);
+    const auto expectedUID = CFSTR("fixture-owned-tap");
+    auto tap = CFDictionaryCreateMutable(nullptr, 0, &kCFTypeDictionaryKeyCallBacks,
+                                         &kCFTypeDictionaryValueCallBacks);
+    auto composition = CFDictionaryCreateMutable(nullptr, 0, &kCFTypeDictionaryKeyCallBacks,
+                                                 &kCFTypeDictionaryValueCallBacks);
+    const auto setNumber = [&](CFStringRef key, CFNumberType type, const void *value) {
+        auto number = CFNumberCreate(nullptr, type, value);
+        CFDictionarySetValue(tap, key, number);
+        CFRelease(number);
+    };
+    const auto setMembers = [&](CFIndex count, CFTypeRef member) {
+        const void *members[]{member, member};
+        auto list = CFArrayCreate(nullptr, members, count, &kCFTypeArrayCallBacks);
+        CFDictionarySetValue(composition, tapsKey, list);
+        CFRelease(list);
+    };
+    const auto verify = [&](const char *label, CFTypeRef object, CFStringRef uid, bool valid,
+                            UInt32 drift = 1,
+                            UInt32 quality = kAudioAggregateDriftCompensationHighQuality) {
+        ++invocations;
+        AggregateTapPolicy policy{17, 19};
+        check(decodeAggregateTapPolicy(object, uid, policy) == valid, label);
+        CHECK(policy.driftCompensation == (valid ? drift : 17));
+        CHECK(policy.driftQuality == (valid ? quality : 19));
+    };
+    const SInt32 one = 1, high = kAudioAggregateDriftCompensationHighQuality;
+    setNumber(driftKey, kCFNumberSInt32Type, &one);
+    setNumber(qualityKey, kCFNumberSInt32Type, &high);
+    CFDictionarySetValue(tap, uidKey, expectedUID);
+    setMembers(1, tap);
+    verify("integer policy", composition, expectedUID, true);
+    verify("missing composition", nullptr, expectedUID, false);
+    verify("wrong composition type", CFSTR("not a dictionary"), expectedUID, false);
+    verify("missing expected UID", composition, nullptr, false);
+    verify("different expected UID", composition, CFSTR("another tap"), false);
+    CFDictionaryRemoveValue(composition, tapsKey);
+    verify("missing tap list", composition, expectedUID, false);
+    CFDictionarySetValue(composition, tapsKey, CFSTR("not an array"));
+    verify("wrong tap list type", composition, expectedUID, false);
+    setMembers(0, tap);
+    verify("empty tap list", composition, expectedUID, false);
+    setMembers(2, tap);
+    verify("duplicate owned UID", composition, expectedUID, false);
+    setMembers(1, CFSTR("not a tap dictionary"));
+    verify("wrong tap entry type", composition, expectedUID, false);
+    setMembers(1, tap);
+    CFDictionaryRemoveValue(tap, uidKey);
+    verify("missing tap UID", composition, expectedUID, false);
+    CFDictionarySetValue(tap, uidKey, kCFBooleanTrue);
+    verify("wrong tap UID type", composition, expectedUID, false);
+    CFDictionarySetValue(tap, uidKey, CFSTR("another tap"));
+    verify("wrong tap UID", composition, expectedUID, false);
+    CFDictionarySetValue(tap, uidKey, expectedUID);
+    for (auto key : {driftKey, qualityKey}) {
+        CFDictionaryRemoveValue(tap, key);
+        verify("missing policy number", composition, expectedUID, false);
+        CFDictionarySetValue(tap, key, kCFBooleanTrue);
+        verify("boolean is not the SDK CFNumber", composition, expectedUID, false);
+        CFDictionarySetValue(tap, key, CFSTR("1"));
+        verify("string is not a number", composition, expectedUID, false);
+        for (const double value : {-1.0, 0.5, std::numeric_limits<double>::infinity(),
+                                   std::numeric_limits<double>::quiet_NaN(),
+                                   double(std::numeric_limits<UInt32>::max()) + 1.0}) {
+            setNumber(key, kCFNumberFloat64Type, &value);
+            verify("invalid numeric range or precision", composition, expectedUID, false);
+        }
+        setNumber(key, kCFNumberSInt32Type, key == driftKey ? &one : &high);
+    }
+    for (const double drift : {0.0, 1.0, 2.0, double(std::numeric_limits<UInt32>::max())}) {
+        setNumber(driftKey, kCFNumberFloat64Type, &drift);
+        verify("observed drift is not normalized or defaulted", composition, expectedUID, true,
+               static_cast<UInt32>(drift));
+    }
+    setNumber(driftKey, kCFNumberSInt32Type, &one);
+    for (const double quality :
+         {0.0, double(kAudioAggregateDriftCompensationLowQuality), 128.0, 129.0, 96.5}) {
+        setNumber(qualityKey, kCFNumberFloat64Type, &quality);
+        verify("observed quality is preserved or rejected", composition, expectedUID,
+               quality <= 128 && std::floor(quality) == quality, 1, static_cast<UInt32>(quality));
+    }
+    CFRelease(composition);
+    CFRelease(tap);
+}
+void privateSubTapUsesAggregatePolicy() {
+    resetFixture();
+    hal.rejectPrivateSubTapListeners = true;
+    auto p = prepare(request(state()));
+    if (!p || hal.ios.empty())
+        return;
+    const auto io = hal.ios.back();
+    commit(p, state());
+    Signal signal;
+    signal.render(io);
+    CHECK(signal.output[0] == signal.input[0] * state().target_gain);
+    CHECK(snapshot(p).phase == FT_NATIVE_FIRST_APPLIED);
+    p.reset();
+    CHECK(hal.resources() == 0);
+}
+void aggregateCompositionInvalidates() {
+    resetFixture();
+    auto p = prepare(request(state()));
+    if (!p || hal.ios.empty())
+        return;
+    const auto io = hal.ios.back();
+    commit(p, state());
+    Signal warm;
+    warm.render(io);
+    CHECK(!warm.zero());
+    const auto identity = hal.subTapOffset;
+    const AudioObjectPropertyAddress property{kAudioAggregateDevicePropertyComposition,
+                                              kAudioObjectPropertyScopeGlobal,
+                                              kAudioObjectPropertyElementMain};
+    for (const auto &listener : hal.listeners) {
+        if (listener.object != io.device || listener.property.mSelector != property.mSelector ||
+            listener.property.mScope != property.mScope)
+            continue;
+        callback_observation::active = true;
+        const auto changed = listener.callback(listener.object, 1, &property, listener.data);
+        callback_observation::active = false;
+        CHECK(changed == noErr);
+    }
+    CHECK(hal.subTapOffset == identity);
+    Signal after;
+    after.render(io);
+    CHECK(after.zero());
+    const auto s = snapshot(p);
+    CHECK(s.phase == FT_NATIVE_ROUTE_FAILED && s.failure.kind == FT_NATIVE_BINDING_CHANGED);
+    p.reset();
+    CHECK(hal.resources() == 0);
+}
+void compositionListenerFailureIsPrimary() {
+    invocations = 2;
+    for (const bool cleanupDebt : {false, true}) {
+        resetFixture();
+        hal.rejectCompositionListener = true;
+        if (cleanupDebt)
+            hal.cleanupFault = Fault::destroyTap;
+        auto r = request(state());
+        FTNativeRoute *raw = nullptr;
+        FTNativeError error{};
+        CHECK(ft_native_route_prepare(&r, &raw, &error) == FT_NATIVE_FAILED);
+        Route owner(raw);
+        CHECK(error.kind == FT_NATIVE_FAILURE && error.operation == FT_NATIVE_INSTALL_LISTENERS);
+        CHECK(error.code == compositionListenerError && hal.starts == 0);
+        if (cleanupDebt) {
+            CHECK(owner != nullptr);
+            if (owner) {
+                const auto s = snapshot(owner);
+                CHECK(s.failure.code == compositionListenerError &&
+                      s.failure.operation == FT_NATIVE_INSTALL_LISTENERS);
+                CHECK(s.cleanup_failure.code == cleanupError &&
+                      s.cleanup_failure.operation == FT_NATIVE_DESTROY_TAP);
+            }
+        } else {
+            CHECK(!owner && hal.resources() == 0);
+        }
+        owner.reset();
+        CHECK(hal.resources() == 0);
+    }
+}
 void boundedCleanupDebt() {
     invocations = 3;
     resetFixture();
@@ -417,10 +585,10 @@ void lateCloseAndReuse() {
         AudioObjectPropertyAddress{kAudioDevicePropertyStreamConfiguration,
                                    kAudioObjectPropertyScopeOutput,
                                    kAudioObjectPropertyElementMain},
-        AudioObjectPropertyAddress{kAudioSubTapPropertyDriftCompensation,
+        AudioObjectPropertyAddress{kAudioAggregateDevicePropertyComposition,
                                    kAudioObjectPropertyScopeGlobal,
                                    kAudioObjectPropertyElementMain},
-        AudioObjectPropertyAddress{kAudioSubTapPropertyDriftCompensationQuality,
+        AudioObjectPropertyAddress{kAudioAggregateDevicePropertyComposition,
                                    kAudioObjectPropertyScopeGlobal,
                                    kAudioObjectPropertyElementMain},
         AudioObjectPropertyAddress{kAudioAggregateDevicePropertySubTapList,
@@ -449,7 +617,6 @@ void lateCloseAndReuse() {
             hal.microphone = true;
         if (n == 3)
             hal.planar = true;
-        const auto subTap = activeIO.device + hal.subTapOffset;
         if (n == 4)
             hal.driftCompensation = 0;
         if (n == 5)
@@ -458,7 +625,7 @@ void lateCloseAndReuse() {
             ++hal.subTapOffset;
         if (n == 7)
             hal.maximumFrames = 128;
-        const auto changedObject = n < 4 ? 801 : n < 6 ? subTap : activeIO.device;
+        const auto changedObject = n < 4 ? 801 : activeIO.device;
         // Fake OS emits only this changed property, not an assumed related notification.
         // No assertion counts registrations: actual signal/status must show invalidation.
         const auto &property = properties[n];
@@ -657,11 +824,19 @@ struct Result {
     void (*run)();
     std::size_t count = 0, checks = 0, failed = 0;
 };
-std::array<Result, 10> results{{
+std::array<Result, 14> results{{
     {"Tests/NativeHALContractTests/main.cpp::latestCommitState", latestCommitState},
     {"Tests/NativeHALContractTests/main.cpp::acquisitionGuards", acquisitionGuards},
     {"Tests/NativeHALContractTests/main.cpp::capabilityAndCertificate", capabilityAndCertificate},
     {"Tests/NativeHALContractTests/main.cpp::partialAcquisition", partialAcquisition},
+    {"Tests/NativeHALContractTests/main.cpp::privateSubTapUsesAggregatePolicy",
+     privateSubTapUsesAggregatePolicy},
+    {"Tests/NativeHALContractTests/main.cpp::aggregateCompositionInvalidates",
+     aggregateCompositionInvalidates},
+    {"Tests/NativeHALContractTests/main.cpp::compositionListenerFailureIsPrimary",
+     compositionListenerFailureIsPrimary},
+    {"Tests/NativeHALContractTests/main.cpp::aggregateTapPolicyDecoding",
+     aggregateTapPolicyDecoding},
     {"Tests/NativeHALContractTests/main.cpp::boundedCleanupDebt", boundedCleanupDebt},
     {"Tests/NativeHALContractTests/main.cpp::savedTargetsAndPermit", savedTargetsAndPermit},
     {"Tests/NativeHALContractTests/main.cpp::callbackSilenceAndInput", callbackSilenceAndInput},

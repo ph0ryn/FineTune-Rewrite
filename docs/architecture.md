@@ -136,6 +136,9 @@ tapなどの生成・停止・破棄やObjective-Cのオブジェクト操作は
 ### 現在のNative経路と回収結果
 
 app×outputの各routeがtap・private aggregate・IOProc・DSP資源を所有する。
+private aggregateのtap drift/qualityは作成後に変更せず、証明のたびにOSからCompositionを読み戻して、所有tap UIDとの一意対応・数値型・値を検証する。作成時の要求辞書や既定値を観測の代わりに使わない。
+SubTapListのIDはactive memberの同一性比較に使い、子objectのproperty読取・監視が可能とは仮定しない。aggregateのComposition・tap/subtap listと既存の物理機器・streamを監視し、start前にも再検証する。
+同一process内の外部コードが子drift/qualityを直接変更する方式は対応対象外とする。子設定の変更が必ず親Composition通知になる保証や、実機での通知・音声の正しさを確認したという意味ではない。
 初期対応は同じsample rateのFloat32 stereoと明示的なchannel/format certificateに制限し、未対応機器を黙示変換で隠さない。
 source appをtap中muteする方式を使うが、実機での音響的な連続性を確認したものではない。
 

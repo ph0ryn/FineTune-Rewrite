@@ -23,7 +23,7 @@ enum class Fault {
     destroyAggregate,
     destroyTap
 };
-constexpr OSStatus acquisitionError = -7311, cleanupError = -7312;
+constexpr OSStatus acquisitionError = -7311, cleanupError = -7312, compositionListenerError = -7313;
 struct IO {
     AudioObjectID device;
     AudioDeviceIOProcID id;
@@ -54,6 +54,7 @@ struct FakeHAL {
     Fault fault = Fault::none, cleanupFault = Fault::none;
     bool disabledStreams = false, oversized = false, preferredStereo = true;
     bool variableFrames = false, missingSubTap = false;
+    bool rejectPrivateSubTapListeners = false, rejectCompositionListener = false;
     UInt32 driftCompensation = 1, driftQuality = kAudioAggregateDriftCompensationHighQuality;
     UInt32 maximumFrames = 64, subTapOffset = 4000;
     double nominalRate = 48000;
@@ -239,6 +240,18 @@ struct FakeHAL {
             ++f.listenerAttempts;
             if (f.fault == Fault::listener && f.listenerAttempts == 3)
                 return acquisitionError;
+            if (f.rejectPrivateSubTapListeners &&
+                (p.mSelector == kAudioSubTapPropertyDriftCompensation ||
+                 p.mSelector == kAudioSubTapPropertyDriftCompensationQuality) &&
+                std::any_of(f.aggregates.begin(), f.aggregates.end(), [&](const auto &aggregate) {
+                    return object == aggregate.id + f.subTapOffset;
+                }))
+                return kAudioHardwareBadObjectError;
+            if (f.rejectCompositionListener &&
+                p.mSelector == kAudioAggregateDevicePropertyComposition &&
+                std::any_of(f.aggregates.begin(), f.aggregates.end(),
+                            [&](const auto &aggregate) { return object == aggregate.id; }))
+                return compositionListenerError;
             f.listeners.push_back({object, p, callback, data});
             return noErr;
         };
