@@ -282,9 +282,11 @@ struct RootPresentationTests {
   }
 
   @Test(
-    "Native diagnostics retain the exact optional code and distinguish primary from cleanup",
-    arguments: [Int32?(560_947_818), -7201, nil])
-  func nativeDiagnosticsKeepStageCodeAndCleanupRole(code: Int32?) async throws {
+    "Retired late START/COMMIT cancellation history is not a current Root banner or row failure",
+    arguments: RoutingDeferredOperation.allCases)
+  func lateCancelledHistoryDoesNotLeakIntoRecoveredSnapshots(
+    operation: RoutingDeferredOperation
+  ) async throws {
     let runtime = RoutingProbeRuntime()
     let fixture = try RootPresentationFixture(runtime: runtime)
     defer { fixture.cleanUp() }
@@ -292,16 +294,151 @@ struct RootPresentationTests {
     fixture.graph.engine.ingestObservations()
     let controller = fixture.graph.controller
     controller.observeOutputs(
-      [
+      ["speaker", "B", "C"].map {
         AudioOutputDescriptor(
-          uid: "speaker", bindingRevision: 1, supportsAutoEQ: false,
+          uid: $0, bindingRevision: 1, supportsAutoEQ: false,
           processingGain: 1, volume: 0.5, isMuted: false)
-      ], defaultUID: "speaker")
+      }, defaultUID: "speaker")
+    controller.perform(.requestCaptureStart)
+    await controller.waitForCurrentWork()
+    runtime.holdOperations["B"] = operation
+    runtime.holdRetirement = ["B"]
+    controller.perform(.setRoute(identifier: "unit.player", mode: .single, uids: ["B"]))
+    await runtime.wait("deferred-\(operation.rawValue):B")
+    let late = try #require(runtime.handle("B"))
+    controller.perform(.setRoute(identifier: "unit.player", mode: .single, uids: ["C"]))
+    await runtime.wait("retire:B")
+    runtime.releaseOperation("B")
+    await runtime.wait("late-cancelled:B")
+    late.finishRetirement()
+    await controller.waitForCurrentWork()
+    let current = try #require(runtime.handle("C"))
+    #expect(current.rendering && !current.retired)
+    #expect(controller.activeDeviceUIDs(for: "unit.player") == ["C"])
+    #expect(controller.lastFailure == nil && controller.captureRetryFailure == nil)
+    #expect(controller.routeObservations[late.key]?.phase == .retired)
+    #expect(controller.routeObservations[late.key]?.failure?.kind == .cancelled)
+    let presentation = fixture.presentation()
+    let halBaseline = fixture.hal.calls
+    for _ in 0..<2 {
+      let mixer = presentation.mixerSnapshot()
+      let row = try #require(mixer.apps.first { $0.id == "unit.player" })
+      #expect(mixer.captureNotice == nil)
+      #expect(mixer.error == nil)
+      #expect(presentation.settingsSnapshot().error == nil)
+      #expect(row.routeStatus == nil)
+    }
+    await fixture.expectPassivePorts(halBaseline: halBaseline)
+    await controller.shutdown()
+    #expect(late.retired && current.retired && !current.rendering)
+  }
+
+  @Test(
+    "A healthy multi-output commit cannot hide a retained owner's fault before explicit recovery",
+    arguments: [AudioRouteFailureKind.nativeFailure, .cancelled])
+  func retainedMultiOutputFailureSurvivesAnotherOutputCommit(kind: AudioRouteFailureKind)
+    async throws
+  {
+    let runtime = RoutingProbeRuntime()
+    let fixture = try RootPresentationFixture(runtime: runtime)
+    defer { fixture.cleanUp() }
+    fixture.processes.apps = [fixture.app(id: 101, uid: "unit.player", name: "Player")]
+    fixture.graph.engine.ingestObservations()
+    let controller = fixture.graph.controller
+    controller.observeOutputs(
+      ["speaker", "B"].map {
+        AudioOutputDescriptor(
+          uid: $0, bindingRevision: 1, supportsAutoEQ: false,
+          processingGain: 1, volume: 0.5, isMuted: false)
+      }, defaultUID: "speaker")
+    controller.perform(.requestCaptureStart)
+    await controller.waitForCurrentWork()
+    let retained = try #require(runtime.handle("speaker"))
+    #expect(retained.rendering)
+    runtime.holdUpdates = ["speaker"]
+    let nextUpdate = retained.updates.count + 1
+    controller.perform(.setGain(identifier: "unit.player", gain: 0.5))
+    await runtime.wait("update:speaker:\(nextUpdate)")
+    let updating = Task { @MainActor in
+      runtime.emit("draining-retained-update")
+      await controller.waitForCurrentWork()
+    }
+    await runtime.wait("draining-retained-update")
+    runtime.holdOperations["B"] = .commit
+    controller.perform(.setRoute(identifier: "unit.player", mode: .multi, uids: ["speaker", "B"]))
+    await runtime.wait("deferred-commit:B")
+    // No delayed full-state receipt may accidentally re-latch the fault after B's commit clears it.
+    runtime.releaseUpdates("speaker")
+    await updating.value
+    let healthy = try #require(runtime.handle("B"))
+    #expect(retained.rendering && retained.retirementAttempts == 0 && healthy.commits.isEmpty)
+    let failure = AudioRouteFailure(
+      kind: kind, stage: "render", code: -7301, message: "Retained speaker rendering failed")
+    let expected = "\(failure.message) (stage: render, native code: -7301)"
+    retained.rendering = false
+    retained.onObservation?(
+      AudioRouteObservation(key: retained.key, phase: .failed, failure: failure))
+    #expect(controller.routeFailures["unit.player"] == failure && controller.lastFailure == failure)
+    runtime.releaseOperation("B")
+    await controller.waitForCurrentWork()
+    #expect(healthy.rendering && !healthy.retired && healthy.retirementAttempts == 0)
+    #expect(!retained.rendering && !retained.retired && retained.retirementAttempts == 0)
+    #expect(controller.routeObservations[retained.key]?.failure == failure)
+    #expect(controller.activeDeviceUIDs(for: "unit.player") == ["B"])
+    #expect(controller.captureRetryFailure == nil && runtime.requests.count == 2)
+    #expect(controller.routeFailures["unit.player"] == failure)
+    #expect(controller.lastFailure == failure)
+    let presentation = fixture.presentation()
+    let halBaseline = fixture.hal.calls
+    let failedSnapshot = presentation.mixerSnapshot()
+    #expect(failedSnapshot.error == expected)
+    #expect(failedSnapshot.apps.first?.routeStatus == expected)
+    #expect(presentation.settingsSnapshot().error == expected)
+    runtime.holdArmed = ["speaker"]
+    controller.perform(.setRoute(identifier: "unit.player", mode: .multi, uids: ["speaker", "B"]))
+    await runtime.wait("started:speaker")
+    let recovered = try #require(runtime.handle("speaker"))
+    #expect(recovered !== retained && recovered.commits.isEmpty)
+    #expect(controller.routeFailures["unit.player"] == failure)
+    #expect(healthy.rendering && healthy.retirementAttempts == 0)
+    recovered.arm()
+    await controller.waitForCurrentWork()
+    #expect(controller.activeDeviceUIDs(for: "unit.player") == ["speaker", "B"])
+    #expect(recovered.rendering && retained.retired && runtime.requests.count == 3)
+    #expect(runtime.handle("B") === healthy && healthy.rendering && healthy.retirementAttempts == 0)
+    #expect(controller.routeFailures["unit.player"] == nil && controller.lastFailure == nil)
+    let recoveredSnapshot = presentation.mixerSnapshot()
+    #expect(recoveredSnapshot.error == nil && recoveredSnapshot.apps.first?.routeStatus == nil)
+    #expect(presentation.settingsSnapshot().error == nil)
+    await fixture.expectPassivePorts(halBaseline: halBaseline)
+    await controller.shutdown()
+    #expect(recovered.retired && healthy.retired)
+  }
+
+  @Test(
+    "Native diagnostics retain the exact optional code and distinguish primary from cleanup",
+    arguments: [Int32?(560_947_818), -7201, nil],
+    [AudioRouteFailureKind.nativeFailure, .cancelled])
+  func nativeDiagnosticsKeepStageCodeAndCleanupRole(
+    code: Int32?, kind: AudioRouteFailureKind
+  ) async throws {
+    let runtime = RoutingProbeRuntime()
+    let fixture = try RootPresentationFixture(runtime: runtime)
+    defer { fixture.cleanUp() }
+    fixture.processes.apps = [fixture.app(id: 101, uid: "unit.player", name: "Player")]
+    fixture.graph.engine.ingestObservations()
+    let controller = fixture.graph.controller
+    controller.observeOutputs(
+      ["speaker", "headphones"].map {
+        AudioOutputDescriptor(
+          uid: $0, bindingRevision: 1, supportsAutoEQ: false,
+          processingGain: 1, volume: 0.5, isMuted: false)
+      }, defaultUID: "speaker")
     controller.perform(.requestCaptureStart)
     await controller.waitForCurrentWork()
     let route = try #require(runtime.handle("speaker"))
     let failure = AudioRouteFailure(
-      stage: "createAggregate", code: code,
+      kind: kind, stage: "createAggregate", code: code,
       message: "Native audio could not complete the requested operation.")
     route.onObservation?(
       AudioRouteObservation(
@@ -330,6 +467,16 @@ struct RootPresentationTests {
       if code == nil { #expect(!visible.contains("native code")) }
     }
     #expect(fixture.effects.commands == commands)
+    runtime.holdArmed = ["headphones"]
+    controller.perform(.setRoute(identifier: "unit.player", mode: .single, uids: ["headphones"]))
+    await runtime.wait("started:headphones")
+    let candidate = try #require(runtime.handle("headphones"))
+    #expect(candidate.commits.isEmpty && route.retirementAttempts == 0)
+    #expect(controller.lastFailure == failure)
+    let pending = presentation.mixerSnapshot()
+    #expect(pending.error == expected)
+    #expect(pending.apps.first?.routeStatus == expected)
+    #expect(presentation.settingsSnapshot().error == expected)
     await fixture.expectPassivePorts(halBaseline: halBaseline)
     await controller.shutdown()
   }

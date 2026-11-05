@@ -19,7 +19,8 @@ public final class AudioController: AudioCommandHandling {
   public internal(set) var commandFailure: AudioRouteFailure?
   public internal(set) var applicationObservationFailure: AudioRouteFailure?
   public internal(set) var outputObservationFailure: AudioRouteFailure?
-  public internal(set) var routeFailure: AudioRouteFailure?
+  /// Current app-scoped diagnostics survive teardown and clear only after that app commits a plan.
+  public internal(set) var routeFailures: [String: AudioRouteFailure] = [:]
   var hasApplications = false
   var hasOutputs = false
   var revision: UInt64 = 1
@@ -61,6 +62,10 @@ public final class AudioController: AudioCommandHandling {
   public var lastFailure: AudioRouteFailure? {
     commandFailure ?? applicationObservationFailure ?? outputObservationFailure ?? routeFailure
       ?? captureRetryFailure
+  }
+
+  public var routeFailure: AudioRouteFailure? {
+    routeFailures.keys.sorted().first.flatMap { routeFailures[$0] }
   }
 
   /// A failed acquisition awaiting an explicit retry, not an authorization status.
@@ -327,8 +332,10 @@ public final class AudioController: AudioCommandHandling {
     suspend()
     // Superseded preparation remains owned too: a late return must retire before shutdown finishes.
     await waitForCurrentWork()
-    for task in Array(retirementTasks.values) {
-      do { try await task.value } catch { routeFailure = failure(error, stage: "retire") }
+    for (key, task) in Array(retirementTasks) {
+      do { try await task.value } catch {
+        routeFailures[key.appIdentifier] = failure(error, stage: "retire")
+      }
     }
   }
 
@@ -397,6 +404,12 @@ final class ManagedAudioRoute {
   let processRevision: UInt64
   let sessionID: UInt64
   var output: AudioOutputDescriptor
+  // Admission never reopens after Control has begun closing this owner.
+  var isClosing = false
+  func cancel() {
+    isClosing = true
+    handle.cancel()
+  }
   init(
     handle: any PreparedAudioRoute, processRevision: UInt64, sessionID: UInt64,
     output: AudioOutputDescriptor

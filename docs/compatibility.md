@@ -82,10 +82,19 @@ transientな親popup内で出力先pickerを実際に開き、child windowの出
 受動的な機器・process通知だけで失敗した取得を繰り返さないこと、既知の権限拒否は明示的な`Retry Audio`まで解除しないことは維持します。
 
 旧経路の既知のprimary failureは回収後も診断履歴に残しますが、成功した回収を失敗扱いして新経路のcommitを妨げません。
-回収中の新しいfailureやcleanup failureは区別して引き続きhandoffを止め、PENDINGは実際のretired通知まで待ちます。
+Controlが終了を開始した後、処理中のstart/commitが遅れて記録するprimaryの`cancelled`も回収失敗とは区別します。
+それ以外の新しいprimary failure、cleanup failure、明示的な回収失敗は引き続きhandoffを止め、PENDINGは実際のretired通知まで待ちます。
+終了を開始したownerは、古いcommitted観測が残っていても再利用や新しいupdateの対象にしません。
+旧ownerの遅延updateによる意図的な`cancelled`は、現行の失敗表示を作成・上書きしません。
+一方、終了を指示していない現行ownerの`cancelled`は失敗として扱います。
+診断はアプリ単位で保持し、別アプリの取得成功、旧ownerの回収開始、新世代のprepareだけでは消しません。
+そのアプリ自身のcommit後、再利用したownerを含む要求経路すべてが健全な場合に解除します。複数出力の一方の成功だけで、残す経路の障害を消しません。
+Mixer・Settings・アプリ行もこの現行診断を参照し、履歴に残したprimary failureを現在の障害として再表示しません。cleanup診断とnative codeは区別して保持します。
 [経路の回帰テスト](<../Tests/AppCompositionTests/RoutingTests.swift>)で、default選択による再試行範囲、即時/PENDING回収、
+遅延start/commit/updateとの競合、別アプリ成功時の障害表示と自身の復帰後の解除、
 既知のbinding failure・旧sessionの拒否からの復帰と、新しい回収エラーを隠さないことを確認します。
-この保証はControlの復帰契約であり、物理機器のformat検証・実音声・切り替え時の無音や連続性の保証ではありません。
+[実Rootの表示テスト](<../Tests/AppCompositionTests/RootPresentationTests.swift>)で、Mixer・Settings・アプリ行の表示と、複数出力の片側故障が別出力のcommitで消えないことも確認します。
+この保証はControlと表示の復帰契約であり、物理機器のformat検証・実音声・切り替え時の無音や連続性の保証ではありません。
 
 nativeの入力検証では、所有する単一stereo tapと意図した物理機器だけの構成を読み戻した場合に限り、
 streamの開始チャンネル番号が1より大きくても、連続した2chとIOProcのbuffer構成を照合して扱います。

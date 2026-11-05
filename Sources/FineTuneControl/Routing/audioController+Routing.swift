@@ -53,7 +53,7 @@ extension AudioController {
     }
     guard !chosen.isEmpty else {
       stopRoutes(for: identifier, cancelPending: false)
-      routeFailure = AudioRouteFailure(
+      routeFailures[identifier] = AudioRouteFailure(
         kind: .unavailable, stage: "outputs",
         message: "No output is currently available for \(identifier).")
       return
@@ -76,7 +76,7 @@ extension AudioController {
       return
     }
     guard let runtime else {
-      routeFailure = AudioRouteFailure(
+      routeFailures[identifier] = AudioRouteFailure(
         kind: .unavailable, stage: "prepare", message: "The live audio runtime is unavailable.")
       return
     }
@@ -139,7 +139,7 @@ extension AudioController {
 
   func usableActiveRoutes(_ identifier: String, plan: AudioRoutePlan) -> [String: AudioRouteKey] {
     (active[identifier] ?? [:]).filter { uid, key in
-      guard let record = owned[key], let state = routeObservations[key],
+      guard let record = owned[key], !record.isClosing, let state = routeObservations[key],
         state.phase == .committed || state.phase == .firstApplied,
         state.failure == nil, state.cleanupFailure == nil,
         let output = plan.outputs.first(where: { $0.uid == uid })
@@ -227,7 +227,10 @@ extension AudioController {
       }
       active[identifier] = committed
       captureRetryFailures[identifier] = nil
-      routeFailure = nil
+      // Reused owners can fail while a new output commits; partial success is not recovery.
+      if usableActiveRoutes(identifier, plan: plan).count == plan.outputs.count {
+        routeFailures[identifier] = nil
+      }
     } catch {
       let isCurrent = generations[identifier] == generation && captureIntent != .none
       let reason = failure(error, stage: "route")
@@ -241,13 +244,13 @@ extension AudioController {
         // A passive revision change is not a fresh permission attempt. Preserve the real
         // returned failure even when its binding is stale; only an explicit retry releases it.
         captureRetryFailures[identifier] = reason
-        routeFailure = reason
+        routeFailures[identifier] = reason
         if reason.kind == .permissionDenied { knownPermissionDenied = true }
       }
       if isCurrent, sameRetry,
         !(error is CancellationError && !defaultPlanIsCurrent(identifier))
       {
-        routeFailure = reason
+        routeFailures[identifier] = reason
         if reason.kind == .permissionDenied,
           captureIntent == .userInitiated(sessionID: operationSessionID)
         {
@@ -260,7 +263,7 @@ extension AudioController {
         !isCurrent && retiredPrevious && captureIntent != .none && app(identifier) != nil
       if !holdReadOwners {
         for record in candidates {
-          record.handle.cancel()
+          record.cancel()
           scheduleRetirement(record)
         }
       }
@@ -328,12 +331,12 @@ extension AudioController {
   }
 
   func enqueueUpdate(_ record: ManagedAudioRoute) {
-    guard updateTasks[record.key] == nil else { return }
+    guard !record.isClosing, updateTasks[record.key] == nil else { return }
     updateTasks[record.key] = Task { [weak self] in
       guard let self else { return }
       defer { self.updateTasks[record.key] = nil }
       do {
-        while self.owned[record.key] != nil && self.captureIntent != .none {
+        while self.owned[record.key] != nil && !record.isClosing && self.captureIntent != .none {
           let state = try self.makeState(record)
           let receipt = try await record.handle.update(state: state)
           self.receive(receipt)
@@ -343,11 +346,21 @@ extension AudioController {
           }
         }
       } catch {
-        if self.owned[record.key] != nil && !(error is CancellationError) {
-          self.routeFailure = self.failure(error, stage: "update")
+        let reason = self.failure(error, stage: "update")
+        if self.owned[record.key] != nil && !(error is CancellationError)
+          && !(record.isClosing && reason.kind == .cancelled)
+        {
+          self.routeFailures[record.key.appIdentifier] = reason
         }
       }
     }
+  }
+
+  func routeFailureForDisplay(
+    _ value: AudioRouteObservation, record: ManagedAudioRoute
+  ) -> AudioRouteFailure? {
+    if record.isClosing && value.failure?.kind == .cancelled { return value.cleanupFailure }
+    return value.failure ?? value.cleanupFailure
   }
 
   func receive(_ incoming: AudioRouteObservation) {
@@ -391,12 +404,12 @@ extension AudioController {
         retirementWaiters.removeValue(forKey: incoming.key)?.continuation.resume()
       }
     }
-    if let error = incoming.failure ?? incoming.cleanupFailure {
+    if let error = routeFailureForDisplay(incoming, record: record) {
       let relevant =
         generations[incoming.key.appIdentifier] == incoming.key.generation
         || active[incoming.key.appIdentifier]?.values.contains(incoming.key) == true
       if relevant {
-        routeFailure = error
+        routeFailures[incoming.key.appIdentifier] = error
         if error.kind == .permissionDenied,
           captureIntent == .userInitiated(sessionID: record.sessionID)
         {
@@ -441,9 +454,13 @@ extension AudioController {
   func retirementFailure(
     _ value: AudioRouteObservation, priorFailure: AudioRouteFailure?
   ) -> AudioRouteFailure? {
-    // Native snapshots retain the route's primary fault even after successful teardown.
-    // Only that pre-existing fault is historical; every cleanup/new failure still vetoes handoff.
-    value.cleanupFailure ?? (value.failure == priorFailure ? nil : value.failure)
+    // Closing admission may make an in-flight start/commit record cancellation after the baseline.
+    // Neither that cancellation nor the historical primary fault is a teardown failure.
+    if let error = value.cleanupFailure { return error }
+    guard let error = value.failure, error != priorFailure, error.kind != .cancelled else {
+      return nil
+    }
+    return error
   }
 
   func retire(_ record: ManagedAudioRoute) async throws {
@@ -456,6 +473,7 @@ extension AudioController {
 
   /// Register before the first await: handoff, stop and shutdown join one native retirement.
   func retirement(_ record: ManagedAudioRoute) -> Task<Void, any Error> {
+    record.isClosing = true
     if let existing = retirementTasks[record.key] { return existing }
     let priorFailure = routeObservations[record.key]?.failure
     let task = Task<Void, any Error> {
@@ -481,7 +499,7 @@ extension AudioController {
           throw error
         }
       } catch {
-        self.routeFailure = self.failure(error, stage: "retire")
+        self.routeFailures[record.key.appIdentifier] = self.failure(error, stage: "retire")
         throw error
       }
     }
@@ -505,7 +523,7 @@ extension AudioController {
     for record in owned.values
     where record.key.appIdentifier == identifier
       && active[identifier]?[record.key.deviceUID] != record.key
-    { record.handle.cancel() }
+    { record.cancel() }
   }
 
   func stopRoutes(for identifier: String, cancelPending: Bool = true) {
@@ -516,7 +534,7 @@ extension AudioController {
     pendingReconciliations[identifier] = nil
     plans[identifier] = nil
     for record in owned.values where record.key.appIdentifier == identifier {
-      record.handle.cancel()
+      record.cancel()
       scheduleRetirement(record)
     }
   }

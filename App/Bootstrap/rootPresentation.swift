@@ -129,23 +129,40 @@ final class RootPresentation {
   }
 
   private func routeStatus(for identifier: String) -> String? {
-    let observations = graph.controller.routeObservations.values.filter {
+    let controller = graph.controller
+    let observations = controller.routeObservations.values.filter {
       $0.key.appIdentifier == identifier
     }
-    guard let generation = observations.map(\.key.generation).max() else { return nil }
+    let generation = observations.map(\.key.generation).max()
+    let hasCurrentFailure = controller.routeFailures[identifier] != nil
+    var messages = [currentFailureMessage(for: identifier)].compactMap { $0 }
+    // A newer prepared owner is not recovery. Keep the current fault's cleanup context until commit.
+    messages += observations.filter { hasCurrentFailure || $0.key.generation == generation }
+      .sorted { ($0.key.deviceUID, $0.key.generation) < ($1.key.deviceUID, $1.key.generation) }
+      .compactMap { $0.cleanupFailure.map { failureMessage($0, isCleanup: true) } }
+    if !hasCurrentFailure,
+      observations.contains(where: {
+        $0.key.generation == generation && $0.phase == .failed
+          && $0.failure == nil && $0.cleanupFailure == nil
+      })
+    {
+      messages.append("Audio routing failed.")
+    }
     var included: Set<String> = []
-    let messages = observations.filter { $0.key.generation == generation }
-      .sorted { $0.key.deviceUID < $1.key.deviceUID }
-      .flatMap { route -> [String] in
-        let failures = [
-          route.failure.map { failureMessage($0) },
-          route.cleanupFailure.map { failureMessage($0, isCleanup: true) },
-        ].compactMap { $0 }
-        if failures.isEmpty, route.phase == .failed { return ["Audio routing failed."] }
-        return failures
-      }
-      .filter { included.insert($0).inserted }
+    messages = messages.filter { included.insert($0).inserted }
     return messages.isEmpty ? nil : messages.joined(separator: "\n")
+  }
+
+  private func currentFailureMessage(for identifier: String) -> String? {
+    let controller = graph.controller
+    guard let failure = controller.routeFailures[identifier] else { return nil }
+    let observations = controller.routeObservations.values.filter {
+      $0.key.appIdentifier == identifier
+    }
+    let cleanupOnly =
+      !observations.contains { $0.failure == failure }
+      && observations.contains { $0.cleanupFailure == failure }
+    return failureMessage(failure, isCleanup: cleanupOnly)
   }
 
   private func error(excluding notice: String?) -> String? {
@@ -153,7 +170,9 @@ final class RootPresentation {
     var messages: [String?] = [
       controller.commandFailure?.message, controller.applicationObservationFailure?.message,
       controller.outputObservationFailure?.message,
-      controller.routeFailure.map { failureMessage($0) },
+    ]
+    messages += controller.routeFailures.keys.sorted().map { currentFailureMessage(for: $0) }
+    messages += [
       native.lastCleanupFailure?.failure.map { failureMessage($0) },
       native.lastCleanupFailure?.cleanupFailure.map { failureMessage($0, isCleanup: true) },
       graph.settings.lastLoadError, graph.settings.lastSaveError,
@@ -167,11 +186,9 @@ final class RootPresentation {
       if lhs.deviceUID != rhs.deviceUID { return lhs.deviceUID < rhs.deviceUID }
       return lhs.generation < rhs.generation
     }
-    messages += routes.flatMap { route in
-      [
-        route.failure.map { failureMessage($0) },
-        route.cleanupFailure.map { failureMessage($0, isCleanup: true) },
-      ]
+    // Primary history is not current failure state; genuine cleanup diagnostics remain distinct.
+    messages += routes.compactMap { route in
+      route.cleanupFailure.map { failureMessage($0, isCleanup: true) }
     }
     var included: Set<String> = []
     let visible = messages.compactMap { $0 }.filter {
