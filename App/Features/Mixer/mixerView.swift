@@ -122,6 +122,9 @@ struct MixerView: View {
               Button("Allow System Audio", action: actions.requestCapturePermission)
             case .openSettings:
               Button("Open System Settings", action: actions.openCaptureSettings)
+              Button("Retry Audio", action: actions.requestCapturePermission)
+            case .retryCapture:
+              Button("Retry Audio", action: actions.requestCapturePermission)
             }
           }
         }

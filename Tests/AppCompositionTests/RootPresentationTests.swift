@@ -231,6 +231,48 @@ struct RootPresentationTests {
     await fixture.expectPassivePorts(halBaseline: halBaseline)
   }
 
+  @Test(
+    "A failed capture exposes an explicit retry without snapshot-driven attempts",
+    arguments: [false, true])
+  func captureFailureOffersExplicitRetry(readTapFailure: Bool) async throws {
+    let failure = AudioRouteFailure(
+      kind: readTapFailure ? .unsupported : .nativeFailure,
+      stage: readTapFailure ? "inspectTap" : "createTap", code: -7201,
+      message: "Capture did not start; the native result did not establish authorization.")
+    let fixture = try RootPresentationFixture(captureFailure: failure)
+    defer { fixture.cleanUp() }
+    fixture.processes.apps = [fixture.app(id: 101, uid: "unit.live", name: "Player")]
+    fixture.graph.engine.ingestObservations()
+    let controller = fixture.graph.controller
+    controller.observeOutputs(
+      [
+        AudioOutputDescriptor(
+          uid: "speaker", bindingRevision: 1, supportsAutoEQ: false,
+          processingGain: 1, volume: 0.5, isMuted: false)
+      ], defaultUID: "speaker")
+    controller.perform(.requestCaptureStart)
+    await controller.waitForCurrentWork()
+    #expect(controller.routeFailure == failure)
+    #expect(!controller.knownPermissionDenied)
+    #expect(fixture.effects.nativeResolutions == 1)
+    let presentation = fixture.presentation()
+    let halBaseline = fixture.hal.calls
+    for _ in 0..<3 {
+      let snapshot = presentation.mixerSnapshot()
+      #expect(snapshot.captureNotice?.message == failure.message)
+      #expect(snapshot.captureNotice?.action == .retryCapture)
+      #expect(snapshot.error == nil)
+    }
+    #expect(fixture.effects.nativeResolutions == 1 && fixture.hal.calls == halBaseline)
+    // This is the existing command used by the Root's explicit capture action, not a passive read.
+    controller.perform(.requestCaptureStart)
+    await controller.waitForCurrentWork()
+    #expect(fixture.effects.nativeResolutions == 2)
+    #expect(!controller.knownPermissionDenied)
+    #expect(await fixture.transport.calls == 0)
+    await controller.shutdown()
+  }
+
   @Test("The required activation action forwards exact identity without editing audio")
   func activationUsesTheRequiredPort() async throws {
     let fixture = try RootPresentationFixture()
@@ -363,7 +405,12 @@ private final class RootPresentationFixture {
   let lifecycle: LifecycleCoordinator
   var inactiveIcons: [String: NSImage] = [:]
 
-  init(runtime: (any AudioRoutingRuntime)? = nil) throws {
+  init(
+    runtime: (any AudioRoutingRuntime)? = nil,
+    captureFailure: AudioRouteFailure = AudioRouteFailure(
+      kind: .permissionDenied, stage: "unit-native-preflight",
+      message: "Unit capture denied before native I/O")
+  ) throws {
     settings = SettingsManager(directory: directory, launchAtLoginService: hal)
     let clock = DeviceBackendClock { _ in throw CancellationError() }
     let ddc = DDCVolumeBackend(
@@ -387,9 +434,7 @@ private final class RootPresentationFixture {
     native = NativeAudioRoutingRuntime { _, _ in
       effects.nativeResolutions += 1
       // Exercise Control's public failure path, but never reach a native capture/TCC call.
-      throw AudioRouteFailure(
-        kind: .permissionDenied, stage: "unit-native-preflight",
-        message: "Unit capture denied before native I/O")
+      throw captureFailure
     }
     graph = ApplicationGraph(
       settings: settings,

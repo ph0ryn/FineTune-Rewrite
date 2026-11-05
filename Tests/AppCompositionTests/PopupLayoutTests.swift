@@ -57,6 +57,26 @@ struct PopupLayoutTests {
     #expect(source.events.isEmpty)
   }
 
+  @Test("Capture recovery controls remain visible and rendering does not invoke them")
+  func captureRecoveryIsExplicit() throws {
+    for action in [MixerCaptureNotice.Action.retryCapture, .openSettings] {
+      let source = MixerTestSource()
+      source.snapshot.captureNotice = MixerCaptureNotice(
+        message: "Capture needs an explicit retry.", action: action)
+      let fixture = PopupLayoutFixture(source: source)
+      let text = try recognizedText(in: bitmapImage(in: fixture.host))
+      let retry = try #require(text.first { $0.text.contains("Retry Audio") })
+      #expect(retry.bounds.width > 0 && retry.bounds.height > 0)
+      #expect(CGRect(x: 0, y: 0, width: 1, height: 1).contains(retry.bounds))
+      if action == .openSettings {
+        let settings = try #require(text.first { $0.text.contains("Open System Settings") })
+        #expect(settings.bounds.width > 0 && settings.bounds.height > 0)
+        #expect(CGRect(x: 0, y: 0, width: 1, height: 1).contains(settings.bounds))
+      }
+      #expect(source.events.isEmpty && source.profileSource.events.isEmpty)
+    }
+  }
+
   @Test("Quit is a visible button in the header, not an item hidden below the application list")
   func quitIsVisible() throws {
     let source = MixerTestSource()

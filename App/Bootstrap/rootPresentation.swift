@@ -177,6 +177,9 @@ final class RootPresentation {
           "Audio capture permission was denied. Review FineTune’s access in System Settings.",
         action: .openSettings)
     }
+    if let failure = graph.controller.captureRetryFailure {
+      return MixerCaptureNotice(message: failure.message, action: .retryCapture)
+    }
     if let failure = graph.controller.lastFailure,
       failure.kind == .unavailable || failure.kind == .unsupported
     {

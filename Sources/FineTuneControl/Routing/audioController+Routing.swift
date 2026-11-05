@@ -1,31 +1,38 @@
 import FineTuneDomain
 
 extension AudioController {
-  func changed(_ identifiers: [String]) {
+  func changed(_ identifiers: [String], explicitRetry: Bool = false) {
     revision &+= 1
     for identifier in Set(identifiers) {
+      if explicitRetry {
+        routeRetryRevisions[identifier, default: 0] &+= 1
+        captureRetryFailures[identifier] = nil
+      }
       appRevisions[identifier] = revision
       for record in owned.values where record.key.appIdentifier == identifier {
         deliverLevels(record)
         enqueueUpdate(record)
       }
-      reconcile(identifier)
+      reconcile(identifier, explicitRetry: explicitRetry)
     }
   }
 
-  func reconcileAll() {
-    for application in applications { reconcile(application.identifier) }
+  func reconcileAll(explicitRetry: Bool = false) {
+    for application in applications {
+      reconcile(application.identifier, explicitRetry: explicitRetry)
+    }
   }
 
-  func reconcile(_ identifier: String, force: Bool = false) {
+  func reconcile(_ identifier: String, force: Bool = false, explicitRetry: Bool = false) {
     guard let application = app(identifier), !settingsStore.isIgnored(identifier),
       case .userInitiated(let sessionID) = captureIntent
     else {
-      stopRoutes(for: identifier)
+      stopRoutes(for: identifier, cancelPending: false)
       return
     }
     guard hasApplications, hasOutputs, applicationObservationFailure == nil,
-      outputObservationFailure == nil, !knownPermissionDenied
+      outputObservationFailure == nil, !knownPermissionDenied,
+      captureRetryFailures[identifier] == nil
     else { return }
     let available = Dictionary(uniqueKeysWithValues: outputs.map { ($0.uid, $0) })
     let wanted: Set<String>
@@ -45,7 +52,7 @@ extension AudioController {
       chosen = [fallback]
     }
     guard !chosen.isEmpty else {
-      stopRoutes(for: identifier)
+      stopRoutes(for: identifier, cancelPending: false)
       routeFailure = AudioRouteFailure(
         kind: .unavailable, stage: "outputs",
         message: "No output is currently available for \(identifier).")
@@ -54,10 +61,18 @@ extension AudioController {
     let plan = AudioRoutePlan(
       processRevision: application.processRevision, sessionID: sessionID, outputs: chosen)
     if !force, let previous = plans[identifier], plan.hasSameBindings(as: previous),
-      routingTasks[identifier] != nil
+      (!explicitRetry && routingTasks[identifier] != nil)
         || ((active[identifier] ?? [:]).count == plan.outputs.count
           && usableActiveRoutes(identifier, plan: plan).count == plan.outputs.count)
     {
+      return
+    }
+    if !explicitRetry, inFlightPreparations.contains(where: { $0.identifier == identifier }) {
+      // Task cancellation cannot cancel an OS permission call. Keep its actual result and only
+      // invalidate stale activation; the latest observed binding replaces one pending plan.
+      generations[identifier] = (generations[identifier] ?? 0) &+ 1
+      plans[identifier] = plan
+      pendingReconciliations[identifier] = force || pendingReconciliations[identifier] == true
       return
     }
     guard let runtime else {
@@ -70,15 +85,42 @@ extension AudioController {
     generations[identifier] = generation
     plans[identifier] = plan
     let workID = AudioRouteWorkID(identifier: identifier, generation: generation)
+    let retryRevision = (
+      capture: captureRetryRevision, route: routeRetryRevisions[identifier] ?? 0)
     let task = Task { [weak self] in
       guard let self else { return }
       await self.apply(
-        plan, identifier: identifier, generation: generation, runtime: runtime, force: force)
-      if self.generations[identifier] == generation { self.routingTasks[identifier] = nil }
-      self.allRoutingTasks[workID] = nil
+        plan, identifier: identifier, generation: generation, runtime: runtime, force: force,
+        retryRevision: retryRevision)
+      self.finishRoutingWork(workID)
     }
+    routingTaskIDs[identifier] = workID
     routingTasks[identifier] = task
     allRoutingTasks[workID] = task
+  }
+
+  func finishRoutingWork(_ workID: AudioRouteWorkID) {
+    let identifier = workID.identifier
+    if routingTaskIDs[identifier] == workID {
+      routingTaskIDs[identifier] = nil
+      routingTasks[identifier] = nil
+    }
+    allRoutingTasks[workID] = nil
+    guard routingTasks[identifier] == nil,
+      !inFlightPreparations.contains(where: { $0.identifier == identifier }),
+      let force = pendingReconciliations.removeValue(forKey: identifier)
+    else { return }
+    reconcile(identifier, force: force)
+  }
+
+  func prepareRoute(
+    _ request: AudioRouteRequest, runtime: any AudioRoutingRuntime
+  ) async throws -> any PreparedAudioRoute {
+    let workID = AudioRouteWorkID(
+      identifier: request.key.appIdentifier, generation: request.key.generation)
+    inFlightPreparations.insert(workID)
+    defer { inFlightPreparations.remove(workID) }
+    return try await runtime.prepare(request)
   }
 
   func defaultRoutingUID() -> String? {
@@ -108,9 +150,11 @@ extension AudioController {
 
   func apply(
     _ plan: AudioRoutePlan, identifier: String, generation: UInt64,
-    runtime: any AudioRoutingRuntime, force: Bool
+    runtime: any AudioRoutingRuntime, force: Bool,
+    retryRevision: (capture: UInt64, route: UInt64)
   ) async {
     var candidates: [ManagedAudioRoute] = []
+    var attemptedAcquisition = false
     var retiredPrevious = false
     var operationSessionID = plan.sessionID
     let reusable = force ? [:] : usableActiveRoutes(identifier, plan: plan)
@@ -124,10 +168,11 @@ extension AudioController {
         let key = AudioRouteKey(
           appIdentifier: identifier, deviceUID: output.uid, generation: generation)
         let state = try makeState(identifier: identifier, output: currentOutput(output))
-        let handle = try await runtime.prepare(
+        attemptedAcquisition = true
+        let handle = try await prepareRoute(
           AudioRouteRequest(
             key: key, processRevision: plan.processRevision, initialState: state,
-            captureIntent: .userInitiated(sessionID: plan.sessionID)))
+            captureIntent: .userInitiated(sessionID: plan.sessionID)), runtime: runtime)
         guard handle.key == key else {
           handle.cancel()
           _ = await handle.retire()
@@ -180,11 +225,27 @@ extension AudioController {
         enqueueUpdate(record)
       }
       active[identifier] = committed
+      captureRetryFailures[identifier] = nil
       routeFailure = nil
     } catch {
       let isCurrent = generations[identifier] == generation && captureIntent != .none
-      if isCurrent, !(error is CancellationError && !defaultPlanIsCurrent(identifier)) {
-        let reason = failure(error, stage: "route")
+      let reason = failure(error, stage: "route")
+      let sameRetry =
+        captureIntent == .userInitiated(sessionID: plan.sessionID)
+        && captureRetryRevision == retryRevision.capture
+        && (routeRetryRevisions[identifier] ?? 0) == retryRevision.route
+      if sameRetry, attemptedAcquisition, !(error is CancellationError), reason.kind != .cancelled,
+        reason.kind != .permissionDenied || operationSessionID == plan.sessionID
+      {
+        // A passive revision change is not a fresh permission attempt. Preserve the real
+        // returned failure even when its binding is stale; only an explicit retry releases it.
+        captureRetryFailures[identifier] = reason
+        routeFailure = reason
+        if reason.kind == .permissionDenied { knownPermissionDenied = true }
+      }
+      if isCurrent, sameRetry,
+        !(error is CancellationError && !defaultPlanIsCurrent(identifier))
+      {
         routeFailure = reason
         if reason.kind == .permissionDenied,
           captureIntent == .userInitiated(sessionID: operationSessionID)
@@ -411,6 +472,8 @@ extension AudioController {
   func cancelPreparation(for identifier: String) {
     routingTasks[identifier]?.cancel()
     routingTasks[identifier] = nil
+    routingTaskIDs[identifier] = nil
+    pendingReconciliations[identifier] = nil
     for key in Array(armWaiters.keys) where key.appIdentifier == identifier {
       armWaiters.removeValue(forKey: key)?.resume(throwing: CancellationError())
     }
@@ -420,9 +483,12 @@ extension AudioController {
     { record.handle.cancel() }
   }
 
-  func stopRoutes(for identifier: String) {
+  func stopRoutes(for identifier: String, cancelPending: Bool = true) {
     generations[identifier] = (generations[identifier] ?? 0) &+ 1
-    cancelPreparation(for: identifier)
+    if cancelPending || !inFlightPreparations.contains(where: { $0.identifier == identifier }) {
+      cancelPreparation(for: identifier)
+    }
+    pendingReconciliations[identifier] = nil
     plans[identifier] = nil
     for record in owned.values where record.key.appIdentifier == identifier {
       record.handle.cancel()

@@ -28,6 +28,12 @@ public final class AudioController: AudioCommandHandling {
   var plans: [String: AudioRoutePlan] = [:]
   var owned: [AudioRouteKey: ManagedAudioRoute] = [:]
   var active: [String: [String: AudioRouteKey]] = [:]
+  var captureRetryFailures: [String: AudioRouteFailure] = [:]
+  var captureRetryRevision: UInt64 = 0
+  var routeRetryRevisions: [String: UInt64] = [:]
+  @ObservationIgnored var inFlightPreparations: Set<AudioRouteWorkID> = []
+  @ObservationIgnored var pendingReconciliations: [String: Bool] = [:]
+  @ObservationIgnored var routingTaskIDs: [String: AudioRouteWorkID] = [:]
   @ObservationIgnored var routingTasks: [String: Task<Void, Never>] = [:]
   @ObservationIgnored var allRoutingTasks: [AudioRouteWorkID: Task<Void, Never>] = [:]
   @ObservationIgnored var updateTasks: [AudioRouteKey: Task<Void, Never>] = [:]
@@ -55,6 +61,13 @@ public final class AudioController: AudioCommandHandling {
 
   public var lastFailure: AudioRouteFailure? {
     commandFailure ?? applicationObservationFailure ?? outputObservationFailure ?? routeFailure
+      ?? captureRetryFailure
+  }
+
+  /// A failed acquisition awaiting an explicit retry, not an authorization status.
+  /// Another app succeeding does not erase this failure; nil does not imply permission.
+  public var captureRetryFailure: AudioRouteFailure? {
+    captureRetryFailures.keys.sorted().first.flatMap { captureRetryFailures[$0] }
   }
 
   public var unavailableAutoEQProfiles: [String: String] {
@@ -125,7 +138,7 @@ public final class AudioController: AudioCommandHandling {
     }
     for vanished in previous where !values.contains(where: { $0.identifier == vanished.identifier })
     {
-      stopRoutes(for: vanished.identifier)
+      stopRoutes(for: vanished.identifier, cancelPending: false)
     }
     reconcileAll()
   }
@@ -177,7 +190,7 @@ public final class AudioController: AudioCommandHandling {
         changed([identifier])
       case .followDefault(let identifier):
         settingsStore.setFollowDefault(for: identifier)
-        changed([identifier])
+        changed([identifier], explicitRetry: true)
       case .setRoute(let identifier, let mode, let uids):
         settingsStore.setDeviceSelectionMode(for: identifier, to: mode)
         settingsStore.setSelectedDeviceUIDs(for: identifier, to: uids)
@@ -187,7 +200,7 @@ public final class AudioController: AudioCommandHandling {
           settingsStore.setFollowDefault(for: identifier)
         }
         if let app = app(identifier) { restore(app) }
-        changed([identifier])
+        changed([identifier], explicitRetry: true)
       case .setPinned(let identifier, let pinned):
         let current = app(identifier)
         try settingsStore.setAppPinned(
@@ -252,6 +265,8 @@ public final class AudioController: AudioCommandHandling {
       case .profileAvailabilityChanged:
         changed(applications.map(\.identifier))
       case .requestCaptureStart:
+        captureRetryRevision &+= 1
+        captureRetryFailures.removeAll()
         var settings = settingsStore.appSettings
         settings.explicitUserCaptureEnabled = true
         settingsStore.updateAppSettings(settings)
@@ -259,7 +274,7 @@ public final class AudioController: AudioCommandHandling {
           knownPermissionDenied = false
           captureIntent = .userInitiated(sessionID: UInt64.random(in: 1...UInt64.max))
         }
-        reconcileAll()
+        reconcileAll(explicitRetry: true)
       case .stopCapture:
         var settings = settingsStore.appSettings
         settings.explicitUserCaptureEnabled = false
@@ -294,9 +309,11 @@ public final class AudioController: AudioCommandHandling {
     reconcileAll()
   }
 
-  /// Awaits the current work snapshot; an idle replacement intentionally waits for its armed callback.
+  /// Includes coalesced routing work; an idle replacement still waits for its armed callback.
   public func waitForCurrentWork() async {
-    for task in Array(allRoutingTasks.values) { await task.value }
+    while !allRoutingTasks.isEmpty {
+      for task in Array(allRoutingTasks.values) { await task.value }
+    }
     for task in Array(updateTasks.values) { await task.value }
   }
 

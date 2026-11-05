@@ -55,7 +55,7 @@ struct MixerDevicePresentation: Identifiable {
 
 /// A diagnostic projected from real probe/authorization state, never an enabled/granted boolean.
 struct MixerCaptureNotice {
-  enum Action { case requestPermission, openSettings }
+  enum Action { case requestPermission, openSettings, retryCapture }
   let message: String
   let action: Action?
 }
