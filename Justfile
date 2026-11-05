@@ -8,8 +8,8 @@ native_patterns := "'*.h' '*.hpp' '*.cpp' '*.mm'"
 clang_format := env("CLANG_FORMAT", "clang-format")
 clang_format_version := "21.1.8"
 
-# Check formatting and unit/component/DSP/native tests in both configurations.
-check: lint (build "debug") (test "debug") (test-dsp "debug") (test-native "debug") (build "release") (test "release") (test-dsp "release") (test-native "release")
+# Check formatting, non-launching app packaging, and unit/component/DSP/native tests.
+check: lint test-build-app (build "debug") (test "debug") (test-dsp "debug") (test-native "debug") (build "release") (test "release") (test-dsp "release") (test-native "release")
 
 # Show the selected Xcode, Swift, Clang, macOS SDK, and native formatter.
 toolchain:
@@ -102,7 +102,11 @@ test-native-hal configuration="debug":
   fi
   "$executable" --report "$report" 2>&1 | tee "$directory/run.log"
 
-# Opt in to unsigned Xcode bundling, which registers the app with macOS but never launches it.
+# Verify the public app-build artifact contract without building or launching the product app.
+test-build-app:
+  bash Tests/BuildAppTests/buildAppContractTests.sh
+
+# Opt in to Xcode bundling and local ad-hoc signing, without launching the app.
 build-app configuration="debug":
   bash build.sh {{ quote(configuration) }} {{ quote(app_derived_data) }}
 

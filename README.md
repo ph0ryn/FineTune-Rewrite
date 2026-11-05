@@ -117,9 +117,12 @@ just build-app release
 open FineTune.xcodeproj
 ```
 
-ルートの[build.sh](<build.sh>)は`bash build.sh [debug|release]`でも直接実行できます。署名・公証・起動・権限要求は行いませんが、
+ルートの[build.sh](<build.sh>)は`bash build.sh [debug|release]`でも直接実行できます。
+Xcodeのアカウント署名は無効のまま、完成したbundle全体をローカルad-hoc署名し、全architectureをstrict検証します。
+これによりbundle ID・Info.plist・リソースを同じ署名へ結び付けます。証明書・署名アカウント・公証は使わず、起動・権限要求もしません。
 **Xcodeのbundle build自体がLaunchServices/execution-policyへ開発bundleを登録する場合があります。**
-通常の`just check`では実行せず、CIも使い捨てrunnerの別stepへ分離します。
+`just check`には、実アプリを起動せずにbuild CLIの成果物を検証する`just test-build-app`も含みます。
+実アプリのXcode bundle buildは通常の`just check`では実行せず、CIも使い捨てrunnerの別stepへ分離します。
 ビルド成功を、実ユーザー環境での音声取得・再生や機器操作の確認として扱いません。
 保存adapterも明示directoryを必須とし、原作の設定を暗黙に読み書きしません。
 実hostはApplication Support内の`FineTune-Rewrite`を使い、原作settingsの読取・移行は実施していません。

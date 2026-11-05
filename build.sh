@@ -15,12 +15,13 @@ esac
 derived_data="${2:-DerivedData}"
 project="$(dirname "${BASH_SOURCE[0]}")/FineTune.xcodeproj"
 
-# Opt-in only: Xcode registers macOS app bundles even when signing is disabled.
+# Keep Xcode account-based signing disabled; finalize the whole local bundle below.
 # Never launch the app, request permissions, or update signing accounts here.
 printf '%s\n' \
   'This Xcode build registers the output with LaunchServices and execution policy.' \
-  'It does not launch the app. Use just check to validate shared sources without an app bundle.' >&2
-exec xcodebuild build \
+  'It locally ad-hoc signs the completed bundle but never launches it or requests permissions.' \
+  'Use just check to validate without building or registering the product app.' >&2
+xcodebuild build \
   -project "$project" \
   -scheme FineTuneRewrite \
   -configuration "$configuration" \
@@ -32,3 +33,7 @@ exec xcodebuild build \
   CODE_SIGN_IDENTITY=- \
   CODE_SIGNING_REQUIRED=NO \
   CODE_SIGNING_ALLOWED=NO
+
+app="$derived_data/Build/Products/$configuration/FineTuneRewrite.app"
+/usr/bin/codesign --force --sign - "$app"
+/usr/bin/codesign --verify --strict --all-architectures "$app"
