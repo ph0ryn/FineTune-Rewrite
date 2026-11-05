@@ -131,6 +131,7 @@ struct DeviceSettingsParityTests {
     #expect(text.contains("GPL-3.0"))
     #expect(text.contains("2026 Ronit Singh"))
     #expect(text.contains("Independent rewrite"))
+    #expect(!text.contains("icon unavailable"))
     #expect(openedURLs.isEmpty)
   }
 
@@ -139,9 +140,11 @@ struct DeviceSettingsParityTests {
     let metadata = SettingsAboutPresentation(version: nil, build: nil, year: 2028)
     let fixture = try LeafUIFixture(
       SettingsAboutView(metadata: metadata, appIcon: nil), width: 640, height: 430)
-    let text = try fixture.visibleText(artifactName: "about-unavailable")
+    // The full label, including "App", is a manual bitmap-review condition: Vision can read
+    // that prefix as Cyrillic. Automation requires the exact status words and full visible bounds.
+    let text = try fixture.visibleText(
+      artifactName: "about-unavailable", requiringVisible: "icon unavailable")
     #expect(text.contains("Version unavailable (build unavailable)"))
-    #expect(text.contains("App icon unavailable"))
     #expect(metadata.copyright == "© 2026–2028 Ronit Singh")
   }
 
@@ -215,7 +218,9 @@ private final class LeafUIFixture<Content: View> {
     return bitmap
   }
 
-  func visibleText(artifactName: String? = nil) throws -> String {
+  func visibleText(artifactName: String? = nil, requiringVisible phrase: String? = nil) throws
+    -> String
+  {
     let bitmap = try renderBitmap()
     if let artifactName,
       let path = ProcessInfo.processInfo.environment["FINETUNE_LEAF_UI_ARTIFACT_DIRECTORY"]
@@ -231,6 +236,12 @@ private final class LeafUIFixture<Content: View> {
     request.recognitionLanguages = ["en-US"]
     request.usesLanguageCorrection = false
     try VNImageRequestHandler(cgImage: image, options: [:]).perform([request])
+    if let phrase {
+      let match = try #require(
+        request.results?.first { $0.topCandidates(1).first?.string.contains(phrase) == true })
+      #expect(match.boundingBox.width > 0 && match.boundingBox.height > 0)
+      #expect(CGRect(x: 0, y: 0, width: 1, height: 1).contains(match.boundingBox))
+    }
     let strings = (request.results ?? []).compactMap { $0.topCandidates(1).first?.string }
     #expect(!strings.isEmpty, "The actual offscreen component must produce recognizable text.")
     return strings.joined(separator: " ").replacingOccurrences(of: "’", with: "'")
