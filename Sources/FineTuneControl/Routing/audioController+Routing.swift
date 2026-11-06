@@ -156,7 +156,6 @@ extension AudioController {
   ) async {
     var candidates: [ManagedAudioRoute] = []
     var attemptedAcquisition = false
-    var retiredPrevious = false
     var operationSessionID = plan.sessionID
     let reusable = force ? [:] : usableActiveRoutes(identifier, plan: plan)
     let retained = Set(reusable.values)
@@ -205,7 +204,6 @@ extension AudioController {
           operationSessionID = record.sessionID
           try await retire(record)
         }
-        retiredPrevious = true
       }
       operationSessionID = plan.sessionID
       try current(identifier, generation: generation)
@@ -257,15 +255,11 @@ extension AudioController {
           knownPermissionDenied = true
         }
       }
-      // If cancellation crossed irreversible old retirement, retain the already-armed read owners
-      // until the next candidate is armed. They cannot publish or acquire a new render permit.
-      let holdReadOwners =
-        !isCurrent && retiredPrevious && captureIntent != .none && app(identifier) != nil
-      if !holdReadOwners {
-        for record in candidates {
-          record.cancel()
-          scheduleRetirement(record)
-        }
+      // Callback-closed candidates cannot provide continuity: their OS IO still runs and their
+      // taps still mute the source. Retire them without waiting for the next app to produce data.
+      for record in candidates {
+        record.cancel()
+        scheduleRetirement(record)
       }
     }
   }
@@ -426,6 +420,7 @@ extension AudioController {
     // A retired acknowledgement releases ownership even when the same observation reports an error.
     if phase == .retired {
       owned[incoming.key] = nil
+      retirementTasks[incoming.key] = nil
       if active[incoming.key.appIdentifier]?[incoming.key.deviceUID] == incoming.key {
         active[incoming.key.appIdentifier]?[incoming.key.deviceUID] = nil
       }
@@ -477,7 +472,11 @@ extension AudioController {
     if let existing = retirementTasks[record.key] { return existing }
     let priorFailure = routeObservations[record.key]?.failure
     let task = Task<Void, any Error> {
-      defer { self.retirementTasks[record.key] = nil }
+      // Keep a terminal failed result while its native owner is retained. A later handoff joins
+      // that failure instead of automatically retrying cleanup when its candidate finally arms.
+      defer {
+        if self.owned[record.key] == nil { self.retirementTasks[record.key] = nil }
+      }
       do {
         self.updateTasks[record.key]?.cancel()
         switch await record.handle.retire() {
@@ -523,7 +522,10 @@ extension AudioController {
     for record in owned.values
     where record.key.appIdentifier == identifier
       && active[identifier]?[record.key.deviceUID] != record.key
-    { record.cancel() }
+    {
+      record.cancel()
+      scheduleRetirement(record)
+    }
   }
 
   func stopRoutes(for identifier: String, cancelPending: Bool = true) {

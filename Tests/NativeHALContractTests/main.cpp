@@ -227,6 +227,100 @@ void switchWithOffsetTapInput() {
         CHECK(malformed.zero() && snapshot(candidate).failure.kind == FT_NATIVE_BINDING_CHANGED);
     }
 }
+void idleTransportCanHandoffWithoutSourceSamples() {
+    resetFixture();
+    auto initial = state();
+    auto old = prepare(request(initial));
+    if (!old)
+        return;
+    commit(old, initial);
+    auto candidate = prepare(request(initial, "fixture-b"));
+    if (!candidate)
+        return;
+    const auto io = hal.ios.back();
+    FTNativeError error{};
+    CHECK(ft_native_route_start_muted(candidate.get(), &initial, &error) == FT_NATIVE_OK);
+    // Zero frames cannot establish an operational output clock.
+    Signal empty;
+    empty.in.mBuffers[0].mDataByteSize = empty.out.mBuffers[0].mDataByteSize = 0;
+    empty.render(io);
+    CHECK(snapshot(candidate).phase == FT_NATIVE_STARTED);
+    // A certified output callback with absent source payload is ordinary idle transport.
+    Signal idle;
+    idle.in.mBuffers[0].mData = nullptr;
+    idle.render(io);
+    const auto armed = snapshot(candidate);
+    CHECK(idle.zero() && armed.phase == FT_NATIVE_ARMED);
+    CHECK(armed.failure.kind == FT_NATIVE_NO_FAILURE && armed.callback_error_count == 0);
+    CHECK(armed.processing_revision == 0 && armed.levels_revision == 0 &&
+          armed.applied_revision == 0);
+    // Retire the old physical IO before committing, even though the app has not played yet.
+    old.reset();
+    auto latest = state(2, 0.5F);
+    CHECK(ft_native_route_commit(candidate.get(), &latest, &error) == FT_NATIVE_OK);
+    Signal stillIdle;
+    stillIdle.in.mBuffers[0].mData = nullptr;
+    stillIdle.render(io);
+    CHECK(stillIdle.zero() && snapshot(candidate).applied_revision == 0);
+    CHECK(snapshot(candidate).phase == FT_NATIVE_COMMITTED);
+    Signal resumed;
+    resumed.render(io);
+    // Preserve the replacement's existing per-frame gain ramp; idle never advanced its history.
+    const auto firstGain = resumed.output[0] / resumed.input[0];
+    const auto lastGain = resumed.output[30] / resumed.input[30];
+    CHECK(firstGain > initial.target_gain && firstGain < latest.target_gain);
+    CHECK(lastGain > firstGain && lastGain < latest.target_gain);
+    CHECK(resumed.output[1] / resumed.input[1] == firstGain);
+    CHECK(snapshot(candidate).phase == FT_NATIVE_FIRST_APPLIED);
+    CHECK(snapshot(candidate).applied_revision == latest.revision);
+    candidate.reset();
+    CHECK(hal.resources() == 0);
+}
+void idleTransportRejectsInvalidReadiness() {
+    invocations = 6;
+    for (unsigned mode = 0; mode < 6; ++mode) {
+        resetFixture();
+        auto initial = state();
+        auto candidate = prepare(request(initial));
+        if (!candidate)
+            continue;
+        const auto io = hal.ios.back();
+        FTNativeError error{};
+        CHECK(ft_native_route_start_muted(candidate.get(), &initial, &error) == FT_NATIVE_OK);
+        Signal idle;
+        idle.in.mBuffers[0].mData = nullptr;
+        switch (mode) {
+        case 0:
+            idle.in.mNumberBuffers = 0;
+            break;
+        case 1:
+            idle.in.mBuffers[0].mNumberChannels = 1;
+            break;
+        case 2:
+            idle.in.mBuffers[0].mDataByteSize -= sizeof(float);
+            break;
+        case 3:
+            idle.in.mBuffers[0].mDataByteSize -= 2 * sizeof(float);
+            break;
+        case 4:
+            idle.out.mBuffers[0].mData = nullptr;
+            break;
+        case 5:
+            ft_native_route_cancel(candidate.get());
+            break;
+        }
+        idle.render(io);
+        const auto observed = snapshot(candidate);
+        CHECK(idle.zero() || mode == 4); // A disabled output cannot be written.
+        CHECK(observed.phase != FT_NATIVE_ARMED && observed.phase != FT_NATIVE_FIRST_APPLIED);
+        CHECK(observed.processing_revision == 0 && observed.applied_revision == 0);
+        CHECK(observed.callback_error_count == (mode == 5 ? 0 : 1));
+        CHECK(observed.failure.kind ==
+              (mode == 5 ? FT_NATIVE_NO_FAILURE : FT_NATIVE_BINDING_CHANGED));
+        candidate.reset();
+        CHECK(hal.resources() == 0);
+    }
+}
 void streamLayoutChannelOrigins() {
     resetFixture();
     invocations = 0;
@@ -1021,11 +1115,15 @@ struct Result {
     void (*run)();
     std::size_t count = 0, checks = 0, failed = 0;
 };
-std::array<Result, 19> results{{
+std::array<Result, 21> results{{
     {"Tests/NativeHALContractTests/main.cpp::latestCommitState", latestCommitState},
     {"Tests/NativeHALContractTests/main.cpp::acquisitionGuards", acquisitionGuards},
     {"Tests/NativeHALContractTests/main.cpp::capabilityAndCertificate", capabilityAndCertificate},
     {"Tests/NativeHALContractTests/main.cpp::switchWithOffsetTapInput", switchWithOffsetTapInput},
+    {"Tests/NativeHALContractTests/main.cpp::idleTransportCanHandoffWithoutSourceSamples",
+     idleTransportCanHandoffWithoutSourceSamples},
+    {"Tests/NativeHALContractTests/main.cpp::idleTransportRejectsInvalidReadiness",
+     idleTransportRejectsInvalidReadiness},
     {"Tests/NativeHALContractTests/main.cpp::streamLayoutChannelOrigins",
      streamLayoutChannelOrigins},
     {"Tests/NativeHALContractTests/main.cpp::partialAcquisition", partialAcquisition},

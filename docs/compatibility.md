@@ -90,6 +90,20 @@ OS通知には操作元の情報がないため、この短い区間内のContro
 この有限な補正と追従・固定経路の維持は、[policyテスト](<../Tests/AppCompositionTests/OutputPolicyTests.swift>)と[実Graphのテスト](<../Tests/AppCompositionTests/OutputPolicyRoutingTests.swift>)で確認します。
 Bluetooth所有権を永続的に固定する機能ではなく、AirPods実機での補正効果・可聴連続性はこのテストの保証に含めません。
 
+切り替えを取り消したcandidateは、callbackの受付を閉じたまま継続用のread ownerとして残さず、次の経路のarmedを待たずに回収を開始します。
+取消はOSのIO停止やsource mute解除そのものではないため、実際のretired ACKまで所有権を維持します。
+取消通知はownerごとに一度とし、遅れて返る旧start/commitがPENDING回収の進捗監視を再取消ししないようにします。
+早期に始めた回収が失敗した場合、後の経路がarmedになっても同じ失敗結果を共有し、cleanupを暗黙に再試行したり失敗を消したりしません。
+[経路の回帰テスト](<../Tests/AppCompositionTests/RoutingTests.swift>)は、取消済み経路のOS IOとrender許可を分け、
+次のsourceが無音の間にも旧IOの停止が始まること、PENDINGと失敗を後のhandoffが正しく共有することを確認します。
+
+nativeのarmedはsourceの再生開始ではなく、証明済み構成・一致する正のframe数を持つ出力callbackによるtransport準備完了です。
+入力のデータpointerだけが欠けているidleでも旧経路を回収できますが、DSP履歴・適用済みrevision・first-appliedは進めません。
+不正なbuffer構成、frame数の不一致、欠けた出力、frame数0、取消後のcallbackを準備完了として扱いません。
+[production C境界とfake HALのテスト](<../Tests/NativeHALContractTests/main.cpp>)で、idle中の切り替えとsource再開後のgain ramp、
+不正metadataの拒否、取消後のcallbackの無音化を確認します。権限許可や実際のAirPodsのcallback形状を証明するものではありません。
+この修正はdefaultの補正回数やcaptureの再試行を増やしません。実機ログの重複tapとコード上の寿命問題は切り分け、Bluetoothへの巻き戻り・可聴音の解消は別途実機確認が必要です。
+
 旧経路の既知のprimary failureは回収後も診断履歴に残しますが、成功した回収を失敗扱いして新経路のcommitを妨げません。
 Controlが終了を開始した後、処理中のstart/commitが遅れて記録するprimaryの`cancelled`も回収失敗とは区別します。
 それ以外の新しいprimary failure、cleanup failure、明示的な回収失敗は引き続きhandoffを止め、PENDINGは実際のretired通知まで待ちます。

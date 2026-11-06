@@ -116,6 +116,16 @@ SwiftPM版App、Xcode App、独立Probeのmain metadataは区別する。
 actorを使うことだけで、非同期の経路変更全体が不可分になるとは扱わない。
 要求の受理と実際の適用を区別し、失敗や復旧の成否を観測できるようにする。
 
+交換先のarmedは、証明済みのbuffer構成・一致する正のframe数を持つ出力callbackによるtransportの準備完了を表す。
+入力のデータpointerだけが欠けた通常idleでも成立するが、権限許可・音声取得成功・first-appliedの証拠ではない。
+idleではDSP履歴と適用済みrevisionを進めず、破損したmetadata・欠けた出力・frame数0ではarmedにしない。
+これにより、旧物理出力の停止を、無音のsource appが次に再生する時刻へ依存させない。
+
+取消済みcandidateはcallbackの受付を閉じても、OSのIOとsource muteが自動で止まるわけではない。
+継続用のread ownerとして保持せず、次のcandidateのarmedを待たずに非リアルタイムの回収を開始する。
+Controlの取消はownerごとに一度だけ通知し、遅れて終了した旧処理から再通知してPENDING回収の監視を止めない。
+資源の解放は引き続き実際のreader-zeroとretired ACKを待つ。回収失敗の結果はownerとともに保持し、後のhandoffから自動再試行しない。
+
 音声処理にはUI・保存・非リアルタイムの資源管理を持ち込まない。
 tapなどの生成・停止・破棄やObjective-Cのオブジェクト操作は非リアルタイム側が担う。
 旧経路の回収で新経路が利用する資源を破棄しないよう、所有と参照の終了を区別する。

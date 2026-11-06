@@ -407,6 +407,9 @@ final class ManagedAudioRoute {
   // Admission never reopens after Control has begun closing this owner.
   var isClosing = false
   func cancel() {
+    // A late start/commit may finish after retirement installed its progress monitor. Repeating
+    // admission cancellation would stop that monitor and strand a PENDING native retirement.
+    guard !isClosing else { return }
     isClosing = true
     handle.cancel()
   }

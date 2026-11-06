@@ -135,9 +135,12 @@ OSStatus audioCallback(AudioObjectID device, const AudioTimeStamp *, const Audio
         clearOutput(output);
         return noErr;
     }
-    // A disabled tap may carry a nonzero advertised byte size and a null data pointer.
-    // It is defined silence, not arming, not DSP-history advancement, not authorization proof.
+    // An idle tap may advertise valid frames without source data. A certified nonzero output
+    // callback establishes transport readiness, not capture authorization or first-applied audio.
+    // Do not keep the old physical IO alive waiting for an idle app to produce samples.
     if (inputStatus == 1 || inputFrames == 0) {
+        if (outputFrames != 0)
+            state.armed.store(true, std::memory_order_release);
         clearOutput(output);
         return noErr;
     }
