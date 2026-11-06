@@ -4,6 +4,7 @@ import FineTuneControl
 import FineTuneDomain
 import FineTunePlatform
 import Foundation
+import Observation
 import Testing
 
 @testable import FineTune
@@ -36,6 +37,75 @@ struct RootPresentationTests {
     #expect(fixture.graph.settings === fixture.settings)
     #expect(fixture.graph.bindings.controller === fixture.graph.controller)
     #expect(fixture.graph.devices === fixture.devices && fixture.graph.volumes === fixture.output)
+    await fixture.expectPassivePorts()
+  }
+
+  @Test(
+    "Async output selection failures invalidate real snapshots without changing route UIDs",
+    arguments: [false, true])
+  func asyncOutputSelectionFailureIsVisible(timeout: Bool) async throws {
+    var currentPolicy: OutputDevicePolicyController?
+    let fixture = try RootPresentationFixture(
+      readOutputSelectionFailure: { currentPolicy?.lastFailure?.message })
+    let clock = DevicePolicyTestClock()
+    var writes: [String] = []
+    let policy = OutputDevicePolicyController(
+      settings: fixture.settings, setDefaultOutput: { writes.append($0) },
+      sleep: { try await clock.sleep($0) }, now: { clock.now })
+    currentPolicy = policy
+    defer {
+      policy.suspend()
+      clock.finish()
+      fixture.cleanUp()
+    }
+    func observe(_ uid: String) {
+      policy.observe(availableUIDs: ["speaker", "bt"], defaultUID: uid, bluetoothUIDs: ["bt"])
+    }
+    observe("bt")
+    try policy.selectDefaultOutput(uid: "speaker")
+    observe("speaker")
+    clock.now = 0.3
+    observe("bt")
+    var sleeps = clock.requests.stream.makeAsyncIterator()
+    #expect(await sleeps.next() == .seconds(2))
+    if !timeout { observe("speaker") }
+    let presentation = fixture.presentation()
+    #expect(presentation.mixerSnapshot().error == nil)
+    #expect(presentation.settingsSnapshot().error == nil)
+    let invalidations = AsyncStream<Void>.makeStream()
+    withObservationTracking {
+      _ = presentation.mixerSnapshot().error
+      _ = presentation.settingsSnapshot().error
+    } onChange: {
+      invalidations.continuation.yield(())
+    }
+    if timeout {
+      clock.now = 2.301
+      var completions = clock.completions.stream.makeAsyncIterator()
+      clock.advance()
+      _ = await completions.next()
+      await Task.yield()
+    } else {
+      clock.now = 0.6
+      observe("bt")
+    }
+    let failure = try #require(policy.lastFailure)
+    #expect(failure.stage == "output-selection")
+    invalidations.continuation.finish()
+    var count = 0
+    for await _ in invalidations.stream { count += 1 }
+    #expect(count == 1)
+    #expect(presentation.mixerSnapshot().error == failure.message)
+    #expect(presentation.settingsSnapshot().error == failure.message)
+    #expect(policy.observedDefaultUID == "bt" && policy.intendedDefaultUID == "speaker")
+    #expect(writes == ["speaker", "speaker"])
+    observe("bt")
+    #expect(presentation.mixerSnapshot().error == failure.message)
+    try policy.selectDefaultOutput(uid: "bt")
+    #expect(policy.lastFailure == nil)
+    #expect(presentation.mixerSnapshot().error == nil)
+    #expect(presentation.settingsSnapshot().error == nil)
+    #expect(writes == ["speaker", "speaker"])
     await fixture.expectPassivePorts()
   }
 
@@ -644,7 +714,8 @@ private final class RootPresentationFixture {
     runtime: (any AudioRoutingRuntime)? = nil,
     captureFailure: AudioRouteFailure = AudioRouteFailure(
       kind: .permissionDenied, stage: "unit-native-preflight",
-      message: "Unit capture denied before native I/O")
+      message: "Unit capture denied before native I/O"),
+    readOutputSelectionFailure: @escaping @MainActor () -> String? = { nil }
   ) throws {
     settings = SettingsManager(directory: directory, launchAtLoginService: hal)
     let clock = DeviceBackendClock { _ in throw CancellationError() }
@@ -664,7 +735,8 @@ private final class RootPresentationFixture {
       selectPreferredInput: { _ in Issue.record("Projection must not select an input") },
       inputPreferencesDidChange: { Issue.record("Projection must not run input policy") },
       selectDefaultOutput: { _ in Issue.record("Projection must not select an output") },
-      outputPreferencesDidChange: { Issue.record("Projection must not run output policy") })
+      outputPreferencesDidChange: { Issue.record("Projection must not run output policy") },
+      readOutputSelectionFailure: readOutputSelectionFailure)
     let effects = effects
     native = NativeAudioRoutingRuntime { _, _ in
       effects.nativeResolutions += 1

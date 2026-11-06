@@ -22,6 +22,7 @@ final class DeviceControlModel {
   private let inputPreferencesDidChange: @MainActor () -> Void
   private let selectDefaultOutput: @MainActor (String) throws -> Void
   private let outputPreferencesDidChange: @MainActor () -> Void
+  private let readOutputSelectionFailure: @MainActor () -> String?
   private var commandError: String?
   private(set) var isRunning = false
   /// Presentation invalidation only. Calling a producer/refresh from this callback would form a loop.
@@ -46,7 +47,8 @@ final class DeviceControlModel {
     selectPreferredInput: @escaping @MainActor (String) throws -> Void,
     inputPreferencesDidChange: @escaping @MainActor () -> Void,
     selectDefaultOutput: @escaping @MainActor (String) throws -> Void,
-    outputPreferencesDidChange: @escaping @MainActor () -> Void
+    outputPreferencesDidChange: @escaping @MainActor () -> Void,
+    readOutputSelectionFailure: @escaping @MainActor () -> String? = { nil }
   ) {
     self.settings = settings
     self.devices = devices
@@ -61,10 +63,12 @@ final class DeviceControlModel {
     self.inputPreferencesDidChange = inputPreferencesDidChange
     self.selectDefaultOutput = selectDefaultOutput
     self.outputPreferencesDidChange = outputPreferencesDidChange
+    self.readOutputSelectionFailure = readOutputSelectionFailure
   }
 
   var lastError: String? {
-    commandError ?? output.lastError?.localizedDescription ?? input.lastError?.localizedDescription
+    commandError ?? readOutputSelectionFailure() ?? output.lastError?.localizedDescription
+      ?? input.lastError?.localizedDescription
       ?? systemSounds.lastError?.localizedDescription ?? alertVolume.lastError?.localizedDescription
       ?? bluetooth.lastError?.localizedDescription ?? ddc.lastError?.localizedDescription
   }
@@ -366,6 +370,7 @@ final class DeviceControlModel {
       _ = output.defaultDeviceUID
       _ = output.defaultInputDeviceUID
       _ = output.lastError
+      _ = readOutputSelectionFailure()
       _ = input.states
       _ = input.lastError
       _ = systemSounds.outputUID

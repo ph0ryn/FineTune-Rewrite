@@ -165,7 +165,8 @@ final class ProductionRoot {
       selectPreferredInput: { try inputPolicy.selectPreferredInput(uid: $0) },
       inputPreferencesDidChange: { inputPolicy.settingsDidChange() },
       selectDefaultOutput: { try outputPolicy.selectDefaultOutput(uid: $0) },
-      outputPreferencesDidChange: { outputPolicy.settingsDidChange() })
+      outputPreferencesDidChange: { outputPolicy.settingsDidChange() },
+      readOutputSelectionFailure: { outputPolicy.lastFailure?.message })
     let native = NativeAudioRoutingRuntime(resolveApp: { identifier, revision in
       try processes.resolveApp(identifier: identifier, processRevision: revision)
     })

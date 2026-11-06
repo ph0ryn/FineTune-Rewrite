@@ -81,6 +81,15 @@ transientな親popup内で出力先pickerを実際に開き、child windowの出
 経路先はpolicyが承認したUIDを使い、非同期のOS観測を待つ間に旧defaultへ再取得しません。
 受動的な機器・process通知だけで失敗した取得を繰り返さないこと、既知の権限拒否は明示的な`Retry Audio`まで解除しないことは維持します。
 
+FineTuneからの明示選択が成功した直後の2秒間は、健全なUID・Bluetooth構成が変わらない場合に限り、別のBluetooth出力への巻き戻りを1回だけ補正します。
+この期限は補正や確認通知で延長しません。新しい明示操作、機器構成・観測の健全性の変化、suspendは古い補正権限を失効させます。
+OS通知には操作元の情報がないため、この短い区間内のControl CenterからのBluetooth選択も区別できません。FineTuneからの再選択は常に最新の操作として扱います。
+期限後の新しい外部選択は尊重し、古い書込の確認待ちやtimeoutで元へ戻しません。未解消の失敗は、時間経過や同じUIDの再通知だけでは消しません。
+補正後も選択を維持できない場合や確認が期限切れになった場合は、無限に書き戻さず、Mixer・Settingsへ失敗を表示します。要求先の健全な観測または新しい選択で解消します。
+観測されたdefault UIDとpolicy承認先は分けたままとし、補正で既存の健全なアプリ経路を強制作り直ししたり、captureの再試行範囲を広げたりしません。
+この有限な補正と追従・固定経路の維持は、[policyテスト](<../Tests/AppCompositionTests/OutputPolicyTests.swift>)と[実Graphのテスト](<../Tests/AppCompositionTests/OutputPolicyRoutingTests.swift>)で確認します。
+Bluetooth所有権を永続的に固定する機能ではなく、AirPods実機での補正効果・可聴連続性はこのテストの保証に含めません。
+
 旧経路の既知のprimary failureは回収後も診断履歴に残しますが、成功した回収を失敗扱いして新経路のcommitを妨げません。
 Controlが終了を開始した後、処理中のstart/commitが遅れて記録するprimaryの`cancelled`も回収失敗とは区別します。
 それ以外の新しいprimary failure、cleanup failure、明示的な回収失敗は引き続きhandoffを止め、PENDINGは実際のretired通知まで待ちます。

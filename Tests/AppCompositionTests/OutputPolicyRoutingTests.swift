@@ -100,6 +100,98 @@ struct OutputPolicyRoutingTests {
     #expect(restored.getDeviceRouting(for: "unit.pinned-high") == "high")
     #expect(restored.appSettings.explicitUserCaptureEnabled)
   }
+
+  @Test(
+    "Explicit output settling repairs Bluetooth rebound without replacing following or pinned owners"
+  )
+  func manualBluetoothReboundKeepsApprovedFollowingOwner() async throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(
+      "FineTuneOutputPolicyRouting-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let settings = SettingsManager(directory: directory, launchAtLoginService: PolicyRoutingLogin())
+    settings.setDevicePriorityOrder(["high", "mid", "low"])
+    settings.setDeviceRouting(for: "unit.pinned-high", deviceUID: "high")
+    let devices = PolicyRoutingDevices()
+    devices.connectLow()  // Bluetooth is in the initial baseline, not a hotplug grace event.
+    let processes = PolicyRoutingProcesses()
+    let volumes = PolicyRoutingVolumes()
+    volumes.defaultDeviceID = 43
+    volumes.defaultDeviceUID = "low"
+    volumes.restoreFailure = nil
+    let runtime = RoutingProbeRuntime()
+    let http = PolicyRoutingHTTP()
+    let clock = DevicePolicyTestClock()
+    let policy = OutputDevicePolicyController(
+      settings: settings, setDefaultOutput: { try volumes.restoreDefaultOutput($0) },
+      sleep: { try await clock.sleep($0) }, now: { clock.now })
+    defer {
+      policy.suspend()
+      clock.finish()
+    }
+    let graph = ApplicationGraph(
+      settings: settings,
+      profiles: try AutoEQProfileRepository(
+        directory: directory.appendingPathComponent("Profiles"), cache: AutoEQProfileCache(),
+        transport: http),
+      devices: devices, processes: processes, volumes: volumes,
+      runtime: CaptureUsageRuntime(runtime: runtime, usageDescription: "Unit capture admission"),
+      readOutputFailure: { nil }, readDefaultRoutingDecision: { policy.routingDecision() },
+      deviceCommand: { command in
+        if case .setDefaultDevice(.output, let uid) = command {
+          try policy.selectDefaultOutput(uid: uid)
+        } else {
+          Issue.record("Unexpected device command in output-selection fixture")
+        }
+      })
+    func observeDefault(_ uid: String, at instant: Double) {
+      clock.now = instant
+      volumes.defaultDeviceUID = uid
+      volumes.defaultDeviceID = uid == "mid" ? 42 : 43
+      policy.observe(
+        availableUIDs: ["high", "mid", "low"], defaultUID: uid, bluetoothUIDs: ["low"])
+      graph.engine.ingestObservations()
+    }
+    observeDefault("low", at: 0)
+    graph.controller.perform(.requestCaptureStart)
+    await graph.controller.waitForCurrentWork()
+    let pinned = try #require(runtime.handle("high"))
+    #expect(runtime.requests.count == 2 && policy.graceConnectionUID == nil)
+    graph.controller.perform(.setDefaultDevice(scope: .output, uid: "mid"))
+    await graph.controller.waitForCurrentWork()
+    let following = try #require(runtime.handle("mid"))
+    #expect(graph.controller.commandFailure == nil)
+    #expect(volumes.restoreAttempts == ["mid"] && runtime.requests.count == 3)
+    #expect(policy.observedDefaultUID == "low" && policy.intendedDefaultUID == "mid")
+    observeDefault("mid", at: 0.05)
+    await graph.controller.waitForCurrentWork()
+    observeDefault("low", at: 0.3)
+    await graph.controller.waitForCurrentWork()
+    #expect(volumes.restoreAttempts == ["mid", "mid"])
+    #expect(policy.observedDefaultUID == "low" && volumes.defaultDeviceUID == "low")
+    #expect(policy.intendedDefaultUID == "mid" && policy.lastFailure == nil)
+    #expect(policy.graceConnectionUID == nil)
+    #expect(graph.controller.activeDeviceUIDs(for: "unit.follow-default") == ["mid"])
+    #expect(following.rendering && !following.retired && runtime.requests.count == 3)
+    #expect(graph.controller.activeDeviceUIDs(for: "unit.pinned-high") == ["high"])
+    #expect(pinned.rendering && pinned.retirementAttempts == 0)
+    observeDefault("mid", at: 0.35)
+    await graph.controller.waitForCurrentWork()
+    #expect(policy.observedDefaultUID == "mid" && policy.intendedDefaultUID == "mid")
+    #expect(policy.pendingDefaultUID == nil && policy.lastFailure == nil)
+    #expect(
+      following.rendering && runtime.handle("mid") === following && runtime.requests.count == 3)
+    observeDefault("low", at: 2.001)
+    await graph.controller.waitForCurrentWork()
+    #expect(volumes.restoreAttempts == ["mid", "mid"])
+    #expect(policy.intendedDefaultUID == "low" && policy.observedDefaultUID == "low")
+    #expect(graph.controller.activeDeviceUIDs(for: "unit.follow-default") == ["low"])
+    #expect(runtime.requests.count == 4)
+    #expect(runtime.handle("high") === pinned && pinned.rendering && pinned.retirementAttempts == 0)
+    #expect(settings.isFollowingDefault(for: "unit.follow-default"))
+    #expect(settings.getDeviceRouting(for: "unit.pinned-high") == "high")
+    #expect(await http.requests == 0)
+    await graph.controller.shutdown()
+  }
 }
 
 @MainActor
@@ -160,13 +252,15 @@ private final class PolicyRoutingVolumes: DeviceVolumeProviding {
   let volumes: [AudioDeviceID: Float] = [41: 0.5, 42: 0.5, 43: 0.5]
   let muteStates: [AudioDeviceID: Bool] = [41: false, 42: false, 43: false]
   var restoreAttempts: [String] = []
+  var restoreFailure: AudioRouteFailure? = AudioRouteFailure(
+    stage: "output-write", message: "Restore Mid failed")
   var onVolumeChanged: ((AudioDeviceID, Float) -> Void)?
   var onMuteChanged: ((AudioDeviceID, Bool) -> Void)?
   var onDefaultDeviceChanged: ((String) -> Void)?
   var onDefaultInputDeviceChanged: ((String) -> Void)?
   func restoreDefaultOutput(_ uid: String) throws {
     restoreAttempts.append(uid)
-    throw AudioRouteFailure(stage: "output-write", message: "Restore Mid failed")
+    if let restoreFailure { throw restoreFailure }
   }
   func setDefaultDevice(_ id: AudioDeviceID) -> Bool {
     Issue.record("Unexpected physical default write")

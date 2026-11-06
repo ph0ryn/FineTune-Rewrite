@@ -13,9 +13,8 @@ final class DeviceDefaultEchoes {
   private let sleep: @MainActor (Duration) async throws -> Void
   private var nextToken: UInt64 = 0
   private var entries: [UInt64: Entry] = [:]
-  var onTimeout: (@MainActor (String) -> Void)?
+  var onTimeout: (@MainActor (UInt64, String) -> Void)?
   var onFailure: (@MainActor (any Error) -> Void)?
-  var hasPending: Bool { !entries.isEmpty }
 
   init(sleep: @escaping @MainActor (Duration) async throws -> Void) { self.sleep = sleep }
   isolated deinit { for entry in entries.values { entry.task.cancel() } }
@@ -38,7 +37,7 @@ final class DeviceDefaultEchoes {
       guard let self, !Task.isCancelled, let entry = self.entries.removeValue(forKey: token) else {
         return
       }
-      self.onTimeout?(entry.uid)
+      self.onTimeout?(token, entry.uid)
     }
     entries[token] = Entry(uid: uid, task: task)
     return token
