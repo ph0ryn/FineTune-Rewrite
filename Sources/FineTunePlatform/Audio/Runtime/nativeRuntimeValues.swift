@@ -40,6 +40,25 @@ struct NativeRouteResult: @unchecked Sendable {
   let result: FTNativeResult
   let snapshot: FTNativeRouteSnapshot
   let failure: FTNativeError
+  let timing: FTNativeTimingSnapshot?
+
+  init(
+    result: FTNativeResult, snapshot: FTNativeRouteSnapshot, failure: FTNativeError,
+    timing: FTNativeTimingSnapshot? = nil
+  ) {
+    self.result = result
+    self.snapshot = snapshot
+    self.failure = failure
+    self.timing = timing
+  }
+}
+
+// Passive NRT read on the same owner lane. A missing result is reported by the diagnostic sink.
+func nativeTimingSnapshot(_ pointer: OpaquePointer, enabled: Bool) -> FTNativeTimingSnapshot? {
+  guard enabled else { return nil }
+  var timing = FTNativeTimingSnapshot()
+  guard ft_native_route_timing_snapshot(pointer, &timing) == FT_NATIVE_OK else { return nil }
+  return timing
 }
 
 enum NativeRouteAction: Sendable, Equatable {

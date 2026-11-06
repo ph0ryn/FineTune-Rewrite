@@ -47,6 +47,8 @@ public final class NativeAudioRoutingRuntime: AudioRoutingRuntime {
     }
     guard !Task.isCancelled else { throw cancelledPreparation() }
     let lane = DispatchQueue(label: "FineTune.NativeAudio.Route", qos: .userInitiated)
+    let diagnosticsEnabled =
+      ProcessInfo.processInfo.environment["FINETUNE_AUDIO_DIAGNOSTICS"] == "1"
     let reportCleanup: @Sendable (FTNativeError) -> Void = { [weak self] error in
       let failure = nativeRouteFailure(error)
       Task { @MainActor [weak self] in self?.recordCleanup(request.key, failure: failure) }
@@ -63,7 +65,10 @@ public final class NativeAudioRoutingRuntime: AudioRoutingRuntime {
                 initial_state: initial.pointee)
               var pointer: OpaquePointer?
               var error = FTNativeError()
-              let result = ft_native_route_prepare(&native, &pointer, &error)
+              var result = ft_native_route_prepare(&native, &pointer, &error)
+              if result == FT_NATIVE_OK, let pointer, diagnosticsEnabled {
+                result = ft_native_route_enable_timing(pointer, &error)
+              }
               var snapshot = FTNativeRouteSnapshot()
               if let pointer { _ = ft_native_route_snapshot(pointer, &snapshot) }
               return NativePreparationPacket(

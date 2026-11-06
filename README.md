@@ -149,6 +149,18 @@ main metadataがないSwiftPM版`FineTune`では、Nativeへ進む前にlive aud
 音声サンプルは保存せず、HAL callback内ではログを出しません。出力UID・app識別子は診断のためOSログへ記録します。
 ログは既定で無効です。Appの起動は保存済みのcapture希望に従うため、診断有効化を音声処理の停止や権限許可とは扱いません。
 
+有効時は、callbackの計測地点間隔・検証済み処理区間の実行時間（ns）、HALのhost時刻間隔、入力・出力のsample時刻の飛びも記録します。
+callback内では固定領域とlock-free atomicだけを使い、時刻変換の準備とログ出力は非リアルタイム側で行います。位相変化はすぐに、継続中の統計は約1秒に1回出力します。
+
+- `inputJumps` / `outputJumps`: 前回のframe数から期待するsample時刻との差が1 frameを超えた回数。異常音やdropoutの確定ではありません。
+- `hostGapsOver2Periods`: HALのhost時刻間隔が、直前の出力bufferの公称2周期を超えた回数。実際のunderrunを検知したものではありません。
+- `maxEntryGapNs` / `maxProcessingNs`: 計測地点間隔と処理時間の累積最大値。計測区間はcallbackの受付・format検証後から復帰直前までで、HAL全体の所要時間ではありません。
+- `validMask`: 直近の有効時刻を示します（1=HAL host、2=入力sample、4=出力sample）。欠損・非有限値で比較の基準を切り、復帰時に飛びを捏造しません。
+- `lastIOOffsetFrames`: 出力sample時刻−入力sample時刻。異なる時刻原点を含むため、物理的な可聴遅延とはみなしません。
+
+統計は経路の世代ごとに累積し、回収後も保持します。独立atomicの近似snapshotであり、隣接callbackの値が混ざることがあります。
+時刻欠損中のsample値・offsetは最後に観測した値のままなので、`validMask`と併せて読みます。これらの診断から権限・音声の正しさ・復旧成功を推定したり、経路を自動変更したりはしません。
+
 ```bash
 open -n --env FINETUNE_AUDIO_DIAGNOSTICS=1 DerivedData/Build/Products/Debug/FineTuneRewrite.app
 log show --last 5m --style compact --predicate 'subsystem == "com.finetune-rewrite" AND category == "AudioRoute"'

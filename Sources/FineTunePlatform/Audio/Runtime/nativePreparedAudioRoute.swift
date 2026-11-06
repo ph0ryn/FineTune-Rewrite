@@ -23,6 +23,7 @@ final class NativePreparedAudioRoute: PreparedAudioRoute {
   private let diagnosticsEnabled =
     ProcessInfo.processInfo.environment["FINETUNE_AUDIO_DIAGNOSTICS"] == "1"
   private var lastDiagnosticTime: TimeInterval?
+  private var lastDiagnosticPhase: FTNativePhase?
 
   init(key: AudioRouteKey, owner: NativeRouteOwner, initialRevision: UInt64) {
     self.key = key
@@ -76,12 +77,15 @@ final class NativePreparedAudioRoute: PreparedAudioRoute {
     retiring = true
     beginMonitoring()
     let operationSequence = nextSequence()
+    let diagnostics = diagnosticsEnabled
     let result = await owner.perform { pointer in
       var error = FTNativeError()
       let result = ft_native_route_retire(pointer, &error)
       var snapshot = FTNativeRouteSnapshot()
       _ = ft_native_route_snapshot(pointer, &snapshot)
-      return NativeRouteResult(result: result, snapshot: snapshot, failure: error)
+      return NativeRouteResult(
+        result: result, snapshot: snapshot, failure: error,
+        timing: nativeTimingSnapshot(pointer, enabled: diagnostics))
     }
     trace(result, operation: "retire", force: true)
     return receiveRetirement(result, sequence: operationSequence)
@@ -106,6 +110,7 @@ final class NativePreparedAudioRoute: PreparedAudioRoute {
         revision: state.revision, effectiveGain: state.effectiveGain, isMuted: state.isMuted,
         effectiveLoudnessVolume: state.processing.loudnessVolume))
     let operationSequence = nextSequence()
+    let diagnostics = diagnosticsEnabled
     let result = await owner.perform { pointer in
       withNativeRuntimeState(state) { native in
         var error = FTNativeError()
@@ -117,7 +122,9 @@ final class NativePreparedAudioRoute: PreparedAudioRoute {
         }
         var snapshot = FTNativeRouteSnapshot()
         _ = ft_native_route_snapshot(pointer, &snapshot)
-        return NativeRouteResult(result: result, snapshot: snapshot, failure: error)
+        return NativeRouteResult(
+          result: result, snapshot: snapshot, failure: error,
+          timing: nativeTimingSnapshot(pointer, enabled: diagnostics))
       }
     }
     trace(result, operation: String(describing: action), force: true)
@@ -155,6 +162,7 @@ final class NativePreparedAudioRoute: PreparedAudioRoute {
     let pollEpoch = epoch
     let operationSequence = nextSequence()
     let shouldRetire = retiring
+    let diagnostics = diagnosticsEnabled
     let result = await owner.perform { pointer in
       var error = FTNativeError()
       let result = shouldRetire ? ft_native_route_retire(pointer, &error) : FT_NATIVE_OK
@@ -162,7 +170,8 @@ final class NativePreparedAudioRoute: PreparedAudioRoute {
       let snapshotResult = ft_native_route_snapshot(pointer, &snapshot)
       return NativeRouteResult(
         result: snapshotResult == FT_NATIVE_OK ? result : FT_NATIVE_FAILED,
-        snapshot: snapshot, failure: error)
+        snapshot: snapshot, failure: error,
+        timing: nativeTimingSnapshot(pointer, enabled: diagnostics))
     }
     pollInFlight = false
     guard pollEpoch == epoch else { return }
@@ -205,11 +214,25 @@ final class NativePreparedAudioRoute: PreparedAudioRoute {
   private func trace(_ result: NativeRouteResult, operation: String, force: Bool = false) {
     guard diagnosticsEnabled else { return }
     let now = ProcessInfo.processInfo.systemUptime
-    if !force, let lastDiagnosticTime, now - lastDiagnosticTime < 1 { return }
-    lastDiagnosticTime = now
     let snapshot = result.snapshot
+    if !force, snapshot.phase == lastDiagnosticPhase,
+      let lastDiagnosticTime, now - lastDiagnosticTime < 1
+    {
+      return
+    }
+    lastDiagnosticTime = now
+    lastDiagnosticPhase = snapshot.phase
     Self.diagnosticLogger.notice(
       "route app=\(self.key.appIdentifier, privacy: .public) output=\(self.key.deviceUID, privacy: .public) generation=\(self.key.generation) operation=\(operation, privacy: .public) result=\(result.result.rawValue) phase=\(snapshot.phase.rawValue) callbacks=\(snapshot.callback_count) callbackErrors=\(snapshot.callback_error_count) accepted=\(snapshot.accepted_revision) applied=\(snapshot.applied_revision) peak=\(snapshot.peak) failure=\(snapshot.failure.kind.rawValue)/\(snapshot.failure.operation.rawValue)/\(snapshot.failure.code) cleanup=\(snapshot.cleanup_failure.kind.rawValue)/\(snapshot.cleanup_failure.operation.rawValue)/\(snapshot.cleanup_failure.code)"
+    )
+    guard let timing = result.timing else {
+      Self.diagnosticLogger.error(
+        "timing unavailable app=\(self.key.appIdentifier, privacy: .public) output=\(self.key.deviceUID, privacy: .public) generation=\(self.key.generation)"
+      )
+      return
+    }
+    Self.diagnosticLogger.notice(
+      "timing app=\(self.key.appIdentifier, privacy: .public) output=\(self.key.deviceUID, privacy: .public) generation=\(self.key.generation) enabled=\(timing.enabled) rate=\(timing.sample_rate) validMask=\(timing.last_valid_mask) observed=\(timing.observed_callbacks) idle=\(timing.idle_callbacks) missingHost=\(timing.missing_now_host) missingInput=\(timing.missing_input_sample) missingOutput=\(timing.missing_output_sample) hostNonincreasing=\(timing.nonincreasing_now_host) hostGapsOver2Periods=\(timing.host_gaps_over_two_periods) inputJumps=\(timing.input_sample_jumps) outputJumps=\(timing.output_sample_jumps) processingOverPeriod=\(timing.callbacks_over_nominal_period) maxEntryGapNs=\(timing.max_callback_gap_ns) maxProcessingNs=\(timing.max_callback_duration_ns) maxHostGapNs=\(timing.max_now_host_gap_ns) maxInputStepErrorFrames=\(timing.max_input_step_error_frames) maxOutputStepErrorFrames=\(timing.max_output_step_error_frames) lastInputSample=\(timing.last_input_sample_time) lastOutputSample=\(timing.last_output_sample_time) lastIOOffsetFrames=\(timing.last_io_offset_frames) maxIOOffsetChangeFrames=\(timing.max_io_offset_change_frames)"
     )
   }
 
