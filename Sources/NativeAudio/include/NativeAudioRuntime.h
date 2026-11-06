@@ -120,6 +120,35 @@ typedef struct FTNativeRouteSnapshot {
     FTNativeError cleanup_failure;
 } FTNativeRouteSnapshot;
 
+// Optional NRT diagnostic snapshot. Independent atomics may span adjacent callbacks; this is
+// not a transactional audio/permission certificate. Counters accumulate for the route lifetime.
+// Sample jumps mean abs(delta - previous frame count) > 1, not a rendering failure/underflow.
+// Missing/invalid timestamps break their baseline; latest sample/offset values then remain stale.
+typedef struct FTNativeTimingSnapshot {
+    bool enabled;
+    double sample_rate;
+    uint32_t last_valid_mask; // Latest flags: 1=now host, 2=input sample, 4=output sample valid.
+    uint64_t observed_callbacks;
+    uint64_t idle_callbacks;
+    uint64_t missing_now_host;
+    uint64_t missing_input_sample;
+    uint64_t missing_output_sample;
+    uint64_t nonincreasing_now_host;
+    uint64_t host_gaps_over_two_periods;
+    uint64_t input_sample_jumps;
+    uint64_t output_sample_jumps;
+    uint64_t callbacks_over_nominal_period;
+    double max_callback_gap_ns;
+    double max_callback_duration_ns;
+    double max_now_host_gap_ns;
+    double max_input_step_error_frames;
+    double max_output_step_error_frames;
+    double last_input_sample_time;
+    double last_output_sample_time;
+    double last_io_offset_frames;
+    double max_io_offset_change_frames;
+} FTNativeTimingSnapshot;
+
 typedef struct FTNativeOutputDescription {
     uint32_t object_id;
     uint32_t input_channels;
@@ -156,6 +185,13 @@ void ft_native_route_cancel(FTNativeRoute *route);
 // Snapshot is not a pure getter and must run on the route's serialized NRT owner lane.
 FTNativeResult ft_native_route_snapshot(const FTNativeRoute *route,
                                         FTNativeRouteSnapshot *snapshot);
+// Opt-in NRT diagnostics, same serialized owner lane. Enable only after successful prepare and
+// before any start/commit; never toggled/reset while callbacks run. Adds numeric timing reads
+// only, with no logs/samples/controls in the callback. Existing snapshot ABI is unchanged.
+FTNativeResult ft_native_route_enable_timing(FTNativeRoute *route, FTNativeError *failure);
+// Passive diagnostic read, including archived counters after reader-zero retirement.
+FTNativeResult ft_native_route_timing_snapshot(const FTNativeRoute *route,
+                                               FTNativeTimingSnapshot *snapshot);
 // NRT incremental teardown. Pending is predicate-based; no fixed-delay reclamation.
 FTNativeResult ft_native_route_retire(FTNativeRoute *route, FTNativeError *cleanup_failure);
 // Caller precondition: final caller/queued operation has stopped borrowing the handle;

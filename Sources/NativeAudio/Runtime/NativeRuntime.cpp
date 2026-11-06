@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 #include "AudioDSP/Dynamics.hpp"
 #include "CallbackSlots.hpp"
+#include "CallbackTiming.hpp"
 #include "CoherentLevels.hpp"
 #include "HalAPI.hpp"
 #include "PreparedState.hpp"
@@ -18,6 +19,7 @@ struct RenderState {
         : levels(initial), cachedFastLevels(initial), cachedFullLevels(initial),
           cachedLevels(initial) {}
     CoherentLevels levels;
+    CallbackTiming timing;
     FTNativeLevels cachedFastLevels, cachedFullLevels, cachedLevels;
     std::unique_ptr<FTPipeline, decltype(&ft_pipeline_destroy)> pipeline{nullptr,
                                                                          ft_pipeline_destroy};
@@ -99,8 +101,9 @@ int frames(const AudioBufferList *buffers, const StereoLayout &layout, std::uint
     }
     return missing ? 1 : 0;
 }
-OSStatus audioCallback(AudioObjectID device, const AudioTimeStamp *, const AudioBufferList *input,
-                       const AudioTimeStamp *, AudioBufferList *output, const AudioTimeStamp *,
+OSStatus audioCallback(AudioObjectID device, const AudioTimeStamp *now,
+                       const AudioBufferList *input, const AudioTimeStamp *inputTime,
+                       AudioBufferList *output, const AudioTimeStamp *outputTime,
                        void *data) noexcept CA_REALTIME_API {
     const auto cookie = CallbackCookie::fromOpaque(data);
     auto lease = callbackSlots.enter(cookie);
@@ -135,6 +138,8 @@ OSStatus audioCallback(AudioObjectID device, const AudioTimeStamp *, const Audio
         clearOutput(output);
         return noErr;
     }
+    const auto timing = state.timing.observe(now, inputTime, outputTime, inputFrames, outputFrames,
+                                             inputStatus == 1 || inputFrames == 0);
     // An idle tap may advertise valid frames without source data. A certified nonzero output
     // callback establishes transport readiness, not capture authorization or first-applied audio.
     // Do not keep the old physical IO alive waiting for an idle app to produce samples.
@@ -276,6 +281,7 @@ struct FTNativeRoute {
     FTNativePhase phase = FT_NATIVE_PREPARED;
     FTNativeError primary{}, cleanup{};
     FTNativeRouteSnapshot archive{};
+    FTNativeTimingSnapshot timingArchive{};
     std::uint64_t accepted = 0;
     std::atomic<bool> cancelled{false};
     bool startAttempted = false, stopped = false, aggregateDestroyRequested = false;
@@ -718,6 +724,24 @@ extern "C" FTNativeResult ft_native_route_snapshot(const FTNativeRoute *route,
     snapshot->cleanup_failure = route->cleanup;
     return FT_NATIVE_OK;
 }
+extern "C" FTNativeResult ft_native_route_enable_timing(FTNativeRoute *route,
+                                                        FTNativeError *error) {
+    if (error)
+        *error = {};
+    if (!route || !route->render || route->startAttempted || route->phase != FT_NATIVE_PREPARED ||
+        route->cancelled.load(std::memory_order_acquire))
+        return fail(failure(FT_NATIVE_FAILURE, FT_NATIVE_INPUT, invalidInput), error);
+    if (!route->render->timing.enable(route->render->format.output.sampleRate))
+        return fail(failure(FT_NATIVE_UNAVAILABLE, FT_NATIVE_INPUT, invalidInput), error);
+    return FT_NATIVE_OK;
+}
+extern "C" FTNativeResult ft_native_route_timing_snapshot(const FTNativeRoute *route,
+                                                          FTNativeTimingSnapshot *snapshot) {
+    if (!route || !snapshot)
+        return FT_NATIVE_FAILED;
+    *snapshot = route->render ? route->render->timing.snapshot() : route->timingArchive;
+    return FT_NATIVE_OK;
+}
 extern "C" FTNativeResult ft_native_route_retire(FTNativeRoute *route, FTNativeError *error) {
     if (!route)
         return fail(failure(FT_NATIVE_FAILURE, FT_NATIVE_INPUT, invalidInput), error);
@@ -740,6 +764,7 @@ extern "C" FTNativeResult ft_native_route_retire(FTNativeRoute *route, FTNativeE
                 return fail(failure(FT_NATIVE_FAILURE, FT_NATIVE_INPUT, invalidInput), error);
         }
         copyStats(*route->render, route->archive);
+        route->timingArchive = route->render->timing.snapshot();
         route->render
             .reset(); // All DSP/stage/window/scratch destruction is NRT after actual reader-zero.
     }
