@@ -143,6 +143,17 @@ main metadataがないSwiftPM版`FineTune`では、Nativeへ進む前にlive aud
 `--capture`は対象app・process revision・output・時間を明示する実音声操作であり、通常チェックには含めません。
 音量・開始停止・許可・失敗時の復帰を合意してから使う[安全条件](<docs/validation.md#実音声を確認するときの安全条件>)を参照してください。
 
+### 音声経路の診断ログ
+
+起動済みの開発AppをQuitした後、環境変数を明示して起動すると、既存のnative snapshotから経路の状態・callback数・適用済みrevision・出力peakを記録できます。
+音声サンプルは保存せず、HAL callback内ではログを出しません。出力UID・app識別子は診断のためOSログへ記録します。
+ログは既定で無効です。Appの起動は保存済みのcapture希望に従うため、診断有効化を音声処理の停止や権限許可とは扱いません。
+
+```bash
+open -n --env FINETUNE_AUDIO_DIAGNOSTICS=1 DerivedData/Build/Products/Debug/FineTuneRewrite.app
+log show --last 5m --style compact --predicate 'subsystem == "com.finetune-rewrite" AND category == "AudioRoute"'
+```
+
 ## 文書
 
 - [開発ガイド](<AGENTS.md>): 作業範囲・参照基準・責務境界

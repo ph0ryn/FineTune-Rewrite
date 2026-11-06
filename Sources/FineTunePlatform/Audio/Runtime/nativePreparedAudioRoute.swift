@@ -1,6 +1,7 @@
 import FineTuneControl
 import Foundation
 import NativeAudio
+import os
 
 @MainActor
 final class NativePreparedAudioRoute: PreparedAudioRoute {
@@ -17,6 +18,11 @@ final class NativePreparedAudioRoute: PreparedAudioRoute {
   private var deliveredSequence: UInt64 = 0
   private var latestFullRevision: UInt64
   private var lastObservation: AudioRouteObservation?
+  private static let diagnosticLogger = Logger(
+    subsystem: "com.finetune-rewrite", category: "AudioRoute")
+  private let diagnosticsEnabled =
+    ProcessInfo.processInfo.environment["FINETUNE_AUDIO_DIAGNOSTICS"] == "1"
+  private var lastDiagnosticTime: TimeInterval?
 
   init(key: AudioRouteKey, owner: NativeRouteOwner, initialRevision: UInt64) {
     self.key = key
@@ -77,6 +83,7 @@ final class NativePreparedAudioRoute: PreparedAudioRoute {
       _ = ft_native_route_snapshot(pointer, &snapshot)
       return NativeRouteResult(result: result, snapshot: snapshot, failure: error)
     }
+    trace(result, operation: "retire", force: true)
     return receiveRetirement(result, sequence: operationSequence)
   }
 
@@ -87,6 +94,11 @@ final class NativePreparedAudioRoute: PreparedAudioRoute {
       throw cancellationFailure()
     }
     latestFullRevision = state.revision
+    if diagnosticsEnabled {
+      Self.diagnosticLogger.notice(
+        "request app=\(self.key.appIdentifier, privacy: .public) output=\(self.key.deviceUID, privacy: .public) generation=\(self.key.generation) action=\(String(describing: action), privacy: .public) revision=\(state.revision) gain=\(state.effectiveGain) muted=\(state.isMuted)"
+      )
+    }
     // This MainActor is the sole hot-lane producer. A late full state cannot replace newer
     // hot levels; native revision checks ignore stale tuples. Plain C full calls also work.
     requestLevels(
@@ -108,6 +120,7 @@ final class NativePreparedAudioRoute: PreparedAudioRoute {
         return NativeRouteResult(result: result, snapshot: snapshot, failure: error)
       }
     }
+    trace(result, operation: String(describing: action), force: true)
     guard !cancelled && !retiring && !retired else { throw cancellationFailure() }
     if result.result != FT_NATIVE_OK {
       let failure = nativeRouteFailure(result.failure)
@@ -153,6 +166,7 @@ final class NativePreparedAudioRoute: PreparedAudioRoute {
     }
     pollInFlight = false
     guard pollEpoch == epoch else { return }
+    trace(result, operation: shouldRetire ? "retire-poll" : "poll")
     if shouldRetire {
       _ = receiveRetirement(result, sequence: operationSequence)
     } else if !cancelled {
@@ -185,6 +199,18 @@ final class NativePreparedAudioRoute: PreparedAudioRoute {
       nativeRouteObservation(key: key, snapshot: result.snapshot, phase: .failed),
       sequence: sequence)
     return .failed(failure)
+  }
+
+  // Opt-in NRT metadata only. No samples are recorded and no logging enters the HAL callback.
+  private func trace(_ result: NativeRouteResult, operation: String, force: Bool = false) {
+    guard diagnosticsEnabled else { return }
+    let now = ProcessInfo.processInfo.systemUptime
+    if !force, let lastDiagnosticTime, now - lastDiagnosticTime < 1 { return }
+    lastDiagnosticTime = now
+    let snapshot = result.snapshot
+    Self.diagnosticLogger.notice(
+      "route app=\(self.key.appIdentifier, privacy: .public) output=\(self.key.deviceUID, privacy: .public) generation=\(self.key.generation) operation=\(operation, privacy: .public) result=\(result.result.rawValue) phase=\(snapshot.phase.rawValue) callbacks=\(snapshot.callback_count) callbackErrors=\(snapshot.callback_error_count) accepted=\(snapshot.accepted_revision) applied=\(snapshot.applied_revision) peak=\(snapshot.peak) failure=\(snapshot.failure.kind.rawValue)/\(snapshot.failure.operation.rawValue)/\(snapshot.failure.code) cleanup=\(snapshot.cleanup_failure.kind.rawValue)/\(snapshot.cleanup_failure.operation.rawValue)/\(snapshot.cleanup_failure.code)"
+    )
   }
 
   private func nextSequence() -> UInt64 {
