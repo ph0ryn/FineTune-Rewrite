@@ -9,9 +9,13 @@ import NativeAudio
 @MainActor
 public final class NativeAudioRoutingRuntime: AudioRoutingRuntime {
   private let resolveApp: @MainActor (String, UInt64) throws -> AudioApp
-  /// Latest cleanup diagnostic is separate from a preparation's primary thrown failure.
+  /// Historical cleanup diagnostic, not evidence of currently unresolved cleanup debt.
   public private(set) var lastCleanupFailure: AudioRouteObservation?
+  /// Current cleanup debt, removed only after that route's native release succeeds.
+  public private(set) var unresolvedCleanupFailures: [AudioRouteKey: AudioRouteObservation] = [:]
   public var onCleanupFailure: (@MainActor (AudioRouteObservation) -> Void)?
+  /// Notifies when keyed cleanup debt changes, including a matching successful release.
+  public var onCleanupChange: (@MainActor () -> Void)?
 
   public init(resolveApp: @escaping @MainActor (String, UInt64) throws -> AudioApp) {
     self.resolveApp = resolveApp
@@ -53,6 +57,9 @@ public final class NativeAudioRoutingRuntime: AudioRoutingRuntime {
       let failure = nativeRouteFailure(error)
       Task { @MainActor [weak self] in self?.recordCleanup(request.key, failure: failure) }
     }
+    let reportRetired: @Sendable () -> Void = { [weak self] in
+      Task { @MainActor [weak self] in self?.recordRetired(request.key) }
+    }
     let packet: NativePreparationPacket = await withCheckedContinuation { continuation in
       lane.async {
         let packet = withNativeRuntimeState(request.initialState) { initial in
@@ -86,7 +93,8 @@ public final class NativeAudioRoutingRuntime: AudioRoutingRuntime {
     if packet.result != FT_NATIVE_OK || Task.isCancelled {
       if let pointer = packet.pointer {
         ft_native_route_cancel(pointer.value)
-        NativeRetirementPool.shared.adopt(pointer, lane: lane, reportCleanup: reportCleanup)
+        NativeRetirementPool.shared.adopt(
+          pointer, lane: lane, reportCleanup: reportCleanup, reportRetired: reportRetired)
       }
       if Task.isCancelled { throw cancelledPreparation() }
       throw nativeRouteFailure(packet.failure)
@@ -95,16 +103,27 @@ public final class NativeAudioRoutingRuntime: AudioRoutingRuntime {
       throw AudioRouteFailure(
         stage: "prepare", message: "Native audio returned success without an owned route.")
     }
-    let owner = NativeRouteOwner(pointer: pointer, lane: lane, reportCleanup: reportCleanup)
+    let owner = NativeRouteOwner(
+      pointer: pointer, lane: lane, reportCleanup: reportCleanup, reportRetired: reportRetired)
     return NativePreparedAudioRoute(
       key: request.key, owner: owner, initialRevision: request.initialState.revision)
   }
 
-  private func recordCleanup(_ key: AudioRouteKey, failure: AudioRouteFailure) {
+  func recordCleanup(_ key: AudioRouteKey, failure: AudioRouteFailure) {
     let observation = AudioRouteObservation(key: key, phase: .failed, cleanupFailure: failure)
-    guard observation != lastCleanupFailure else { return }
-    lastCleanupFailure = observation
-    onCleanupFailure?(observation)
+    let changed = unresolvedCleanupFailures[key] != observation
+    unresolvedCleanupFailures[key] = observation
+    if observation != lastCleanupFailure {
+      lastCleanupFailure = observation
+      onCleanupFailure?(observation)
+    }
+    if changed { onCleanupChange?() }
+  }
+
+  /// Called only after the retirement pool has successfully released the native owner.
+  func recordRetired(_ key: AudioRouteKey) {
+    guard unresolvedCleanupFailures.removeValue(forKey: key) != nil else { return }
+    onCleanupChange?()
   }
 
   private func cancelledPreparation() -> AudioRouteFailure {

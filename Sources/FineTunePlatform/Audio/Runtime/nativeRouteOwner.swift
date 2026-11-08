@@ -8,14 +8,17 @@ final class NativeRouteOwner: @unchecked Sendable {
   let pointer: NativeRoutePointer
   let lane: DispatchQueue
   let reportCleanup: @Sendable (FTNativeError) -> Void
+  let reportRetired: @Sendable () -> Void
 
   init(
     pointer: NativeRoutePointer, lane: DispatchQueue,
-    reportCleanup: @escaping @Sendable (FTNativeError) -> Void
+    reportCleanup: @escaping @Sendable (FTNativeError) -> Void,
+    reportRetired: @escaping @Sendable () -> Void
   ) {
     self.pointer = pointer
     self.lane = lane
     self.reportCleanup = reportCleanup
+    self.reportRetired = reportRetired
   }
 
   @MainActor
@@ -31,7 +34,8 @@ final class NativeRouteOwner: @unchecked Sendable {
 
   deinit {
     ft_native_route_cancel(pointer.value)
-    NativeRetirementPool.shared.adopt(pointer, lane: lane, reportCleanup: reportCleanup)
+    NativeRetirementPool.shared.adopt(
+      pointer, lane: lane, reportCleanup: reportCleanup, reportRetired: reportRetired)
   }
 }
 
@@ -48,24 +52,29 @@ final class NativeRetirementPool: @unchecked Sendable {
     let pointer: NativeRoutePointer
     let lane: DispatchQueue
     let reportCleanup: @Sendable (FTNativeError) -> Void
+    let reportRetired: @Sendable () -> Void
     var inFlight = false
     var failed = false
     init(
       _ pointer: NativeRoutePointer, lane: DispatchQueue,
-      reportCleanup: @escaping @Sendable (FTNativeError) -> Void
+      reportCleanup: @escaping @Sendable (FTNativeError) -> Void,
+      reportRetired: @escaping @Sendable () -> Void
     ) {
       self.pointer = pointer
       self.lane = lane
       self.reportCleanup = reportCleanup
+      self.reportRetired = reportRetired
     }
   }
 
   func adopt(
     _ pointer: NativeRoutePointer, lane routeLane: DispatchQueue,
-    reportCleanup: @escaping @Sendable (FTNativeError) -> Void
+    reportCleanup: @escaping @Sendable (FTNativeError) -> Void,
+    reportRetired: @escaping @Sendable () -> Void
   ) {
     lane.async { [self] in
-      let entry = Entry(pointer, lane: routeLane, reportCleanup: reportCleanup)
+      let entry = Entry(
+        pointer, lane: routeLane, reportCleanup: reportCleanup, reportRetired: reportRetired)
       entries[ObjectIdentifier(entry)] = entry
       if timer == nil {
         let source = DispatchSource.makeTimerSource(queue: lane)
@@ -90,6 +99,7 @@ final class NativeRetirementPool: @unchecked Sendable {
           entry.inFlight = false
           if outcome.result == FT_NATIVE_OK {
             entries.removeValue(forKey: id)
+            entry.reportRetired()
           } else if outcome.result == FT_NATIVE_FAILED {
             entry.failed = true
             entry.reportCleanup(outcome.failure)

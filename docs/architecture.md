@@ -159,8 +159,9 @@ source appをtap中muteする方式を使うが、実機での音響的な連続
 
 回収PENDINGは既存の20ms pollで実際のreader/aggregate条件を再確認する。FAILEDはownerをretainして報告し、自動failure retryを止める。
 20ms経過による安全freeではない。あるrouteのretired ACKや残ったhistory diagnosticから、private pool全体のdrainやglobal orphan0を推論しない。
-通常のOS/input observerは停止するが、single factoryのweakなpassive cleanup通知だけはstop後も表示modelへ残し、遅いfailureを取りこぼさない。
-この診断通知は新しいcapture・route操作・Rootの二重timerを開始せず、権限やglobal回収完了の証拠でもない。
+通常のOS/input observerは停止するが、single factoryのweakなpassive cleanup変更通知はstop後も表示modelへ残す。
+factoryは履歴の最新診断と、経路ごとの未解決cleanupを分けて保持する。poolは該当ownerのnative release成功時だけ完了を通知し、その経路の警告を解除する。
+この通知は新しいcapture・route操作・Rootの二重timerを開始せず、権限やglobal回収完了の証拠でもない。
 
 ## 実機で未確認の事項
 
