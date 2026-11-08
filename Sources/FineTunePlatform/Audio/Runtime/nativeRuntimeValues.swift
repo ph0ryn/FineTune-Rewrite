@@ -41,15 +41,17 @@ struct NativeRouteResult: @unchecked Sendable {
   let snapshot: FTNativeRouteSnapshot
   let failure: FTNativeError
   let timing: FTNativeTimingSnapshot?
+  let invalidation: FTNativeInvalidationSnapshot?
 
   init(
     result: FTNativeResult, snapshot: FTNativeRouteSnapshot, failure: FTNativeError,
-    timing: FTNativeTimingSnapshot? = nil
+    timing: FTNativeTimingSnapshot? = nil, invalidation: FTNativeInvalidationSnapshot? = nil
   ) {
     self.result = result
     self.snapshot = snapshot
     self.failure = failure
     self.timing = timing
+    self.invalidation = invalidation
   }
 }
 

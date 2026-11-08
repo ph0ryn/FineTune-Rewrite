@@ -224,7 +224,8 @@ private final class PoolRetirementScript: @unchecked Sendable {
     if let hold {
       hold.entered.yield(())
       hold.entered.finish()
-      hold.release.wait()  // Only this injected NRT test operation is held, never an audio callback.
+      // Only this injected NRT test operation is held, never an audio callback.
+      hold.release.wait()
     }
     return NativeRouteResult(
       result: result, snapshot: FTNativeRouteSnapshot(),

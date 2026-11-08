@@ -129,6 +129,16 @@ main usage description・armed・first-appliedは権限許可の証明ではな�
 
 これらは事前許可を得た限定観測であり、通常gateに追加せず、機能ごとに巨大E2Eを追加する要件にもなりません。
 
+### 経路無効化の診断
+
+`bindingChanged / certifyFormat / -5101`はローカルの経路無効化コードで、HALの個別エラーやproperty selectorを表すものではありません。
+nativeは無効化時に最初に記録権を得たイベントだけを保持し、property通知のobject・件数・最初のaddressと、IO callbackのdevice・入力構成・出力構成・出力データ欠損・frame不一致を区別します。
+この記録はイベント全体の発生順や根本原因の証明ではなく、既存の証明条件を緩めません。通常idle、DSPエラー、無効化前の状態から理由を推測して埋めることもありません。
+
+`FINETUNE_AUDIO_DIAGNOSTICS=1`で起動した場合、Swiftの非リアルタイム側がこの記録を既存の`AudioRoute`ログへ出します。音声サンプル・buffer pointer・property配列は記録せず、callback内ではログやHAL呼出しを行いません。
+[production C境界とfake HALのテスト](<../Tests/NativeHALContractTests/main.cpp>)は理由の区別・同時通知・reader-zero後の履歴・遅延callbackを検証しますが、実際に報告された無効化の原因を再現した証拠ではありません。
+実機の再起動・captureは、対象アプリ・出力・時間・音量と復元条件を確認してから行います。
+
 ## 製品組立と配布
 
 実Graph/表示model/Host/lifecycleと外部portを使うcomposition testで、同じControl・store・nativeへの接続を確かめます。

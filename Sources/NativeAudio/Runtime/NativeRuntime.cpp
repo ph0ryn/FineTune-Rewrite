@@ -36,6 +36,8 @@ struct RenderState {
         appliedRevision{0};
     std::atomic<std::uint64_t> callbacks{0}, callbackErrors{0}, errorWord{0};
     std::atomic<std::uint32_t> peak{0};
+    std::atomic<bool> invalidationClaimed{false}, invalidationReady{false};
+    FTNativeInvalidationSnapshot invalidation{}; // Written once by the claimant, then immutable.
 };
 struct Listener {
     AudioObjectID object;
@@ -71,11 +73,26 @@ void recordError(RenderState &state, FTNativeError error) noexcept {
     state.callbackErrors.fetch_add(1, std::memory_order_relaxed);
     state.peak.store(0, std::memory_order_relaxed);
 }
-void invalidate(RenderState &state, CallbackCookie cookie, FTNativeOperation operation) noexcept {
+FTNativeInvalidationSnapshot invalidationSnapshot(const RenderState &state) noexcept {
+    if (!state.invalidationReady.load(std::memory_order_acquire))
+        return {};
+    return state.invalidation;
+}
+void invalidate(RenderState &state, CallbackCookie cookie, FTNativeOperation operation,
+                const FTNativeInvalidationSnapshot &metadata) noexcept {
+    // Close render admission before diagnostics. The existing callback lease protects the
+    // record through publication; reclamation still waits for this reader to leave.
     state.permit.store(false, std::memory_order_release);
     recordError(state, failure(FT_NATIVE_BINDING_CHANGED, operation, invalidFormat));
     state.invalidated.store(true, std::memory_order_release);
     callbackSlots.close(cookie);
+    bool expected = false;
+    // One bounded attempt only. First claimant is diagnostic evidence, not causal ordering.
+    if (state.invalidationClaimed.compare_exchange_strong(expected, true,
+                                                          std::memory_order_relaxed)) {
+        state.invalidation = metadata;
+        state.invalidationReady.store(true, std::memory_order_release);
+    }
 }
 // 0=valid, 1=normal disabled/absent data, 2=metadata violates the immutable certificate.
 int frames(const AudioBufferList *buffers, const StereoLayout &layout, std::uint32_t maximum,
@@ -134,7 +151,17 @@ OSStatus audioCallback(AudioObjectID device, const AudioTimeStamp *now,
         frames(output, state.format.output, state.format.maximumFrames, outputFrames);
     if (device != state.aggregate || inputStatus == 2 || outputStatus != 0 ||
         inputFrames != outputFrames) {
-        invalidate(state, cookie, FT_NATIVE_CERTIFY_FORMAT);
+        // Reuse the original validation results and precedence; do not inspect buffers again.
+        FTNativeInvalidationSnapshot metadata{};
+        metadata.source = FT_NATIVE_INVALIDATION_IO;
+        metadata.reason = device != state.aggregate ? FT_NATIVE_INVALIDATION_IO_WRONG_DEVICE
+                          : inputStatus == 2        ? FT_NATIVE_INVALIDATION_IO_INPUT_SHAPE
+                          : outputStatus == 2       ? FT_NATIVE_INVALIDATION_IO_OUTPUT_SHAPE
+                          : outputStatus == 1       ? FT_NATIVE_INVALIDATION_IO_ABSENT_OUTPUT
+                                                    : FT_NATIVE_INVALIDATION_IO_FRAME_MISMATCH;
+        metadata.observed_device_id = device;
+        metadata.expected_device_id = state.aggregate;
+        invalidate(state, cookie, FT_NATIVE_CERTIFY_FORMAT, metadata);
         clearOutput(output);
         return noErr;
     }
@@ -209,18 +236,29 @@ OSStatus audioCallback(AudioObjectID device, const AudioTimeStamp *now,
     }
     return noErr;
 }
-OSStatus propertyChanged(AudioObjectID, UInt32 count, const AudioObjectPropertyAddress *properties,
-                         void *data) noexcept {
+OSStatus propertyChanged(AudioObjectID object, UInt32 count,
+                         const AudioObjectPropertyAddress *properties, void *data) noexcept {
     const auto cookie = CallbackCookie::fromOpaque(data);
     auto lease = callbackSlots.enter(cookie);
     if (!lease)
         return noErr;
     auto &state = *static_cast<RenderState *>(lease.context());
+    FTNativeInvalidationSnapshot metadata{};
+    metadata.source = FT_NATIVE_INVALIDATION_PROPERTY;
+    metadata.reason = FT_NATIVE_INVALIDATION_PROPERTY_NOTIFICATION;
+    metadata.property_object_id = object;
+    metadata.property_count = count;
+    if (count && properties) {
+        metadata.has_property_address = true;
+        metadata.property_selector = properties[0].mSelector;
+        metadata.property_scope = properties[0].mScope;
+        metadata.property_element = properties[0].mElement;
+    }
     const auto operation =
-        count && properties && properties[0].mSelector == kAudioProcessPropertyPID
+        metadata.has_property_address && metadata.property_selector == kAudioProcessPropertyPID
             ? FT_NATIVE_RESOLVE_PROCESS
             : FT_NATIVE_CERTIFY_FORMAT;
-    invalidate(state, cookie, operation);
+    invalidate(state, cookie, operation, metadata);
     return noErr;
 }
 bool validLevels(FTNativeLevels levels) noexcept {
@@ -282,6 +320,7 @@ struct FTNativeRoute {
     FTNativeError primary{}, cleanup{};
     FTNativeRouteSnapshot archive{};
     FTNativeTimingSnapshot timingArchive{};
+    FTNativeInvalidationSnapshot invalidationArchive{};
     std::uint64_t accepted = 0;
     std::atomic<bool> cancelled{false};
     bool startAttempted = false, stopped = false, aggregateDestroyRequested = false;
@@ -742,6 +781,13 @@ extern "C" FTNativeResult ft_native_route_timing_snapshot(const FTNativeRoute *r
     *snapshot = route->render ? route->render->timing.snapshot() : route->timingArchive;
     return FT_NATIVE_OK;
 }
+extern "C" FTNativeResult ft_native_route_invalidation(const FTNativeRoute *route,
+                                                       FTNativeInvalidationSnapshot *snapshot) {
+    if (!route || !snapshot)
+        return FT_NATIVE_FAILED;
+    *snapshot = route->render ? invalidationSnapshot(*route->render) : route->invalidationArchive;
+    return FT_NATIVE_OK;
+}
 extern "C" FTNativeResult ft_native_route_retire(FTNativeRoute *route, FTNativeError *error) {
     if (!route)
         return fail(failure(FT_NATIVE_FAILURE, FT_NATIVE_INPUT, invalidInput), error);
@@ -765,6 +811,7 @@ extern "C" FTNativeResult ft_native_route_retire(FTNativeRoute *route, FTNativeE
         }
         copyStats(*route->render, route->archive);
         route->timingArchive = route->render->timing.snapshot();
+        route->invalidationArchive = invalidationSnapshot(*route->render);
         route->render
             .reset(); // All DSP/stage/window/scratch destruction is NRT after actual reader-zero.
     }

@@ -2,6 +2,7 @@ import Dispatch
 import FineTuneControl
 import Foundation
 import NativeAudio
+import os
 
 /// MainActor resolution comes from the same shared process producer used by the UI/Control.
 /// Construction is passive. No private process discovery, helper heuristic, permission query,
@@ -12,6 +13,8 @@ public final class NativeAudioRoutingRuntime: AudioRoutingRuntime {
   private let cleanupOwnerID: UUID
   private let retirementPool: NativeRetirementPool
   private var cleanupRetry: Task<Void, Never>?
+  private static let diagnosticLogger = Logger(
+    subsystem: "com.finetune-rewrite", category: "AudioRoute")
   /// Historical cleanup diagnostic, not evidence of currently unresolved cleanup debt.
   public private(set) var lastCleanupFailure: AudioRouteObservation?
   /// Current cleanup debt, removed only after that route's native release succeeds.
@@ -104,7 +107,10 @@ public final class NativeAudioRoutingRuntime: AudioRoutingRuntime {
               if let pointer { _ = ft_native_route_snapshot(pointer, &snapshot) }
               return NativePreparationPacket(
                 result: result, pointer: pointer.map { NativeRoutePointer(value: $0) },
-                snapshot: snapshot, failure: error)
+                snapshot: snapshot, failure: error,
+                invalidation: pointer.flatMap {
+                  nativeInvalidationSnapshot($0, enabled: diagnosticsEnabled)
+                })
             }
           }
         }
@@ -115,6 +121,12 @@ public final class NativeAudioRoutingRuntime: AudioRoutingRuntime {
       recordCleanup(request.key, failure: nativeRouteFailure(packet.snapshot.cleanup_failure))
     }
     if packet.result != FT_NATIVE_OK || Task.isCancelled {
+      if let invalidation = packet.invalidation {
+        let detail = nativeInvalidationDescription(invalidation)
+        Self.diagnosticLogger.notice(
+          "invalidation app=\(request.key.appIdentifier, privacy: .public) output=\(request.key.deviceUID, privacy: .public) generation=\(request.key.generation) operation=prepare \(detail, privacy: .public)"
+        )
+      }
       if let pointer = packet.pointer {
         ft_native_route_cancel(pointer.value)
         retirementPool.adopt(
@@ -162,4 +174,5 @@ private struct NativePreparationPacket: @unchecked Sendable {
   let pointer: NativeRoutePointer?
   let snapshot: FTNativeRouteSnapshot
   let failure: FTNativeError
+  let invalidation: FTNativeInvalidationSnapshot?
 }

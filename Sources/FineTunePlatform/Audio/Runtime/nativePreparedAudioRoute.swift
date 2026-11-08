@@ -24,6 +24,7 @@ final class NativePreparedAudioRoute: PreparedAudioRoute {
     ProcessInfo.processInfo.environment["FINETUNE_AUDIO_DIAGNOSTICS"] == "1"
   private var lastDiagnosticTime: TimeInterval?
   private var lastDiagnosticPhase: FTNativePhase?
+  private var didTraceInvalidation = false
 
   init(key: AudioRouteKey, owner: NativeRouteOwner, initialRevision: UInt64) {
     self.key = key
@@ -85,7 +86,8 @@ final class NativePreparedAudioRoute: PreparedAudioRoute {
       _ = ft_native_route_snapshot(pointer, &snapshot)
       return NativeRouteResult(
         result: result, snapshot: snapshot, failure: error,
-        timing: nativeTimingSnapshot(pointer, enabled: diagnostics))
+        timing: nativeTimingSnapshot(pointer, enabled: diagnostics),
+        invalidation: nativeInvalidationSnapshot(pointer, enabled: diagnostics))
     }
     trace(result, operation: "retire", force: true)
     return receiveRetirement(result, sequence: operationSequence)
@@ -124,7 +126,8 @@ final class NativePreparedAudioRoute: PreparedAudioRoute {
         _ = ft_native_route_snapshot(pointer, &snapshot)
         return NativeRouteResult(
           result: result, snapshot: snapshot, failure: error,
-          timing: nativeTimingSnapshot(pointer, enabled: diagnostics))
+          timing: nativeTimingSnapshot(pointer, enabled: diagnostics),
+          invalidation: nativeInvalidationSnapshot(pointer, enabled: diagnostics))
       }
     }
     trace(result, operation: String(describing: action), force: true)
@@ -171,7 +174,8 @@ final class NativePreparedAudioRoute: PreparedAudioRoute {
       return NativeRouteResult(
         result: snapshotResult == FT_NATIVE_OK ? result : FT_NATIVE_FAILED,
         snapshot: snapshot, failure: error,
-        timing: nativeTimingSnapshot(pointer, enabled: diagnostics))
+        timing: nativeTimingSnapshot(pointer, enabled: diagnostics),
+        invalidation: nativeInvalidationSnapshot(pointer, enabled: diagnostics))
     }
     pollInFlight = false
     guard pollEpoch == epoch else { return }
@@ -213,6 +217,13 @@ final class NativePreparedAudioRoute: PreparedAudioRoute {
   // Opt-in NRT metadata only. No samples are recorded and no logging enters the HAL callback.
   private func trace(_ result: NativeRouteResult, operation: String, force: Bool = false) {
     guard diagnosticsEnabled else { return }
+    if let invalidation = result.invalidation, !didTraceInvalidation {
+      didTraceInvalidation = true
+      let detail = nativeInvalidationDescription(invalidation)
+      Self.diagnosticLogger.notice(
+        "invalidation app=\(self.key.appIdentifier, privacy: .public) output=\(self.key.deviceUID, privacy: .public) generation=\(self.key.generation) \(detail, privacy: .public)"
+      )
+    }
     let now = ProcessInfo.processInfo.systemUptime
     let snapshot = result.snapshot
     if !force, snapshot.phase == lastDiagnosticPhase,

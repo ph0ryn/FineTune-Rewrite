@@ -4,12 +4,14 @@
 #include "AllocationWatch.hpp"
 #include "FakeHAL.hpp"
 #include <array>
+#include <barrier>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <limits>
 #include <mach/mach_time.h>
 #include <memory>
+#include <thread>
 
 namespace {
 using namespace native_hal_fixture;
@@ -890,6 +892,250 @@ void callbackSilenceAndInput() {
         CHECK(s.callback_error_count == (mode == 0 ? 0 : 1));
     }
 }
+FTNativeInvalidationSnapshot invalidation(const Route &p) {
+    FTNativeInvalidationSnapshot result{};
+    CHECK(ft_native_route_invalidation(p.get(), &result) == FT_NATIVE_OK);
+    return result;
+}
+bool sameInvalidation(const FTNativeInvalidationSnapshot &a,
+                      const FTNativeInvalidationSnapshot &b) {
+    return a.source == b.source && a.reason == b.reason &&
+           a.observed_device_id == b.observed_device_id &&
+           a.expected_device_id == b.expected_device_id &&
+           a.property_object_id == b.property_object_id && a.property_count == b.property_count &&
+           a.property_selector == b.property_selector && a.property_scope == b.property_scope &&
+           a.property_element == b.property_element &&
+           a.has_property_address == b.has_property_address;
+}
+void invalidationInitialAndNoninvalidatingErrors() {
+    invocations = 3;
+    resetFixture();
+    FTNativeInvalidationSnapshot result{};
+    CHECK(ft_native_route_invalidation(nullptr, &result) == FT_NATIVE_FAILED);
+    CHECK(ft_native_route_invalidation(nullptr, nullptr) == FT_NATIVE_FAILED);
+    for (unsigned mode = 0; mode < 3; ++mode) {
+        auto p = prepare(request(state()));
+        if (!p || hal.ios.empty())
+            return;
+        CHECK(ft_native_route_invalidation(p.get(), nullptr) == FT_NATIVE_FAILED);
+        CHECK(sameInvalidation(invalidation(p), {}));
+        commit(p, state());
+        Signal signal;
+        if (mode == 1)
+            signal.in.mBuffers[0].mData = nullptr; // Normal idle is not invalidation.
+        if (mode == 2)
+            signal.input[0] = std::numeric_limits<float>::quiet_NaN(); // DSP error, not binding.
+        signal.render(hal.ios.back());
+        CHECK(sameInvalidation(invalidation(p), {}));
+        CHECK(snapshot(p).callback_error_count == (mode == 2 ? 1U : 0U));
+        FTNativeError error{};
+        CHECK(ft_native_route_retire(p.get(), &error) == FT_NATIVE_OK);
+        CHECK(sameInvalidation(invalidation(p), {}));
+        p.reset();
+        CHECK(hal.resources() == 0);
+    }
+}
+void invalidationPropertyMetadataAndArchive() {
+    invocations = 5;
+    for (unsigned mode = 0; mode < 5; ++mode) {
+        resetFixture();
+        auto p = prepare(request(state()));
+        if (!p || hal.ios.empty() || hal.listeners.empty())
+            return;
+        const auto io = hal.ios.back();
+        const auto listener = hal.listeners.front();
+        commit(p, state());
+        const AudioObjectPropertyAddress properties[]{
+            {mode == 4 ? AudioObjectPropertySelector(kAudioProcessPropertyPID)
+                       : AudioObjectPropertySelector(kAudioDevicePropertyDeviceIsAlive),
+             kAudioObjectPropertyScopeOutput, 7},
+            {kAudioStreamPropertyVirtualFormat, kAudioObjectPropertyScopeInput, 9}};
+        const AudioObjectPropertyAddress zero{};
+        const auto count = mode == 0 ? 0U : mode == 2 ? 1U : 2U;
+        const auto *addresses = mode == 1 ? nullptr : mode == 2 ? &zero : properties;
+        const auto a = callback_observation::allocations.load(),
+                   d = callback_observation::deletions.load();
+        callback_observation::active = true;
+        const auto status = listener.callback(71, count, addresses, listener.data);
+        callback_observation::active = false;
+        CHECK(status == noErr);
+        CHECK(callback_observation::allocations == a && callback_observation::deletions == d);
+        const auto record = invalidation(p);
+        CHECK(record.source == FT_NATIVE_INVALIDATION_PROPERTY);
+        CHECK(record.reason == FT_NATIVE_INVALIDATION_PROPERTY_NOTIFICATION);
+        CHECK(record.property_object_id == 71 && record.property_count == count);
+        CHECK(record.has_property_address == (count != 0 && addresses != nullptr));
+        CHECK(record.property_selector ==
+              (record.has_property_address ? addresses[0].mSelector : 0));
+        CHECK(record.property_scope == (record.has_property_address ? addresses[0].mScope : 0));
+        CHECK(record.property_element == (record.has_property_address ? addresses[0].mElement : 0));
+        CHECK(record.observed_device_id == 0 && record.expected_device_id == 0);
+        const auto failed = snapshot(p);
+        CHECK(failed.failure.kind == FT_NATIVE_BINDING_CHANGED && failed.failure.code == -5101);
+        CHECK(failed.failure.operation ==
+              (mode == 4 ? FT_NATIVE_RESOLVE_PROCESS : FT_NATIVE_CERTIFY_FORMAT));
+        CHECK(failed.callback_error_count == 1);
+        Signal silent;
+        silent.render(io);
+        CHECK(silent.zero());
+        CHECK(listener.callback(999, 1, &zero, listener.data) == noErr);
+        CHECK(sameInvalidation(invalidation(p), record));
+        FTNativeError error{};
+        if (mode == 3) {
+            hal.holdAggregate = true;
+            CHECK(ft_native_route_retire(p.get(), &error) == FT_NATIVE_PENDING);
+            CHECK(
+                sameInvalidation(invalidation(p), record)); // Render already reader-zero/reclaimed.
+            hal.holdAggregate = false;
+        }
+        CHECK(ft_native_route_retire(p.get(), &error) == FT_NATIVE_OK);
+        CHECK(sameInvalidation(invalidation(p), record));
+        CHECK(listener.callback(999, 1, &zero, listener.data) == noErr);
+        silent.render(io);
+        CHECK(silent.zero() && sameInvalidation(invalidation(p), record));
+        CHECK(ft_native_route_release(p.get()) == FT_NATIVE_OK);
+        (void)p.release();
+        auto replacement = prepare(request(state()));
+        commit(replacement, state());
+        CHECK(listener.callback(999, 1, &zero, listener.data) == noErr);
+        silent.render(io);
+        CHECK(silent.zero() && sameInvalidation(invalidation(replacement), {}));
+        replacement.reset();
+        CHECK(hal.resources() == 0);
+    }
+}
+void invalidationIOReasonsAndPrecedence() {
+    invocations = 7;
+    constexpr std::array reasons{
+        FT_NATIVE_INVALIDATION_IO_WRONG_DEVICE,   FT_NATIVE_INVALIDATION_IO_INPUT_SHAPE,
+        FT_NATIVE_INVALIDATION_IO_OUTPUT_SHAPE,   FT_NATIVE_INVALIDATION_IO_ABSENT_OUTPUT,
+        FT_NATIVE_INVALIDATION_IO_FRAME_MISMATCH, FT_NATIVE_INVALIDATION_IO_INPUT_SHAPE,
+        FT_NATIVE_INVALIDATION_IO_OUTPUT_SHAPE};
+    for (unsigned mode = 0; mode < reasons.size(); ++mode) {
+        resetFixture();
+        auto p = prepare(request(state()));
+        if (!p || hal.ios.empty() || hal.listeners.empty())
+            return;
+        auto io = hal.ios.back();
+        const auto aggregate = io.device;
+        const auto listener = hal.listeners.back();
+        commit(p, state());
+        Signal signal;
+        if (mode == 0) {
+            io.device = 999;
+            signal.in.mBuffers[0].mNumberChannels = 1; // Wrong device wins both shape failures.
+            signal.out.mBuffers[0].mNumberChannels = 1;
+        }
+        if (mode == 1 || mode == 5)
+            signal.in.mBuffers[0].mNumberChannels = 1;
+        if (mode == 2 || mode == 5)
+            signal.out.mBuffers[0].mNumberChannels = 1;
+        if (mode == 3) {
+            signal.out.mBuffers[0].mData = nullptr;
+            signal.out.mBuffers[0].mDataByteSize /= 2; // Absent output precedes frame mismatch.
+        }
+        if (mode == 4)
+            signal.in.mBuffers[0].mDataByteSize /= 2;
+        if (mode == 6) {
+            // Missing output list is shape, without inventing an output-buffer observation.
+            const auto a = callback_observation::allocations.load(),
+                       d = callback_observation::deletions.load();
+            callback_observation::active = true;
+            AudioTimeStamp timestamp{};
+            AudioBufferList *absent = nullptr;
+            const auto status = io.callback(io.device, &timestamp, &signal.in, &timestamp, absent,
+                                            &timestamp, io.data);
+            callback_observation::active = false;
+            CHECK(status == noErr);
+            CHECK(callback_observation::allocations == a && callback_observation::deletions == d);
+        } else {
+            signal.render(io);
+            if (mode != 3)
+                CHECK(signal.zero());
+            else
+                CHECK(signal.output[0] == 0.875F); // Absent output data is not dereferenced.
+        }
+        const auto record = invalidation(p);
+        CHECK(record.source == FT_NATIVE_INVALIDATION_IO && record.reason == reasons[mode]);
+        CHECK(record.observed_device_id == io.device && record.expected_device_id == aggregate);
+        CHECK(record.property_object_id == 0 && record.property_count == 0 &&
+              !record.has_property_address && record.property_selector == 0 &&
+              record.property_scope == 0 && record.property_element == 0);
+        const auto failed = snapshot(p);
+        CHECK(failed.failure.kind == FT_NATIVE_BINDING_CHANGED &&
+              failed.failure.operation == FT_NATIVE_CERTIFY_FORMAT && failed.failure.code == -5101);
+        CHECK(failed.callback_error_count == 1 && failed.phase == FT_NATIVE_ROUTE_FAILED);
+        CHECK(listener.callback(listener.object, 1, &listener.property, listener.data) == noErr);
+        CHECK(sameInvalidation(invalidation(p), record));
+        FTNativeError error{};
+        CHECK(ft_native_route_retire(p.get(), &error) == FT_NATIVE_OK);
+        CHECK(sameInvalidation(invalidation(p), record));
+        Signal late;
+        late.render(io);
+        CHECK(late.zero() && sameInvalidation(invalidation(p), record));
+        p.reset();
+        CHECK(hal.resources() == 0);
+    }
+}
+void invalidationConcurrentPropertyClaims() {
+    invocations = 32;
+    for (unsigned iteration = 0; iteration < invocations; ++iteration) {
+        resetFixture();
+        auto p = prepare(request(state()));
+        if (!p || hal.listeners.empty())
+            return;
+        const auto listener = hal.listeners.back();
+        const AudioObjectPropertyAddress addresses[]{
+            {kAudioDevicePropertyDeviceIsAlive, kAudioObjectPropertyScopeInput, 3},
+            {kAudioDevicePropertyNominalSampleRate, kAudioObjectPropertyScopeOutput, 5}};
+        std::barrier start(3);
+        OSStatus statuses[2]{};
+        auto invoke = [&](unsigned index) {
+            start.arrive_and_wait();
+            statuses[index] = listener.callback(810 + index, 1, &addresses[index], listener.data);
+        };
+        std::thread first(invoke, 0), second(invoke, 1);
+        start.arrive_and_wait();
+        // NRT getter can race publication; each successful read is NONE or one complete tuple.
+        for (unsigned read = 0; read < 16; ++read) {
+            const auto record = invalidation(p);
+            if (record.source == FT_NATIVE_INVALIDATION_NONE) {
+                CHECK(sameInvalidation(record, {}));
+                continue;
+            }
+            const auto index = record.property_object_id == 810 ? 0U : 1U;
+            CHECK(record.property_object_id == 810 + index);
+            CHECK(record.source == FT_NATIVE_INVALIDATION_PROPERTY &&
+                  record.reason == FT_NATIVE_INVALIDATION_PROPERTY_NOTIFICATION);
+            CHECK(record.has_property_address && record.property_count == 1);
+            CHECK(record.property_selector == addresses[index].mSelector &&
+                  record.property_scope == addresses[index].mScope &&
+                  record.property_element == addresses[index].mElement);
+        }
+        first.join();
+        second.join();
+        CHECK(statuses[0] == noErr && statuses[1] == noErr);
+        const auto record = invalidation(p);
+        CHECK(record.source == FT_NATIVE_INVALIDATION_PROPERTY);
+        CHECK(record.property_object_id == 810 || record.property_object_id == 811);
+        const auto winner = record.property_object_id == 810 ? 0U : 1U;
+        CHECK(record.reason == FT_NATIVE_INVALIDATION_PROPERTY_NOTIFICATION &&
+              record.has_property_address && record.property_count == 1);
+        CHECK(record.property_selector == addresses[winner].mSelector &&
+              record.property_scope == addresses[winner].mScope &&
+              record.property_element == addresses[winner].mElement);
+        CHECK(sameInvalidation(invalidation(p), record));
+        const auto failed = snapshot(p);
+        CHECK(failed.failure.kind == FT_NATIVE_BINDING_CHANGED &&
+              failed.failure.operation == FT_NATIVE_CERTIFY_FORMAT && failed.failure.code == -5101);
+        CHECK(failed.callback_error_count >= 1 && failed.callback_error_count <= 2);
+        FTNativeError error{};
+        CHECK(ft_native_route_retire(p.get(), &error) == FT_NATIVE_OK);
+        CHECK(sameInvalidation(invalidation(p), record));
+        p.reset();
+        CHECK(hal.resources() == 0);
+    }
+}
 void ioCapacityDoesNotRequireRangeListener() {
     invocations = 2;
     for (bool variable : {false, true}) {
@@ -1616,7 +1862,7 @@ struct Result {
     void (*run)();
     std::size_t count = 0, checks = 0, failed = 0;
 };
-std::array<Result, 33> results{{
+std::array<Result, 37> results{{
     {"Tests/NativeHALContractTests/main.cpp::timingDisabledByDefault", timingDisabledByDefault},
     {"Tests/NativeHALContractTests/main.cpp::timingEnableLifecycleAndNullSafety",
      timingEnableLifecycleAndNullSafety},
@@ -1661,6 +1907,14 @@ std::array<Result, 33> results{{
      disappearedAggregateSurvivingDebt},
     {"Tests/NativeHALContractTests/main.cpp::savedTargetsAndPermit", savedTargetsAndPermit},
     {"Tests/NativeHALContractTests/main.cpp::callbackSilenceAndInput", callbackSilenceAndInput},
+    {"Tests/NativeHALContractTests/main.cpp::invalidationInitialAndNoninvalidatingErrors",
+     invalidationInitialAndNoninvalidatingErrors},
+    {"Tests/NativeHALContractTests/main.cpp::invalidationPropertyMetadataAndArchive",
+     invalidationPropertyMetadataAndArchive},
+    {"Tests/NativeHALContractTests/main.cpp::invalidationIOReasonsAndPrecedence",
+     invalidationIOReasonsAndPrecedence},
+    {"Tests/NativeHALContractTests/main.cpp::invalidationConcurrentPropertyClaims",
+     invalidationConcurrentPropertyClaims},
     {"Tests/NativeHALContractTests/main.cpp::lateCloseAndReuse", lateCloseAndReuse},
     {"Tests/NativeHALContractTests/main.cpp::copiedConfiguration", copiedConfiguration},
     {"Tests/NativeHALContractTests/main.cpp::coalescedCoverage", coalescedCoverage},

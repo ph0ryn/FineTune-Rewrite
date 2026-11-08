@@ -120,6 +120,38 @@ typedef struct FTNativeRouteSnapshot {
     FTNativeError cleanup_failure;
 } FTNativeRouteSnapshot;
 
+typedef enum FTNativeInvalidationSource {
+    FT_NATIVE_INVALIDATION_NONE = 0,
+    FT_NATIVE_INVALIDATION_PROPERTY = 1,
+    FT_NATIVE_INVALIDATION_IO = 2
+} FTNativeInvalidationSource;
+
+typedef enum FTNativeInvalidationReason {
+    FT_NATIVE_INVALIDATION_REASON_NONE = 0,
+    FT_NATIVE_INVALIDATION_PROPERTY_NOTIFICATION = 1,
+    FT_NATIVE_INVALIDATION_IO_WRONG_DEVICE = 2,
+    FT_NATIVE_INVALIDATION_IO_INPUT_SHAPE = 3,
+    FT_NATIVE_INVALIDATION_IO_OUTPUT_SHAPE = 4,
+    FT_NATIVE_INVALIDATION_IO_ABSENT_OUTPUT = 5,
+    FT_NATIVE_INVALIDATION_IO_FRAME_MISMATCH = 6
+} FTNativeInvalidationReason;
+
+// Fault-only, bounded first-claim metadata; not a causal ordering or root-cause certificate.
+// No samples, buffer pointers, or property arrays are retained. IO reasons use the original
+// validation results; absent output means missing data, while a missing/malformed list is shape.
+typedef struct FTNativeInvalidationSnapshot {
+    FTNativeInvalidationSource source;
+    FTNativeInvalidationReason reason;
+    uint32_t observed_device_id;
+    uint32_t expected_device_id;
+    uint32_t property_object_id;
+    uint32_t property_count;
+    uint32_t property_selector;
+    uint32_t property_scope;
+    uint32_t property_element;
+    bool has_property_address; // Distinguishes no address from an address whose fields are zero.
+} FTNativeInvalidationSnapshot;
+
 // Optional NRT diagnostic snapshot. Independent atomics may span adjacent callbacks; this is
 // not a transactional audio/permission certificate. Counters accumulate for the route lifetime.
 // Sample jumps mean abs(delta - previous frame count) > 1, not a rendering failure/underflow.
@@ -192,6 +224,11 @@ FTNativeResult ft_native_route_enable_timing(FTNativeRoute *route, FTNativeError
 // Passive diagnostic read, including archived counters after reader-zero retirement.
 FTNativeResult ft_native_route_timing_snapshot(const FTNativeRoute *route,
                                                FTNativeTimingSnapshot *snapshot);
+// Passive NRT read on the serialized owner lane. Always-on only at callback invalidation;
+// no enable/reset API. NONE before publication (including a claim still being written).
+// Once published, immutable through reader-zero retirement until release; not total causality.
+FTNativeResult ft_native_route_invalidation(const FTNativeRoute *route,
+                                            FTNativeInvalidationSnapshot *snapshot);
 // NRT incremental teardown. Pending is predicate-based; no fixed-delay reclamation.
 FTNativeResult ft_native_route_retire(FTNativeRoute *route, FTNativeError *cleanup_failure);
 // Caller precondition: final caller/queued operation has stopped borrowing the handle;
