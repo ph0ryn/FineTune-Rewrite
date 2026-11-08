@@ -82,6 +82,73 @@ struct NativeRetirementPoolRetryTests {
     failures.continuation.finish()
   }
 
+  @Test(
+    "Mixed retry batches settle independently of later foreign adoption", .timeLimit(.minutes(1)))
+  func mixedBatchesDoNotFollowLaterEntries() async throws {
+    let script = PoolRetirementScript()
+    let pool = NativeRetirementPool(retireAndRelease: script.perform)
+    let first = NativeRoutePointer(value: try #require(OpaquePointer(bitPattern: 0x5000)))
+    let pending = NativeRoutePointer(value: try #require(OpaquePointer(bitPattern: 0x6000)))
+    let foreign = NativeRoutePointer(value: try #require(OpaquePointer(bitPattern: 0x7000)))
+    let owner = UUID()
+    let failures = AsyncStream<Void>.makeStream()
+    let releases = AsyncStream<UInt>.makeStream()
+    script.set([FT_NATIVE_FAILED, FT_NATIVE_OK], for: first)
+    script.set([FT_NATIVE_FAILED, FT_NATIVE_PENDING, FT_NATIVE_OK], for: pending)
+    for pointer in [first, pending] {
+      pool.adopt(
+        pointer, lane: DispatchQueue(label: "fixture.route"), cleanupOwnerID: owner,
+        reportCleanup: { _ in failures.continuation.yield(()) },
+        reportRetired: {
+          script.recordReleased(pointer)
+          releases.continuation.yield(UInt(bitPattern: pointer.value))
+        })
+    }
+    var failed = failures.stream.makeAsyncIterator()
+    _ = await failed.next()
+    _ = await failed.next()
+    let firstGate = script.holdNext(first)
+    let pendingGate = script.holdNext(pending)
+    let firstBatch = Task {
+      await pool.retryFailed(cleanupOwnerID: owner)
+      script.completeBatch()
+    }
+    let secondBatch = Task {
+      await pool.retryFailed(cleanupOwnerID: owner)
+      script.completeBatch()
+    }
+    var firstEntered = firstGate.entered.makeAsyncIterator()
+    var pendingEntered = pendingGate.entered.makeAsyncIterator()
+    _ = await firstEntered.next()
+    _ = await pendingEntered.next()
+    firstGate.release.signal()
+    var released = releases.stream.makeAsyncIterator()
+    #expect(await released.next() == UInt(bitPattern: first.value))
+    #expect(script.completedBatches == 0 && !script.wasReleased(pending))
+    // One selected Entry has gone, but a different factory's new Entry must not become a member.
+    script.set([FT_NATIVE_OK], for: foreign)
+    let foreignGate = script.holdNext(foreign)
+    pool.adopt(
+      foreign, lane: DispatchQueue(label: "fixture.foreign"), cleanupOwnerID: UUID(),
+      reportCleanup: { _ in Issue.record("Unexpected foreign cleanup failure") },
+      reportRetired: {
+        script.recordReleased(foreign)
+        releases.continuation.yield(UInt(bitPattern: foreign.value))
+      })
+    var foreignEntered = foreignGate.entered.makeAsyncIterator()
+    _ = await foreignEntered.next()
+    pendingGate.release.signal()
+    #expect(await released.next() == UInt(bitPattern: pending.value))
+    await firstBatch.value
+    await secondBatch.value
+    #expect(script.completedBatches == 2 && !script.wasReleased(foreign))
+    #expect(script.calls(first) == 2 && script.calls(pending) == 3)
+    foreignGate.release.signal()
+    #expect(await released.next() == UInt(bitPattern: foreign.value))
+    failures.continuation.finish()
+    releases.continuation.finish()
+  }
+
   @Test("An identical repeated failure stays retained for another explicit retry")
   func repeatedFailureDoesNotBecomeSuccess() async throws {
     let script = PoolRetirementScript()
@@ -111,6 +178,35 @@ private final class PoolRetirementScript: @unchecked Sendable {
   private var results: [UInt: [FTNativeResult]] = [:]
   private var callCounts: [UInt: Int] = [:]
   private var released: Set<UInt> = []
+  private struct Hold {
+    let entered: AsyncStream<Void>.Continuation
+    let release: DispatchSemaphore
+  }
+  private var holds: [UInt: Hold] = [:]
+  private var batchCount = 0
+
+  func holdNext(_ pointer: NativeRoutePointer) -> (
+    entered: AsyncStream<Void>, release: DispatchSemaphore
+  ) {
+    let stream = AsyncStream<Void>.makeStream()
+    let release = DispatchSemaphore(value: 0)
+    lock.lock()
+    holds[UInt(bitPattern: pointer.value)] = Hold(entered: stream.continuation, release: release)
+    lock.unlock()
+    return (stream.stream, release)
+  }
+
+  func completeBatch() {
+    lock.lock()
+    batchCount += 1
+    lock.unlock()
+  }
+
+  var completedBatches: Int {
+    lock.lock()
+    defer { lock.unlock() }
+    return batchCount
+  }
 
   func set(_ results: [FTNativeResult], for pointer: NativeRoutePointer) {
     lock.lock()
@@ -120,10 +216,16 @@ private final class PoolRetirementScript: @unchecked Sendable {
 
   func perform(_ pointer: NativeRoutePointer) -> NativeRouteResult {
     lock.lock()
-    defer { lock.unlock() }
     let key = UInt(bitPattern: pointer.value)
     callCounts[key, default: 0] += 1
     let result = results[key]!.removeFirst()
+    let hold = holds.removeValue(forKey: key)
+    lock.unlock()
+    if let hold {
+      hold.entered.yield(())
+      hold.entered.finish()
+      hold.release.wait()  // Only this injected NRT test operation is held, never an audio callback.
+    }
     return NativeRouteResult(
       result: result, snapshot: FTNativeRouteSnapshot(),
       failure: result == FT_NATIVE_FAILED

@@ -20,6 +20,8 @@ struct CaptureUsageTests {
   func missingDescriptionFailsBeforeNative(_ description: String?) async {
     let native = RoutingProbeRuntime()
     let runtime = CaptureUsageRuntime(runtime: native, usageDescription: description)
+    runtime.requestCleanupRetry()
+    #expect(native.cleanupRetryRequests == 1 && native.requests.isEmpty && native.handles.isEmpty)
     do {
       _ = try await runtime.prepare(request)
       Issue.record("Missing main-executable privacy metadata reached the native runtime")
@@ -37,6 +39,8 @@ struct CaptureUsageTests {
     let native = RoutingProbeRuntime()
     let runtime = CaptureUsageRuntime(
       runtime: native, usageDescription: "Record selected app audio.")
+    runtime.requestCleanupRetry()
+    #expect(native.cleanupRetryRequests == 1 && native.requests.isEmpty && native.handles.isEmpty)
     let prepared = try await runtime.prepare(request)
     #expect(native.requests == [request])
     #expect((prepared as AnyObject) === native.handle("A"))

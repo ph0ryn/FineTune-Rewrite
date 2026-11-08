@@ -63,7 +63,9 @@ final class NativeRetirementPool: @unchecked Sendable {
   }
 
   private struct RetryWaiter {
-    let entries: Set<ObjectIdentifier>
+    // ObjectIdentifier is valid only for this lifetime. Keep completed members alive until the
+    // whole batch settles, so a later adoption cannot reuse an old member's address (ABA).
+    let entries: [Entry]
     let continuation: CheckedContinuation<Void, Never>
   }
   private var retryWaiters: [RetryWaiter] = []
@@ -80,7 +82,7 @@ final class NativeRetirementPool: @unchecked Sendable {
         // operation and polling cadence; another explicit request merely joins their settlement.
         for entry in selected.values where entry.failed { entry.failed = false }
         retryWaiters.append(
-          RetryWaiter(entries: Set(selected.keys), continuation: continuation))
+          RetryWaiter(entries: Array(selected.values), continuation: continuation))
         beginMonitoring()
       }
     }
@@ -89,7 +91,7 @@ final class NativeRetirementPool: @unchecked Sendable {
   private func finishRetries() {
     for index in retryWaiters.indices.reversed()
     where retryWaiters[index].entries.allSatisfy({
-      entries[$0] == nil || entries[$0]?.failed == true
+      entries[ObjectIdentifier($0)] == nil || $0.failed
     }) {
       retryWaiters.remove(at: index).continuation.resume()
     }
