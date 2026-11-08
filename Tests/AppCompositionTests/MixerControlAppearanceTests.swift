@@ -189,7 +189,7 @@ struct MixerControlAppearanceTests {
     defer { fixture.window.orderOut(nil) }
     let padding = size.dimensions.contentPadding
     let width = fixture.host.bounds.width
-    try await fixture.click(CGPoint(x: width - padding - 32, y: padding + 8))
+    try await fixture.click(CGPoint(x: width - padding - 56, y: padding + 8))
     try fixture.writeArtifact(fixture.bitmap(), name: "app-edit-grid-\(size)")
     let text = try fixture.recognizedText().compactMap { $0.topCandidates(1).first?.string }
     let columnWidth = (width - 2 * padding - 4) / 2
@@ -246,7 +246,7 @@ struct MixerControlAppearanceTests {
     #expect(fixture.source.lastAppID == "app-Hidden" && fixture.source.lastBool == false)
   }
 
-  @Test("Icon tabs, edit, settings and footer Quit retain their actual pointer actions")
+  @Test("Icon tabs, edit, retry, settings and footer Quit retain their actual pointer actions")
   func chromeActions() async throws {
     let fixture = MixerControlFixture(size: .compact, appearance: .light)
     try await fixture.showForPointerInput()
@@ -265,14 +265,18 @@ struct MixerControlAppearanceTests {
     try await fixture.click(
       CGPoint(x: output.minX - DesignTokens.Spacing.sm - 35, y: output.midY))
     #expect(fixture.source.lastDeviceScope == .output)
-    try await fixture.click(CGPoint(x: width - padding - 32, y: padding + 8))
+    try await fixture.click(CGPoint(x: width - padding - 56, y: padding + 8))
     #expect(fixture.editableFields.contains { $0.stringValue == "1" })
-    try await fixture.click(CGPoint(x: width - padding - 32, y: padding + 8))
+    try await fixture.click(CGPoint(x: width - padding - 56, y: padding + 8))
     #expect(!fixture.editableFields.contains { $0.stringValue == "1" })
+    try await fixture.click(CGPoint(x: width - padding - 32, y: padding + 8))
     try await fixture.click(CGPoint(x: width - padding - 8, y: padding + 8))
     try await fixture.click(
       CGPoint(x: width - padding - 30, y: fixture.host.bounds.height - padding - 10))
-    #expect(fixture.source.events == ["device-volume", "device-volume", "settings", "quit"])
+    #expect(
+      fixture.source.events == [
+        "device-volume", "device-volume", "capture-request", "settings", "quit",
+      ])
   }
 
   @Test("The header uses icon controls rather than raw Edit text or a Devices picker label")

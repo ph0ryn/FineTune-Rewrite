@@ -68,9 +68,8 @@ struct PopupLayoutTests {
         message: "Capture needs an explicit retry.", action: action)
       let fixture = PopupLayoutFixture(source: source)
       let text = try recognizedText(in: bitmapImage(in: fixture.host))
-      let retry = try #require(text.first { $0.text.contains("Retry Audio") })
-      #expect(retry.bounds.width > 0 && retry.bounds.height > 0)
-      #expect(CGRect(x: 0, y: 0, width: 1, height: 1).contains(retry.bounds))
+      // Retry lives in the header as an accessible icon, not a duplicated inline text button.
+      #expect(!text.contains { $0.text.contains("Retry Audio") })
       if action == .openSettings {
         let settings = try #require(text.first { $0.text.contains("Open System Settings") })
         #expect(settings.bounds.width > 0 && settings.bounds.height > 0)
@@ -208,6 +207,38 @@ struct PopupLayoutTests {
 @Suite("Production popup native lifecycle", .serialized)
 @MainActor
 struct PopupNativeLifecycleTests {
+  @Test(
+    "Retry Audio is always an icon beside reorder and invokes only explicit capture retry",
+    arguments: MenuBarPopupSize.allCases)
+  func headerRetryIsAlwaysAvailable(size: MenuBarPopupSize) async throws {
+    let source = MixerTestSource()
+    source.snapshot.settings.popupSize = size
+    source.snapshot.captureNotice = nil
+    source.snapshot.error = nil
+    let fixture = try ShownPopupFixture(source: source)
+    defer { fixture.close() }
+    fixture.show()
+    try await fixture.settle()
+    let host = fixture.controller.view
+    let padding = source.snapshot.settings.popupSize.dimensions.contentPadding
+    let target = DesignTokens.Dimensions.minTouchTarget
+    let step = target + DesignTokens.Spacing.sm
+    let top = padding + target / 2
+    let retryPoint = CGPoint(
+      x: host.bounds.maxX - padding - target / 2 - step,
+      y: host.isFlipped ? top : host.bounds.maxY - top)
+    #expect(source.events.isEmpty)
+    try fixture.sendClick(retryPoint, in: host)
+    #expect(source.events == ["capture-request"])
+    // Reordering must not hide or repurpose the neighboring recovery control.
+    try fixture.sendClick(CGPoint(x: retryPoint.x - step, y: retryPoint.y), in: host)
+    try await fixture.settle()
+    let editingRetryPoint = CGPoint(
+      x: retryPoint.x, y: host.isFlipped ? top : host.bounds.maxY - top)
+    try fixture.sendClick(editingRetryPoint, in: host)
+    #expect(source.events == ["capture-request", "capture-request"])
+  }
+
   @Test(
     "A shown production popup naturally follows cold, warm, subtitle, shrink and reopen content")
   func naturalShownContentChanges() async throws {

@@ -13,6 +13,7 @@ struct MixerHeader: View {
   let outputName: String
   let inputName: String
   let edit: () -> Void
+  let retryAudio: () -> Void
   let settings: () -> Void
 
   var body: some View {
@@ -34,6 +35,11 @@ struct MixerHeader: View {
       .font(.system(size: 12, weight: isEditing ? .bold : .regular))
       .help(isEditing ? "Done reordering" : "Reorder devices")
       .modifier(HeaderIcon())
+
+      Button("Retry Audio", systemImage: "arrow.clockwise", action: retryAudio)
+        .font(.system(size: 12))
+        .help("Retry Audio")
+        .modifier(HeaderIcon())
 
       Button("Settings", systemImage: "gearshape.fill", action: settings)
         .font(.system(size: 12))
