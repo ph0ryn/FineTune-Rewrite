@@ -370,10 +370,12 @@ struct MixerView: View {
   }
 
   private func selectionBackground(_ row: PopupKeyboardNavModel.RowID) -> some View {
-    RoundedRectangle(cornerRadius: 10)
+    RoundedRectangle(cornerRadius: DesignTokens.Dimensions.rowRadius)
       .fill(
         keyboard.isEngaged && keyboard.selectedRow == row ? Color.accentColor.opacity(0.12) : .clear
       )
+      // Give the highlight breathing room without shifting the shared device control columns.
+      .padding(.horizontal, -DesignTokens.Spacing.sm)
   }
 
   private func syncNavigation() {

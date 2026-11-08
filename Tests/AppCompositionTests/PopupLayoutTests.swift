@@ -473,6 +473,62 @@ struct PopupNativeLifecycleTests {
       phase: "after-app-route-picker", markers: ["Quit", "Player 4", "APPS"])
   }
 
+  @Test(
+    "Keyboard selection surrounds the device controls with equal horizontal breathing room",
+    arguments: MenuBarPopupSize.allCases)
+  func deviceSelectionHorizontalInsets(size: MenuBarPopupSize) async throws {
+    let source = MixerTestSource()
+    source.snapshot.settings.popupSize = size
+    source.snapshot.settings.appearance = .light
+    let fixture = try ShownPopupFixture(source: source)
+    defer { fixture.close() }
+    fixture.show()
+    let hosting = try fixture.hostingController()
+    let host = hosting.view
+    let window = try #require(host.window)
+    window.makeKey()
+    try #require(window.makeFirstResponder(host))
+    try await fixture.settle()
+    func percentageFrame() throws -> CGRect {
+      let field = try #require(
+        descendants(of: host).compactMap { $0 as? NSTextField }.first { $0.isEditable })
+      return host.convert(field.bounds, from: field)
+    }
+    let beforeFrame = try percentageFrame()
+    let before = NSBitmapImageRep(cgImage: try bitmapImage(in: host))
+    try fixture.sendKey("\u{f701}", keyCode: 125)
+    try await fixture.settle()
+    let afterFrame = try percentageFrame()
+    let after = NSBitmapImageRep(cgImage: try bitmapImage(in: host))
+    #expect(beforeFrame == afterFrame, "Highlighting must not move the device controls.")
+    let padding = size.dimensions.contentPadding
+    let outset = DesignTokens.Spacing.sm
+    func pixelChange(at x: CGFloat) throws -> CGFloat {
+      let pixelX = Int(x * CGFloat(after.pixelsWide) / host.bounds.width)
+      let top = host.isFlipped ? afterFrame.midY : host.bounds.height - afterFrame.midY
+      let pixelY = Int(top * CGFloat(after.pixelsHigh) / host.bounds.height)
+      let old = try #require(before.colorAt(x: pixelX, y: pixelY)?.usingColorSpace(.sRGB))
+      let new = try #require(after.colorAt(x: pixelX, y: pixelY)?.usingColorSpace(.sRGB))
+      return abs(new.redComponent - old.redComponent)
+        + abs(new.greenComponent - old.greenComponent)
+        + abs(new.blueComponent - old.blueComponent)
+        + abs(new.alphaComponent - old.alphaComponent)
+    }
+    // Probe the empty margins, not the badge, text or controls inside the selected row.
+    for x in [padding - outset / 2, host.bounds.width - padding + outset / 2] {
+      #expect(try pixelChange(at: x) > 0.05, "Selection must extend beyond both content edges.")
+    }
+    for x in [padding - outset - 2, host.bounds.width - padding + outset + 2] {
+      #expect(try pixelChange(at: x) < 0.01, "Selection must retain the outer popup margins.")
+    }
+    if let directory = ProcessInfo.processInfo.environment["FINETUNE_POPUP_LAYOUT_EVIDENCE"] {
+      try writePNG(
+        of: host,
+        to: URL(fileURLWithPath: directory).appendingPathComponent("device-selection-\(size).png"))
+    }
+    #expect(source.events.isEmpty && source.profileSource.events.isEmpty)
+  }
+
   @Test("Expanding EQ through the shown popup's own key events naturally resizes its actual window")
   func naturalExpandedEqualizer() async throws {
     let source = MixerTestSource()
