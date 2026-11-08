@@ -207,8 +207,8 @@ struct PopupLayoutTests {
 @Suite("Production popup native lifecycle", .serialized)
 @MainActor
 struct PopupNativeLifecycleTests {
-  @Test("Current app warnings stay visible and update while reordering devices")
-  func editingKeepsCurrentWarningsVisible() async throws {
+  @Test("App warnings stay out of reorder mode and return on exit without losing updates")
+  func editingHidesAppWarningsUntilExit() async throws {
     let source = MixerTestSource()
     source.snapshot.settings.appearance = .light
     source.snapshot.apps[0].isActive = true
@@ -233,9 +233,16 @@ struct PopupNativeLifecycleTests {
         x: host.bounds.maxX - padding - target / 2 - 2 * (target + DesignTokens.Spacing.sm),
         y: host.isFlipped ? top : host.bounds.maxY - top), in: host)
     try await fixture.settle()
-    #expect(try text().contains("Current audio route"))
+    #expect(try !text().contains("Current audio route"))
     #expect(try text().contains("Unable to save settings"))
     source.snapshot.apps[0].routeStatus = "Current audio cleanup failed"
+    try await fixture.settle()
+    #expect(try !text().contains("Current audio cleanup"))
+    #expect(try !text().contains("Current audio route"))
+    try fixture.sendClick(
+      CGPoint(
+        x: host.bounds.maxX - padding - target / 2 - 2 * (target + DesignTokens.Spacing.sm),
+        y: host.isFlipped ? top : host.bounds.maxY - top), in: host)
     try await fixture.settle()
     #expect(try text().contains("Current audio cleanup"))
     #expect(try !text().contains("Current audio route"))

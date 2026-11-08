@@ -122,7 +122,7 @@ struct MixerView: View {
         }
         .controlSize(.small).foregroundStyle(.orange)
       }
-      if let error = snapshot.errorMessage(isEditing: isEditing) {
+      if let error = snapshot.error {
         Label(error, systemImage: "exclamationmark.triangle.fill")
           .font(DesignTokens.Typography.rowDescription).foregroundStyle(.orange)
       }
