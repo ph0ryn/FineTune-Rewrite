@@ -39,11 +39,15 @@ final class RootPresentation {
 
   func mixerSnapshot() -> MixerSnapshot {
     _ = revision
+    let apps = applications
+    let visibleAppIDs = Set(apps.filter { !$0.isIgnored && ($0.isActive || $0.isPinned) }.map(\.id))
     let notice = captureNotice
     return MixerSnapshot(
-      apps: applications, outputDevices: devices.outputDevices, inputDevices: devices.inputDevices,
+      apps: apps, outputDevices: devices.outputDevices, inputDevices: devices.inputDevices,
       settings: graph.settings.appSettings, userPresets: graph.settings.getUserPresets(),
-      error: error(excluding: notice?.message), backend: devices.backend, captureNotice: notice)
+      error: error(
+        excluding: notice?.message, excludingAppIDs: visibleAppIDs, includePermissionFailure: false),
+      backend: devices.backend, captureNotice: notice)
   }
 
   func settingsSnapshot() -> SettingsSnapshot {
@@ -129,18 +133,40 @@ final class RootPresentation {
   }
 
   private func routeStatus(for identifier: String) -> String? {
+    let messages = routeMessages(for: identifier, includePermissionFailure: false)
+    return messages.isEmpty ? nil : messages.joined(separator: "\n")
+  }
+
+  private func isRouteRequested(for identifier: String) -> Bool {
+    graph.controller.captureIntent != .none
+      && graph.controller.applications.contains { $0.identifier == identifier }
+      && !graph.settings.isIgnored(identifier)
+  }
+
+  private func routeMessages(for identifier: String, includePermissionFailure: Bool = true)
+    -> [String]
+  {
     let controller = graph.controller
     let observations = controller.routeObservations.values.filter {
       $0.key.appIdentifier == identifier
     }
-    let generation = observations.map(\.key.generation).max()
-    let hasCurrentFailure = controller.routeFailures[identifier] != nil
-    var messages = [currentFailureMessage(for: identifier)].compactMap { $0 }
-    // A newer prepared owner is not recovery. Keep the current fault's cleanup context until commit.
-    messages += observations.filter { hasCurrentFailure || $0.key.generation == generation }
+    let permissionIsShared =
+      controller.knownPermissionDenied
+      && controller.routeFailures[identifier]?.kind == .permissionDenied
+    var messages =
+      includePermissionFailure || !permissionIsShared
+      ? [currentFailureMessage(for: identifier)].compactMap { $0 } : []
+    // Only an actual retirement acknowledgement resolves cleanup debt. A newer prepared or
+    // committed route cannot release another owner's resources; retired diagnostics remain history.
+    messages += observations.filter { $0.phase != .retired }
       .sorted { ($0.key.deviceUID, $0.key.generation) < ($1.key.deviceUID, $1.key.generation) }
       .compactMap { $0.cleanupFailure.map { failureMessage($0, isCleanup: true) } }
-    if !hasCurrentFailure,
+    messages += controller.unresolvedRetirementFailures
+      .filter { $0.key.appIdentifier == identifier }
+      .sorted { ($0.key.deviceUID, $0.key.generation) < ($1.key.deviceUID, $1.key.generation) }
+      .map { failureMessage($0.value, isCleanup: true) }
+    let generation = observations.map(\.key.generation).max()
+    if isRouteRequested(for: identifier), messages.isEmpty,
       observations.contains(where: {
         $0.key.generation == generation && $0.phase == .failed
           && $0.failure == nil && $0.cleanupFailure == nil
@@ -149,47 +175,51 @@ final class RootPresentation {
       messages.append("Audio routing failed.")
     }
     var included: Set<String> = []
-    messages = messages.filter { included.insert($0).inserted }
-    return messages.isEmpty ? nil : messages.joined(separator: "\n")
+    return messages.filter { included.insert($0).inserted }
   }
 
   private func currentFailureMessage(for identifier: String) -> String? {
     let controller = graph.controller
-    guard let failure = controller.routeFailures[identifier] else { return nil }
+    guard isRouteRequested(for: identifier), let failure = controller.routeFailures[identifier]
+    else { return nil }
     let observations = controller.routeObservations.values.filter {
       $0.key.appIdentifier == identifier
     }
     let cleanupOnly =
-      !observations.contains { $0.failure == failure }
-      && observations.contains { $0.cleanupFailure == failure }
+      controller.unresolvedRetirementFailures.contains {
+        $0.key.appIdentifier == identifier && $0.value == failure
+      }
+      || (!observations.contains { $0.failure == failure }
+        && observations.contains { $0.cleanupFailure == failure })
     return failureMessage(failure, isCleanup: cleanupOnly)
   }
 
-  private func error(excluding notice: String?) -> String? {
+  private func error(
+    excluding notice: String?, excludingAppIDs: Set<String> = [],
+    includePermissionFailure: Bool = true
+  ) -> String? {
     let controller = graph.controller
     var messages: [String?] = [
       controller.commandFailure?.message, controller.applicationObservationFailure?.message,
       controller.outputObservationFailure?.message,
-    ]
-    messages += controller.routeFailures.keys.sorted().map { currentFailureMessage(for: $0) }
-    messages += [
-      native.lastCleanupFailure?.failure.map { failureMessage($0) },
-      native.lastCleanupFailure?.cleanupFailure.map { failureMessage($0, isCleanup: true) },
       graph.settings.lastLoadError, graph.settings.lastSaveError,
       graph.settings.lastLaunchAtLoginError, devices.lastError, lifecycle.lastError,
       applicationActivationFailure,
     ]
-    let routes = controller.routeObservations.values.sorted {
+    let appIDs = Set(controller.routeFailures.keys)
+      .union(controller.routeObservations.keys.map(\.appIdentifier))
+      .union(controller.unresolvedRetirementFailures.keys.map(\.appIdentifier))
+    // Visible rows own app-scoped warnings. Shared failures and debt without a visible row stay here.
+    messages += appIDs.subtracting(excludingAppIDs).sorted().flatMap {
+      routeMessages(for: $0, includePermissionFailure: includePermissionFailure)
+    }
+    messages += native.unresolvedCleanupFailures.values.sorted {
       let lhs = $0.key
       let rhs = $1.key
       if lhs.appIdentifier != rhs.appIdentifier { return lhs.appIdentifier < rhs.appIdentifier }
       if lhs.deviceUID != rhs.deviceUID { return lhs.deviceUID < rhs.deviceUID }
       return lhs.generation < rhs.generation
-    }
-    // Primary history is not current failure state; genuine cleanup diagnostics remain distinct.
-    messages += routes.compactMap { route in
-      route.cleanupFailure.map { failureMessage($0, isCleanup: true) }
-    }
+    }.compactMap { $0.cleanupFailure.map { failureMessage($0, isCleanup: true) } }
     var included: Set<String> = []
     let visible = messages.compactMap { $0 }.filter {
       $0 != notice && included.insert($0).inserted
@@ -212,16 +242,19 @@ final class RootPresentation {
           "Live audio is unavailable in this executable. Use the built FineTune Rewrite app.",
         action: nil)
     }
-    if graph.controller.knownPermissionDenied {
+    if graph.controller.captureIntent != .none, graph.controller.knownPermissionDenied {
       return MixerCaptureNotice(
         message:
           "Audio capture permission was denied. Review FineTune’s access in System Settings.",
         action: .openSettings)
     }
-    if let failure = graph.controller.captureRetryFailure {
-      return MixerCaptureNotice(message: failureMessage(failure), action: .retryCapture)
-    }
-    if let failure = graph.controller.lastFailure,
+    // Per-app acquisition failures use the same row/global ownership as other route faults.
+    // Retry is always available in the header; a second acquisition banner adds no recovery action.
+    let controller = graph.controller
+    let sharedFailure =
+      controller.commandFailure ?? controller.applicationObservationFailure
+      ?? controller.outputObservationFailure
+    if let failure = sharedFailure,
       failure.kind == .unavailable || failure.kind == .unsupported
     {
       return MixerCaptureNotice(message: failure.message, action: nil)

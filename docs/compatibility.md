@@ -112,7 +112,15 @@ Controlが終了を開始した後、処理中のstart/commitが遅れて記録�
 一方、終了を指示していない現行ownerの`cancelled`は失敗として扱います。
 診断はアプリ単位で保持し、別アプリの取得成功、旧ownerの回収開始、新世代のprepareだけでは消しません。
 そのアプリ自身のcommit後、再利用したownerを含む要求経路すべてが健全な場合に解除します。複数出力の一方の成功だけで、残す経路の障害を消しません。
-Mixer・Settings・アプリ行もこの現行診断を参照し、履歴に残したprimary failureを現在の障害として再表示しません。cleanup診断とnative codeは区別して保持します。
+Mixer・Settingsは、診断履歴と現在の警告を分けます。処理を希望している現在のアプリの失敗は、そのアプリ自身が復旧するまで表示します。
+停止・アプリの終了・Ignore後は過去の経路失敗を警告しませんが、Controlの診断履歴とnative codeは保持します。
+Mixerで表示中のアプリに属する失敗は行だけに出し、上部へ重複させません。並べ替え中は行内の警告を上部へ移し、アプリ名を添えます。
+権限拒否は共通の案内で示し、保存・機器操作などの独立した失敗は隠しません。
+
+cleanupの警告は世代の新旧ではなく、資源をまだ所有しているかで判断します。
+Controlの未完了回収と、prepared handleを返す前に失敗したnative経路の回収は、停止後やアプリ行がない場合も表示します。
+Controlのretired ACK、またはnative poolの該当ownerのrelease成功が確認できた警告だけを外します。別ownerの成功や新世代のprepareでは解除しません。
+nativeの最新診断は履歴として残し、未解決のcleanupは経路ごとに追跡します。この集合が空でも、エラーのないPENDING経路を含むpool全体のdrain完了は意味しません。
 [経路の回帰テスト](<../Tests/AppCompositionTests/RoutingTests.swift>)で、default選択による再試行範囲、即時/PENDING回収、
 遅延start/commit/updateとの競合、別アプリ成功時の障害表示と自身の復帰後の解除、
 既知のbinding failure・旧sessionの拒否からの復帰と、新しい回収エラーを隠さないことを確認します。

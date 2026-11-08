@@ -69,6 +69,20 @@ struct MixerSnapshot {
   var error: String?
   var backend: DeviceSettingsPresentation
   var captureNotice: MixerCaptureNotice?
+
+  func errorMessage(isEditing: Bool) -> String? {
+    var messages = [error].compactMap { $0 }
+    // Reordering hides normal row status text. Keep those warnings visible at the top,
+    // with app names so their scope is not lost when they move out of the rows.
+    if isEditing {
+      messages += apps.filter { !$0.isIgnored && ($0.isActive || $0.isPinned) }.compactMap { app in
+        app.routeStatus.map { "\(app.name): \($0)" }
+      }
+    }
+    var included: Set<String> = []
+    let visible = messages.filter { included.insert($0).inserted }
+    return visible.isEmpty ? nil : visible.joined(separator: "\n")
+  }
 }
 
 /// Every effect must be supplied by the composition root. No callback has a no-op default.

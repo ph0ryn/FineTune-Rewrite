@@ -261,7 +261,7 @@ final class ProductionRoot {
     }
     ddc.onChange = ddcChanged
     deviceControl.onChange = { [weak presentation] in presentation?.invalidate() }
-    native.onCleanupFailure = { [weak presentation] _ in presentation?.invalidate() }
+    native.onCleanupChange = { [weak presentation] in presentation?.invalidate() }
     devices.start()
     output.start()
     deviceControl.start()

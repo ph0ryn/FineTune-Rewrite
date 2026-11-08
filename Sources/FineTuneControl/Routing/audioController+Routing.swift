@@ -421,6 +421,7 @@ extension AudioController {
     if phase == .retired {
       owned[incoming.key] = nil
       retirementTasks[incoming.key] = nil
+      unresolvedRetirementFailures[incoming.key] = nil
       if active[incoming.key.appIdentifier]?[incoming.key.deviceUID] == incoming.key {
         active[incoming.key.appIdentifier]?[incoming.key.deviceUID] = nil
       }
@@ -498,7 +499,11 @@ extension AudioController {
           throw error
         }
       } catch {
-        self.routeFailures[record.key.appIdentifier] = self.failure(error, stage: "retire")
+        let failure = self.failure(error, stage: "retire")
+        self.routeFailures[record.key.appIdentifier] = failure
+        if self.owned[record.key] != nil {
+          self.unresolvedRetirementFailures[record.key] = failure
+        }
         throw error
       }
     }

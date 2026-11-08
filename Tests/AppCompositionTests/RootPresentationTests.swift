@@ -2,12 +2,12 @@ import AppKit
 import AudioToolbox
 import FineTuneControl
 import FineTuneDomain
-import FineTunePlatform
 import Foundation
 import Observation
 import Testing
 
 @testable import FineTune
+@testable import FineTunePlatform
 
 @Suite("Actual Root presentation without live services")
 @MainActor
@@ -308,7 +308,7 @@ struct RootPresentationTests {
   }
 
   @Test(
-    "A failed capture exposes an explicit retry without snapshot-driven attempts",
+    "A failed capture is shown once for its current app without snapshot-driven retries",
     arguments: [false, true])
   func captureFailureOffersExplicitRetry(readTapFailure: Bool) async throws {
     let failure = AudioRouteFailure(
@@ -336,8 +336,8 @@ struct RootPresentationTests {
     for _ in 0..<3 {
       let snapshot = presentation.mixerSnapshot()
       let expected = "\(failure.message) (stage: \(failure.stage), native code: -7201)"
-      #expect(snapshot.captureNotice?.message == expected)
-      #expect(snapshot.captureNotice?.action == .retryCapture)
+      #expect(snapshot.captureNotice == nil)
+      #expect(snapshot.apps.first?.routeStatus == expected)
       #expect(snapshot.error == nil)
       #expect(presentation.settingsSnapshot().error == expected)
     }
@@ -347,6 +347,21 @@ struct RootPresentationTests {
     await controller.waitForCurrentWork()
     #expect(fixture.effects.nativeResolutions == 2)
     #expect(!controller.knownPermissionDenied)
+    // A failed acquisition has no native handle to retire. Disappearance and explicit stop
+    // must not keep an old capture error/retry notice alive, even in a pinned inactive row.
+    controller.perform(.setPinned(identifier: "unit.live", pinned: true))
+    fixture.processes.apps = []
+    fixture.graph.engine.ingestObservations()
+    let inactive = try #require(presentation.mixerSnapshot().apps.first)
+    #expect(inactive.isPinned && !inactive.isActive && inactive.routeStatus == nil)
+    #expect(presentation.mixerSnapshot().captureNotice == nil)
+    #expect(presentation.mixerSnapshot().error == nil)
+    #expect(presentation.settingsSnapshot().error == nil)
+    #expect(controller.routeFailure == failure)
+    controller.perform(.stopCapture)
+    #expect(presentation.mixerSnapshot().captureNotice?.action == .requestPermission)
+    #expect(presentation.mixerSnapshot().error == nil)
+    #expect(presentation.settingsSnapshot().error == nil)
     #expect(await fixture.transport.calls == 0)
     await controller.shutdown()
   }
@@ -461,7 +476,7 @@ struct RootPresentationTests {
     let presentation = fixture.presentation()
     let halBaseline = fixture.hal.calls
     let failedSnapshot = presentation.mixerSnapshot()
-    #expect(failedSnapshot.error == expected)
+    #expect(failedSnapshot.error == nil && failedSnapshot.captureNotice == nil)
     #expect(failedSnapshot.apps.first?.routeStatus == expected)
     #expect(presentation.settingsSnapshot().error == expected)
     runtime.holdArmed = ["speaker"]
@@ -483,6 +498,164 @@ struct RootPresentationTests {
     await fixture.expectPassivePorts(halBaseline: halBaseline)
     await controller.shutdown()
     #expect(recovered.retired && healthy.retired)
+  }
+
+  @Test("Retired cleanup history stops warning only after the app actually recovers")
+  func recoveredCleanupHistoryIsNotACurrentWarning() async throws {
+    let runtime = RoutingProbeRuntime()
+    let fixture = try RootPresentationFixture(runtime: runtime)
+    defer { fixture.cleanUp() }
+    fixture.processes.apps = [fixture.app(id: 101, uid: "unit.player", name: "Player")]
+    fixture.graph.engine.ingestObservations()
+    let controller = fixture.graph.controller
+    controller.observeOutputs(
+      [
+        AudioOutputDescriptor(
+          uid: "speaker", bindingRevision: 1, supportsAutoEQ: false,
+          processingGain: 1, volume: 0.5, isMuted: false)
+      ], defaultUID: "speaker")
+    controller.perform(.requestCaptureStart)
+    await controller.waitForCurrentWork()
+    let old = try #require(runtime.handle("speaker"))
+    let cleanup = AudioRouteFailure(
+      stage: "stop", code: 560_227_702, message: "Old audio cleanup failed")
+    old.onObservation?(AudioRouteObservation(key: old.key, phase: .failed, cleanupFailure: cleanup))
+    old.finishRetirement(cleanupFailure: cleanup)
+    let presentation = fixture.presentation()
+    #expect(presentation.mixerSnapshot().apps.first?.routeStatus != nil)
+    #expect(presentation.settingsSnapshot().error != nil)
+    controller.perform(.requestCaptureStart)
+    await controller.waitForCurrentWork()
+    let recovered = try #require(runtime.handle("speaker"))
+    #expect(recovered !== old && recovered.rendering)
+    #expect(controller.routeFailures["unit.player"] == nil)
+    #expect(controller.routeObservations[old.key]?.phase == .retired)
+    #expect(controller.routeObservations[old.key]?.cleanupFailure == cleanup)
+    let snapshot = presentation.mixerSnapshot()
+    #expect(snapshot.captureNotice == nil && snapshot.error == nil)
+    #expect(snapshot.apps.first?.routeStatus == nil)
+    #expect(presentation.settingsSnapshot().error == nil)
+    // An unrelated later fault must not resurrect the old cleanup history.
+    let later = AudioRouteFailure(
+      stage: "process", code: -7202, message: "Current processing failed")
+    recovered.onObservation?(
+      AudioRouteObservation(key: recovered.key, phase: .failed, failure: later))
+    let expected = "\(later.message) (stage: process, native code: -7202)"
+    #expect(presentation.mixerSnapshot().apps.first?.routeStatus == expected)
+    #expect(presentation.mixerSnapshot().error == nil)
+    #expect(presentation.settingsSnapshot().error == expected)
+    let baseline = fixture.hal.calls
+    await fixture.expectPassivePorts(halBaseline: baseline)
+    await controller.shutdown()
+  }
+
+  @Test(
+    "Native cleanup warnings follow matching release, not the latest diagnostic or other recovery")
+  func nativeCleanupWarningsFollowUnresolvedOwners() async throws {
+    let fixture = try RootPresentationFixture()
+    defer { fixture.cleanUp() }
+    let first = AudioRouteKey(appIdentifier: "first.app", deviceUID: "speaker", generation: 1)
+    let second = AudioRouteKey(appIdentifier: "second.app", deviceUID: "speaker", generation: 2)
+    let firstFailure = AudioRouteFailure(stage: "stop", code: 11, message: "First cleanup failed")
+    let secondFailure = AudioRouteFailure(
+      stage: "destroyTap", code: 22, message: "Second cleanup failed")
+    fixture.native.recordCleanup(first, failure: firstFailure)
+    fixture.native.recordCleanup(second, failure: secondFailure)
+    let presentation = fixture.presentation()
+    for _ in 0..<2 {
+      let snapshot = presentation.mixerSnapshot()
+      #expect(snapshot.error?.contains(firstFailure.message) == true)
+      #expect(snapshot.error?.contains(secondFailure.message) == true)
+      #expect(presentation.settingsSnapshot().error == snapshot.error)
+    }
+    fixture.native.recordRetired(second)
+    let remaining = "First cleanup failed (cleanup stage: stop, native code: 11)"
+    #expect(presentation.mixerSnapshot().error == remaining)
+    #expect(presentation.settingsSnapshot().error == remaining)
+    #expect(fixture.native.lastCleanupFailure?.key == second)
+    fixture.native.recordRetired(
+      AudioRouteKey(appIdentifier: "healthy.app", deviceUID: "speaker", generation: 3))
+    #expect(presentation.mixerSnapshot().error == remaining)
+    fixture.native.recordRetired(first)
+    #expect(presentation.mixerSnapshot().error == nil)
+    #expect(presentation.settingsSnapshot().error == nil)
+    #expect(fixture.native.lastCleanupFailure?.cleanupFailure == secondFailure)
+    await fixture.expectPassivePorts()
+  }
+
+  @Test("Stopping capture hides past route faults after retirement without deleting history")
+  func stoppedRouteHistoryIsNotACurrentWarning() async throws {
+    let runtime = RoutingProbeRuntime()
+    let fixture = try RootPresentationFixture(runtime: runtime)
+    defer { fixture.cleanUp() }
+    fixture.processes.apps = [fixture.app(id: 101, uid: "unit.player", name: "Player")]
+    fixture.graph.engine.ingestObservations()
+    let controller = fixture.graph.controller
+    controller.observeOutputs(
+      [
+        AudioOutputDescriptor(
+          uid: "speaker", bindingRevision: 1, supportsAutoEQ: false,
+          processingGain: 1, volume: 0.5, isMuted: false)
+      ], defaultUID: "speaker")
+    controller.perform(.requestCaptureStart)
+    await controller.waitForCurrentWork()
+    let route = try #require(runtime.handle("speaker"))
+    let failure = AudioRouteFailure(stage: "process", code: -7201, message: "Old rendering failed")
+    route.onObservation?(AudioRouteObservation(key: route.key, phase: .failed, failure: failure))
+    controller.perform(.stopCapture)
+    await controller.shutdown()
+    #expect(route.retired && !route.rendering)
+    #expect(controller.routeFailures["unit.player"] == failure)
+    #expect(controller.routeObservations[route.key]?.failure == failure)
+    let presentation = fixture.presentation()
+    let snapshot = presentation.mixerSnapshot()
+    #expect(snapshot.captureNotice?.action == .requestPermission)
+    #expect(snapshot.error == nil && snapshot.apps.first?.routeStatus == nil)
+    #expect(presentation.settingsSnapshot().error == nil)
+    await fixture.expectPassivePorts(halBaseline: fixture.hal.calls)
+  }
+
+  @Test("Stopping capture must not hide unretired cleanup debt", arguments: [false, true])
+  func stoppedCleanupDebtStillWarns(cleanupChannel: Bool) async throws {
+    let runtime = RoutingProbeRuntime()
+    let fixture = try RootPresentationFixture(runtime: runtime)
+    defer { fixture.cleanUp() }
+    fixture.processes.apps = [fixture.app(id: 101, uid: "unit.player", name: "Player")]
+    fixture.graph.engine.ingestObservations()
+    let controller = fixture.graph.controller
+    controller.observeOutputs(
+      [
+        AudioOutputDescriptor(
+          uid: "speaker", bindingRevision: 1, supportsAutoEQ: false,
+          processingGain: 1, volume: 0.5, isMuted: false)
+      ], defaultUID: "speaker")
+    controller.perform(.requestCaptureStart)
+    await controller.waitForCurrentWork()
+    let route = try #require(runtime.handle("speaker"))
+    let cleanup = AudioRouteFailure(stage: "stop", code: 560_227_702, message: "Cleanup is blocked")
+    runtime.holdRetirement = ["speaker"]
+    runtime.retirementCallbackFailure = cleanup
+    runtime.retirementCallbackUsesCleanup = cleanupChannel
+    controller.perform(.stopCapture)
+    await controller.shutdown()
+    #expect(!route.retired && controller.unresolvedRetirementFailures[route.key] == cleanup)
+    let presentation = fixture.presentation()
+    #expect(presentation.mixerSnapshot().apps.first?.routeStatus?.contains(cleanup.message) == true)
+    #expect(presentation.mixerSnapshot().error == nil)
+    #expect(presentation.settingsSnapshot().error?.contains(cleanup.message) == true)
+    // Ignoring the app hides its row, not its unresolved audio resources.
+    controller.perform(.setIgnored(identifier: "unit.player", ignored: true))
+    #expect(presentation.mixerSnapshot().apps.first?.isIgnored == true)
+    #expect(presentation.mixerSnapshot().error?.contains(cleanup.message) == true)
+    route.finishRetirement(
+      failure: cleanupChannel ? nil : cleanup, cleanupFailure: cleanupChannel ? cleanup : nil)
+    #expect(controller.unresolvedRetirementFailures[route.key] == nil)
+    let history = try #require(controller.routeObservations[route.key])
+    #expect((cleanupChannel ? history.cleanupFailure : history.failure) == cleanup)
+    #expect(presentation.mixerSnapshot().apps.first?.routeStatus == nil)
+    #expect(presentation.mixerSnapshot().error == nil)
+    #expect(presentation.settingsSnapshot().error == nil)
+    await fixture.expectPassivePorts(halBaseline: fixture.hal.calls)
   }
 
   @Test(
@@ -530,11 +703,11 @@ struct RootPresentationTests {
       let snapshot = presentation.mixerSnapshot()
       let visible = [snapshot.captureNotice?.message, snapshot.error].compactMap { $0 }
         .joined(separator: "\n")
-      #expect(visible == expected)
+      #expect(visible.isEmpty)
       #expect(snapshot.apps.first?.routeStatus == expected)
       #expect(presentation.settingsSnapshot().error == expected)
-      #expect(!visible.contains("OSStatus"))
-      if code == nil { #expect(!visible.contains("native code")) }
+      #expect(!expected.contains("OSStatus"))
+      if code == nil { #expect(!expected.contains("native code")) }
     }
     #expect(fixture.effects.commands == commands)
     runtime.holdArmed = ["headphones"]
@@ -544,7 +717,7 @@ struct RootPresentationTests {
     #expect(candidate.commits.isEmpty && route.retirementAttempts == 0)
     #expect(controller.lastFailure == failure)
     let pending = presentation.mixerSnapshot()
-    #expect(pending.error == expected)
+    #expect(pending.error == nil && pending.captureNotice == nil)
     #expect(pending.apps.first?.routeStatus == expected)
     #expect(presentation.settingsSnapshot().error == expected)
     await fixture.expectPassivePorts(halBaseline: halBaseline)
@@ -679,7 +852,10 @@ struct RootPresentationTests {
     let denied = presentation.mixerSnapshot()
     #expect(denied.captureNotice?.action == .openSettings)
     #expect(denied.captureNotice?.message.contains("denied") == true)
-    #expect(denied.error?.contains("Unit capture denied before native I/O") == true)
+    #expect(denied.error == nil && denied.apps.first?.routeStatus == nil)
+    #expect(
+      presentation.settingsSnapshot().error?.contains("Unit capture denied before native I/O")
+        == true)
     #expect(!presentation.settingsSnapshot().isAccessibilityTrusted)
     #expect(fixture.hal.calls == halBeforeSnapshot && fixture.hal.loginCalls == 0)
     print(
@@ -687,7 +863,13 @@ struct RootPresentationTests {
     )
     #expect(fixture.effects.nativeResolutions == 1)
     #expect(await fixture.transport.calls == 0)
+    fixture.graph.controller.perform(.stopCapture)
     await fixture.graph.controller.shutdown()
+    let stopped = presentation.mixerSnapshot()
+    #expect(stopped.captureNotice?.action == .requestPermission)
+    #expect(stopped.error == nil && stopped.apps.first?.routeStatus == nil)
+    #expect(presentation.settingsSnapshot().error == nil)
+    #expect(fixture.graph.controller.knownPermissionDenied)
   }
 }
 

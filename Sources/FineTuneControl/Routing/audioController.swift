@@ -21,6 +21,9 @@ public final class AudioController: AudioCommandHandling {
   public internal(set) var outputObservationFailure: AudioRouteFailure?
   /// Current app-scoped diagnostics survive teardown and clear only after that app commits a plan.
   public internal(set) var routeFailures: [String: AudioRouteFailure] = [:]
+  /// Failed retirement operations whose owners have not acknowledged retirement.
+  /// Unlike routeFailures/history, these remain relevant after capture stops or an app disappears.
+  public internal(set) var unresolvedRetirementFailures: [AudioRouteKey: AudioRouteFailure] = [:]
   var hasApplications = false
   var hasOutputs = false
   var revision: UInt64 = 1

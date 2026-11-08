@@ -207,6 +207,41 @@ struct PopupLayoutTests {
 @Suite("Production popup native lifecycle", .serialized)
 @MainActor
 struct PopupNativeLifecycleTests {
+  @Test("Current app warnings stay visible and update while reordering devices")
+  func editingKeepsCurrentWarningsVisible() async throws {
+    let source = MixerTestSource()
+    source.snapshot.settings.appearance = .light
+    source.snapshot.apps[0].isActive = true
+    source.snapshot.captureNotice = nil
+    source.snapshot.error = "Unable to save settings."
+    source.snapshot.apps[0].routeStatus = "Current audio route failed"
+    let fixture = try ShownPopupFixture(source: source)
+    defer { fixture.close() }
+    fixture.show()
+    try await fixture.settle()
+    let host = fixture.controller.view
+    func text() throws -> String {
+      try recognizedText(in: bitmapImage(in: host)).map(\.text).joined(separator: "\n")
+    }
+    let normal = try text()
+    #expect(normal.contains("Current audio route"))
+    let padding = source.snapshot.settings.popupSize.dimensions.contentPadding
+    let target = DesignTokens.Dimensions.minTouchTarget
+    let top = padding + target / 2
+    try fixture.sendClick(
+      CGPoint(
+        x: host.bounds.maxX - padding - target / 2 - 2 * (target + DesignTokens.Spacing.sm),
+        y: host.isFlipped ? top : host.bounds.maxY - top), in: host)
+    try await fixture.settle()
+    #expect(try text().contains("Current audio route"))
+    #expect(try text().contains("Unable to save settings"))
+    source.snapshot.apps[0].routeStatus = "Current audio cleanup failed"
+    try await fixture.settle()
+    #expect(try text().contains("Current audio cleanup"))
+    #expect(try !text().contains("Current audio route"))
+    #expect(source.events.isEmpty && source.profileSource.events.isEmpty)
+  }
+
   @Test(
     "Retry Audio is always an icon beside reorder and invokes only explicit capture retry",
     arguments: MenuBarPopupSize.allCases)
