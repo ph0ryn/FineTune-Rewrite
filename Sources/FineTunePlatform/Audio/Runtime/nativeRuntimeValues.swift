@@ -139,6 +139,22 @@ func nativeRoutePhase(_ phase: FTNativePhase) -> AudioRoutePhase {
   }
 }
 
+func nativeRetirementObservation(
+  key: AudioRouteKey, result: NativeRouteResult
+) -> AudioRouteObservation {
+  let phase: AudioRoutePhase
+  switch result.result {
+  case FT_NATIVE_OK: phase = .retired
+  case FT_NATIVE_PENDING: phase = .retiring
+  default: phase = .failed
+  }
+  var snapshot = result.snapshot
+  // Native snapshots archive the first cleanup diagnostic. A retirement event reports this
+  // invocation's outcome instead, or a later successful retry would replay the old error.
+  snapshot.cleanup_failure = result.result == FT_NATIVE_FAILED ? result.failure : FTNativeError()
+  return nativeRouteObservation(key: key, snapshot: snapshot, phase: phase)
+}
+
 func nativeRouteObservation(
   key: AudioRouteKey, snapshot: FTNativeRouteSnapshot, phase: AudioRoutePhase? = nil
 ) -> AudioRouteObservation {

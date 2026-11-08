@@ -125,6 +125,8 @@ idleではDSP履歴と適用済みrevisionを進めず、破損したmetadata・
 継続用のread ownerとして保持せず、次のcandidateのarmedを待たずに非リアルタイムの回収を開始する。
 Controlの取消はownerごとに一度だけ通知し、遅れて終了した旧処理から再通知してPENDING回収の監視を止めない。
 資源の解放は引き続き実際のreader-zeroとretired ACKを待つ。回収失敗の結果はownerとともに保持し、後のhandoffから自動再試行しない。
+明示的なcapture Retryは、Controlが保持する終了済みの失敗taskだけを再試行する。進行中・PENDINGの回収は共有し、旧ownerを再びrender可能にはしない。
+回収中の観測はその試行のcleanup結果を伝え、native snapshotの履歴診断と分ける。同じエラーの再発や、retired ACKに付随する現在のエラーは失敗のまま扱う。
 
 音声処理にはUI・保存・非リアルタイムの資源管理を持ち込まない。
 tapなどの生成・停止・破棄やObjective-Cのオブジェクト操作は非リアルタイム側が担う。
@@ -158,6 +160,7 @@ SubTapListのIDはactive memberの同一性比較に使い、子objectのpropert
 source appをtap中muteする方式を使うが、実機での音響的な連続性を確認したものではない。
 
 回収PENDINGは既存の20ms pollで実際のreader/aggregate条件を再確認する。FAILEDはownerをretainして報告し、自動failure retryを止める。
+所有aggregateへのstop・IOProc破棄・aggregate破棄が`!dev`を返しても、それだけで回収済みとは扱わない。別のpresence queryが成功して不在を確認できた場合だけ、そのdevice操作を完了扱いする。listener・tapは個別に回収し、確認に失敗した場合や別のcleanup errorは所有権とともに残す。
 20ms経過による安全freeではない。あるrouteのretired ACKや残ったhistory diagnosticから、private pool全体のdrainやglobal orphan0を推論しない。
 通常のOS/input observerは停止するが、single factoryのweakなpassive cleanup変更通知はstop後も表示modelへ残す。
 factoryは履歴の最新診断と、経路ごとの未解決cleanupを分けて保持する。poolは該当ownerのnative release成功時だけ完了を通知し、その経路の警告を解除する。

@@ -154,5 +154,8 @@ public protocol PreparedAudioRoute: AnyObject {
   /// Cancels admission through a lifetime-protected ticket; does not free live callback state.
   func cancel()
   /// Pending/error owners remain retained until a retired observation confirms quiescence.
+  /// A terminal failure may be retried explicitly, but in-flight/PENDING calls must be joined.
+  /// During retirement, observations report this attempt's cleanup errors rather than replaying
+  /// historical cleanup diagnostics. A repeated identical current error is still a failure.
   func retire() async -> AudioRetirementResult
 }

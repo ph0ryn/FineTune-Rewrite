@@ -43,7 +43,8 @@ public final class AudioController: AudioCommandHandling {
   @ObservationIgnored var updateTasks: [AudioRouteKey: Task<Void, Never>] = [:]
   @ObservationIgnored var retirementTasks: [AudioRouteKey: Task<Void, any Error>] = [:]
   @ObservationIgnored var armWaiters: [AudioRouteKey: CheckedContinuation<Void, any Error>] = [:]
-  @ObservationIgnored var retirementWaiters: [AudioRouteKey: AudioRetirementWaiter] = [:]
+  @ObservationIgnored var retirementWaiters: [AudioRouteKey: CheckedContinuation<Void, any Error>] =
+    [:]
 
   public init(
     settings: any AudioControlSettingsStore, runtime: (any AudioRoutingRuntime)?,
@@ -281,6 +282,7 @@ public final class AudioController: AudioCommandHandling {
           knownPermissionDenied = false
           captureIntent = .userInitiated(sessionID: UInt64.random(in: 1...UInt64.max))
         }
+        retryFailedRetirements()
         reconcileAll(explicitRetry: true)
       case .stopCapture:
         var settings = settingsStore.appSettings
@@ -395,9 +397,16 @@ public final class AudioController: AudioCommandHandling {
   }
 }
 
-struct AudioRetirementWaiter {
-  let continuation: CheckedContinuation<Void, any Error>
+@MainActor
+final class AudioRetirementAttempt {
   let priorFailure: AudioRouteFailure?
+  var failure: AudioRouteFailure?
+  var isFinished = false
+
+  init(priorFailure: AudioRouteFailure?, cleanupFailure: AudioRouteFailure?) {
+    self.priorFailure = priorFailure
+    self.failure = cleanupFailure
+  }
 }
 
 @MainActor
@@ -409,6 +418,7 @@ final class ManagedAudioRoute {
   var output: AudioOutputDescriptor
   // Admission never reopens after Control has begun closing this owner.
   var isClosing = false
+  var retirementAttempt: AudioRetirementAttempt?
   func cancel() {
     // A late start/commit may finish after retirement installed its progress monitor. Repeating
     // admission cancellation would stop that monitor and strand a PENDING native retirement.

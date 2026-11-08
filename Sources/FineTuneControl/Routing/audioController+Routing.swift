@@ -159,6 +159,9 @@ extension AudioController {
     var operationSessionID = plan.sessionID
     let reusable = force ? [:] : usableActiveRoutes(identifier, plan: plan)
     let retained = Set(reusable.values)
+    // An early retired ACK can remove ownership before retire() returns its receipt. Capture
+    // those settlement tasks before preparation suspends so their current errors cannot be lost.
+    let previousRetirements = retirementTasks.filter { $0.key.appIdentifier == identifier }
     let previous = owned.values.filter {
       $0.key.appIdentifier == identifier && !retained.contains($0.key)
     }
@@ -205,6 +208,7 @@ extension AudioController {
           try await retire(record)
         }
       }
+      for task in previousRetirements.values { try await task.value }
       operationSessionID = plan.sessionID
       try current(identifier, generation: generation)
       var committed = reusable
@@ -391,11 +395,16 @@ extension AudioController {
         armWaiters.removeValue(forKey: incoming.key)?.resume(throwing: CancellationError())
       }
     }
-    if let waiter = retirementWaiters[incoming.key] {
-      if let error = retirementFailure(merged, priorFailure: waiter.priorFailure) {
-        retirementWaiters.removeValue(forKey: incoming.key)?.continuation.resume(throwing: error)
+    if let attempt = record.retirementAttempt, !attempt.isFinished {
+      // The merged observation is diagnostic history. Only this attempt's incoming events can
+      // introduce a new teardown failure; success must not replay an earlier failed attempt.
+      if let error = retirementFailure(incoming, priorFailure: attempt.priorFailure) {
+        attempt.failure = attempt.failure ?? error
+      }
+      if let error = attempt.failure {
+        retirementWaiters.removeValue(forKey: incoming.key)?.resume(throwing: error)
       } else if phase == .retired {
-        retirementWaiters.removeValue(forKey: incoming.key)?.continuation.resume()
+        retirementWaiters.removeValue(forKey: incoming.key)?.resume()
       }
     }
     if let error = routeFailureForDisplay(incoming, record: record) {
@@ -420,7 +429,9 @@ extension AudioController {
     // A retired acknowledgement releases ownership even when the same observation reports an error.
     if phase == .retired {
       owned[incoming.key] = nil
-      retirementTasks[incoming.key] = nil
+      // An acknowledgement can precede the retire() receipt. Keep joining that in-flight task
+      // until its result is checked, including any error attached to the same acknowledgement.
+      if record.retirementAttempt?.isFinished != false { retirementTasks[incoming.key] = nil }
       unresolvedRetirementFailures[incoming.key] = nil
       if active[incoming.key.appIdentifier]?[incoming.key.deviceUID] == incoming.key {
         active[incoming.key.appIdentifier]?[incoming.key.deviceUID] = nil
@@ -460,22 +471,47 @@ extension AudioController {
   }
 
   func retire(_ record: ManagedAudioRoute) async throws {
+    if let existing = retirementTasks[record.key] {
+      try await existing.value
+      return
+    }
     if let value = routeObservations[record.key], value.phase == .retired {
-      if let error = value.cleanupFailure { throw error }
+      if let attempt = record.retirementAttempt {
+        if let error = attempt.failure { throw error }
+      } else if let error = value.cleanupFailure {
+        throw error
+      }
       return
     }
     try await retirement(record).value
   }
 
+  /// Only an explicit capture retry can replace a terminal failed task. In-flight/PENDING work
+  /// is still joined, and unresolved warnings stay until the owner's actual retirement ACK.
+  func retryFailedRetirements() {
+    for record in owned.values {
+      guard let attempt = record.retirementAttempt, attempt.isFinished, attempt.failure != nil
+      else { continue }
+      retirementTasks[record.key] = nil
+      _ = retirement(record, explicitRetry: true)
+    }
+  }
+
   /// Register before the first await: handoff, stop and shutdown join one native retirement.
-  func retirement(_ record: ManagedAudioRoute) -> Task<Void, any Error> {
+  func retirement(_ record: ManagedAudioRoute, explicitRetry: Bool = false) -> Task<Void, any Error>
+  {
     record.isClosing = true
     if let existing = retirementTasks[record.key] { return existing }
-    let priorFailure = routeObservations[record.key]?.failure
+    let previous = routeObservations[record.key]
+    let attempt = AudioRetirementAttempt(
+      priorFailure: previous?.failure,
+      cleanupFailure: explicitRetry ? nil : previous?.cleanupFailure)
+    record.retirementAttempt = attempt
     let task = Task<Void, any Error> {
-      // Keep a terminal failed result while its native owner is retained. A later handoff joins
-      // that failure instead of automatically retrying cleanup when its candidate finally arms.
+      // A terminal failure is retained for passive handoffs, but not confused with errors from
+      // the next explicitly requested operation on the same still-owned native route.
       defer {
+        attempt.isFinished = true
         if self.owned[record.key] == nil { self.retirementTasks[record.key] = nil }
       }
       do {
@@ -484,22 +520,16 @@ extension AudioController {
         case .retired: self.receive(AudioRouteObservation(key: record.key, phase: .retired))
         case .failed(let error): throw error
         case .pending:
-          if let value = self.routeObservations[record.key] {
-            if let error = self.retirementFailure(value, priorFailure: priorFailure) { throw error }
-            if value.phase == .retired { return }
-          }
+          if let error = attempt.failure { throw error }
+          if self.routeObservations[record.key]?.phase == .retired { return }
           try await withCheckedThrowingContinuation {
-            self.retirementWaiters[record.key] = AudioRetirementWaiter(
-              continuation: $0, priorFailure: priorFailure)
+            self.retirementWaiters[record.key] = $0
           }
         }
-        if let value = self.routeObservations[record.key],
-          let error = self.retirementFailure(value, priorFailure: priorFailure)
-        {
-          throw error
-        }
+        if let error = attempt.failure { throw error }
       } catch {
         let failure = self.failure(error, stage: "retire")
+        attempt.failure = failure
         self.routeFailures[record.key.appIdentifier] = failure
         if self.owned[record.key] != nil {
           self.unresolvedRetirementFailures[record.key] = failure

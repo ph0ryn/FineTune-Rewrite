@@ -191,13 +191,13 @@ final class NativePreparedAudioRoute: PreparedAudioRoute {
       monitor?.cancel()
       monitor = nil
       emit(
-        nativeRouteObservation(key: key, snapshot: result.snapshot, phase: .retired),
+        nativeRetirementObservation(key: key, result: result),
         sequence: sequence)
       return .retired
     }
     if result.result == FT_NATIVE_PENDING {
       emit(
-        nativeRouteObservation(key: key, snapshot: result.snapshot, phase: .retiring),
+        nativeRetirementObservation(key: key, result: result),
         sequence: sequence)
       return .pending
     }
@@ -205,7 +205,7 @@ final class NativePreparedAudioRoute: PreparedAudioRoute {
     monitor = nil
     let failure = nativeRouteFailure(result.failure)
     emit(
-      nativeRouteObservation(key: key, snapshot: result.snapshot, phase: .failed),
+      nativeRetirementObservation(key: key, result: result),
       sequence: sequence)
     return .failed(failure)
   }
