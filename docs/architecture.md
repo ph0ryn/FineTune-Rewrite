@@ -164,6 +164,7 @@ source appをtap中muteする方式を使うが、実機での音響的な連続
 20ms経過による安全freeではない。あるrouteのretired ACKや残ったhistory diagnosticから、private pool全体のdrainやglobal orphan0を推論しない。
 通常のOS/input observerは停止するが、single factoryのweakなpassive cleanup変更通知はstop後も表示modelへ残す。
 factoryは履歴の最新診断と、経路ごとの未解決cleanupを分けて保持する。poolは該当ownerのnative release成功時だけ完了を通知し、その経路の警告を解除する。
+明示的なcapture Retryは、prepared handleを返せずpoolへ移した失敗ownerにも届く。再試行はfactory単位で、進行中の回収は共有する。新しいprepareは対象の試行がretiredまたはFAILEDになるまで待つが、それをpool全体のdrainやcapture許可とは扱わない。
 この通知は新しいcapture・route操作・Rootの二重timerを開始せず、権限やglobal回収完了の証拠でもない。
 
 ## 実機で未確認の事項

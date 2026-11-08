@@ -9,14 +9,19 @@ final class NativeRouteOwner: @unchecked Sendable {
   let lane: DispatchQueue
   let reportCleanup: @Sendable (FTNativeError) -> Void
   let reportRetired: @Sendable () -> Void
+  let cleanupOwnerID: UUID
+  let retirementPool: NativeRetirementPool
 
   init(
-    pointer: NativeRoutePointer, lane: DispatchQueue,
+    pointer: NativeRoutePointer, lane: DispatchQueue, cleanupOwnerID: UUID,
+    retirementPool: NativeRetirementPool,
     reportCleanup: @escaping @Sendable (FTNativeError) -> Void,
     reportRetired: @escaping @Sendable () -> Void
   ) {
     self.pointer = pointer
     self.lane = lane
+    self.cleanupOwnerID = cleanupOwnerID
+    self.retirementPool = retirementPool
     self.reportCleanup = reportCleanup
     self.reportRetired = reportRetired
   }
@@ -34,8 +39,9 @@ final class NativeRouteOwner: @unchecked Sendable {
 
   deinit {
     ft_native_route_cancel(pointer.value)
-    NativeRetirementPool.shared.adopt(
-      pointer, lane: lane, reportCleanup: reportCleanup, reportRetired: reportRetired)
+    retirementPool.adopt(
+      pointer, lane: lane, cleanupOwnerID: cleanupOwnerID,
+      reportCleanup: reportCleanup, reportRetired: reportRetired)
   }
 }
 
@@ -47,54 +53,97 @@ final class NativeRetirementPool: @unchecked Sendable {
   private let lane = DispatchQueue(label: "FineTune.NativeAudio.Retirement")
   private var entries: [ObjectIdentifier: Entry] = [:]
   private var timer: DispatchSourceTimer?
+  private let retireAndRelease: @Sendable (NativeRoutePointer) -> NativeRouteResult
+
+  init(
+    retireAndRelease: @escaping @Sendable (NativeRoutePointer) -> NativeRouteResult =
+      retireNativeOwner
+  ) {
+    self.retireAndRelease = retireAndRelease
+  }
+
+  private struct RetryWaiter {
+    let entries: Set<ObjectIdentifier>
+    let continuation: CheckedContinuation<Void, Never>
+  }
+  private var retryWaiters: [RetryWaiter] = []
+
+  func retryFailed(cleanupOwnerID: UUID) async {
+    await withCheckedContinuation { continuation in
+      lane.async { [self] in
+        let selected = entries.filter { $0.value.cleanupOwnerID == cleanupOwnerID }
+        guard !selected.isEmpty else {
+          continuation.resume()
+          return
+        }
+        // Rearm only failures from this factory. PENDING/in-flight entries keep their existing
+        // operation and polling cadence; another explicit request merely joins their settlement.
+        for entry in selected.values where entry.failed { entry.failed = false }
+        retryWaiters.append(
+          RetryWaiter(entries: Set(selected.keys), continuation: continuation))
+        beginMonitoring()
+      }
+    }
+  }
+
+  private func finishRetries() {
+    for index in retryWaiters.indices.reversed()
+    where retryWaiters[index].entries.allSatisfy({
+      entries[$0] == nil || entries[$0]?.failed == true
+    }) {
+      retryWaiters.remove(at: index).continuation.resume()
+    }
+  }
 
   private final class Entry: @unchecked Sendable {
     let pointer: NativeRoutePointer
     let lane: DispatchQueue
     let reportCleanup: @Sendable (FTNativeError) -> Void
     let reportRetired: @Sendable () -> Void
+    let cleanupOwnerID: UUID
     var inFlight = false
     var failed = false
     init(
-      _ pointer: NativeRoutePointer, lane: DispatchQueue,
+      _ pointer: NativeRoutePointer, lane: DispatchQueue, cleanupOwnerID: UUID,
       reportCleanup: @escaping @Sendable (FTNativeError) -> Void,
       reportRetired: @escaping @Sendable () -> Void
     ) {
       self.pointer = pointer
       self.lane = lane
+      self.cleanupOwnerID = cleanupOwnerID
       self.reportCleanup = reportCleanup
       self.reportRetired = reportRetired
     }
   }
 
   func adopt(
-    _ pointer: NativeRoutePointer, lane routeLane: DispatchQueue,
+    _ pointer: NativeRoutePointer, lane routeLane: DispatchQueue, cleanupOwnerID: UUID,
     reportCleanup: @escaping @Sendable (FTNativeError) -> Void,
     reportRetired: @escaping @Sendable () -> Void
   ) {
     lane.async { [self] in
       let entry = Entry(
-        pointer, lane: routeLane, reportCleanup: reportCleanup, reportRetired: reportRetired)
+        pointer, lane: routeLane, cleanupOwnerID: cleanupOwnerID,
+        reportCleanup: reportCleanup, reportRetired: reportRetired)
       entries[ObjectIdentifier(entry)] = entry
-      if timer == nil {
-        let source = DispatchSource.makeTimerSource(queue: lane)
-        source.schedule(deadline: .now(), repeating: .milliseconds(20))
-        source.setEventHandler { [weak self] in self?.service() }
-        timer = source
-        source.resume()
-      }
+      beginMonitoring()
     }
+  }
+
+  private func beginMonitoring() {
+    guard timer == nil else { return }
+    let source = DispatchSource.makeTimerSource(queue: lane)
+    source.schedule(deadline: .now(), repeating: .milliseconds(20))
+    source.setEventHandler { [weak self] in self?.service() }
+    timer = source
+    source.resume()
   }
 
   private func service() {
     for (id, entry) in entries where !entry.inFlight && !entry.failed {
       entry.inFlight = true
       entry.lane.async { [self, entry] in
-        var error = FTNativeError()
-        var result = ft_native_route_retire(entry.pointer.value, &error)
-        if result == FT_NATIVE_OK { result = ft_native_route_release(entry.pointer.value) }
-        let outcome = NativeRouteResult(
-          result: result, snapshot: FTNativeRouteSnapshot(), failure: error)
+        let outcome = retireAndRelease(entry.pointer)
         lane.async { [self, entry] in
           entry.inFlight = false
           if outcome.result == FT_NATIVE_OK {
@@ -104,6 +153,7 @@ final class NativeRetirementPool: @unchecked Sendable {
             entry.failed = true
             entry.reportCleanup(outcome.failure)
           }
+          finishRetries()
           if !entries.values.contains(where: { !$0.failed }) {
             timer?.cancel()
             timer = nil
@@ -112,6 +162,13 @@ final class NativeRetirementPool: @unchecked Sendable {
       }
     }
   }
+}
+
+private func retireNativeOwner(_ pointer: NativeRoutePointer) -> NativeRouteResult {
+  var error = FTNativeError()
+  var result = ft_native_route_retire(pointer.value, &error)
+  if result == FT_NATIVE_OK { result = ft_native_route_release(pointer.value) }
+  return NativeRouteResult(result: result, snapshot: FTNativeRouteSnapshot(), failure: error)
 }
 
 final class NativeRouteMonitor: @unchecked Sendable {

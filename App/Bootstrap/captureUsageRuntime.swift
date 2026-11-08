@@ -17,6 +17,9 @@ final class CaptureUsageRuntime: AudioRoutingRuntime {
     return !usageDescription.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
+  // Cleanup closes existing owners and never admits a new capture, even without metadata.
+  func requestCleanupRetry() { runtime.requestCleanupRetry() }
+
   func prepare(_ request: AudioRouteRequest) async throws -> any PreparedAudioRoute {
     guard isConfigured else {
       throw AudioRouteFailure(

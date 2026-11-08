@@ -171,6 +171,8 @@ struct CapturePreparationRetryTests {
 /// precedence. It never imports Platform, calls native code, or asserts that permission exists.
 @MainActor
 private final class CaptureRetryRuntime: AudioRoutingRuntime {
+  private(set) var cleanupRetryRequests = 0
+  func requestCleanupRetry() { cleanupRetryRequests += 1 }
   private(set) var requests: [AudioRouteRequest] = []
   private(set) var maximumOutstandingPreparations = 0
   private(set) var cancelledFirstResult = false

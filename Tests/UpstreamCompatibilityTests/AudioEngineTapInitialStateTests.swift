@@ -61,6 +61,8 @@ final class RecordingPreparedAudioRoute: PreparedAudioRoute {
 
 @MainActor
 final class RecordingAudioRoutingRuntime: AudioRoutingRuntime {
+  private(set) var cleanupRetryRequests = 0
+  func requestCleanupRetry() { cleanupRetryRequests += 1 }
   private(set) var requests: [AudioRouteRequest] = []
   private(set) var routes: [RecordingPreparedAudioRoute] = []
   var activationError: AudioRouteFailure?

@@ -9,6 +9,9 @@ import NativeAudio
 @MainActor
 public final class NativeAudioRoutingRuntime: AudioRoutingRuntime {
   private let resolveApp: @MainActor (String, UInt64) throws -> AudioApp
+  private let cleanupOwnerID: UUID
+  private let retirementPool: NativeRetirementPool
+  private var cleanupRetry: Task<Void, Never>?
   /// Historical cleanup diagnostic, not evidence of currently unresolved cleanup debt.
   public private(set) var lastCleanupFailure: AudioRouteObservation?
   /// Current cleanup debt, removed only after that route's native release succeeds.
@@ -17,8 +20,27 @@ public final class NativeAudioRoutingRuntime: AudioRoutingRuntime {
   /// Notifies when keyed cleanup debt changes, including a matching successful release.
   public var onCleanupChange: (@MainActor () -> Void)?
 
-  public init(resolveApp: @escaping @MainActor (String, UInt64) throws -> AudioApp) {
+  public convenience init(resolveApp: @escaping @MainActor (String, UInt64) throws -> AudioApp) {
+    self.init(resolveApp: resolveApp, retirementPool: .shared, cleanupOwnerID: UUID())
+  }
+
+  init(
+    resolveApp: @escaping @MainActor (String, UInt64) throws -> AudioApp,
+    retirementPool: NativeRetirementPool, cleanupOwnerID: UUID
+  ) {
     self.resolveApp = resolveApp
+    self.retirementPool = retirementPool
+    self.cleanupOwnerID = cleanupOwnerID
+  }
+
+  public func requestCleanupRetry() {
+    guard cleanupRetry == nil else { return }
+    let pool = retirementPool
+    let id = cleanupOwnerID
+    cleanupRetry = Task { [weak self] in
+      await pool.retryFailed(cleanupOwnerID: id)
+      self?.cleanupRetry = nil
+    }
   }
 
   public func prepare(_ request: AudioRouteRequest) async throws -> any PreparedAudioRoute {
@@ -27,6 +49,8 @@ public final class NativeAudioRoutingRuntime: AudioRoutingRuntime {
         kind: .captureNotRequested, stage: "prepare",
         message: "Enable live audio processing before starting this route.")
     }
+    await cleanupRetry?.value
+    guard !Task.isCancelled else { throw cancelledPreparation() }
     let app: AudioApp
     do {
       app = try resolveApp(request.key.appIdentifier, request.processRevision)
@@ -93,8 +117,9 @@ public final class NativeAudioRoutingRuntime: AudioRoutingRuntime {
     if packet.result != FT_NATIVE_OK || Task.isCancelled {
       if let pointer = packet.pointer {
         ft_native_route_cancel(pointer.value)
-        NativeRetirementPool.shared.adopt(
-          pointer, lane: lane, reportCleanup: reportCleanup, reportRetired: reportRetired)
+        retirementPool.adopt(
+          pointer, lane: lane, cleanupOwnerID: cleanupOwnerID,
+          reportCleanup: reportCleanup, reportRetired: reportRetired)
       }
       if Task.isCancelled { throw cancelledPreparation() }
       throw nativeRouteFailure(packet.failure)
@@ -104,7 +129,8 @@ public final class NativeAudioRoutingRuntime: AudioRoutingRuntime {
         stage: "prepare", message: "Native audio returned success without an owned route.")
     }
     let owner = NativeRouteOwner(
-      pointer: pointer, lane: lane, reportCleanup: reportCleanup, reportRetired: reportRetired)
+      pointer: pointer, lane: lane, cleanupOwnerID: cleanupOwnerID, retirementPool: retirementPool,
+      reportCleanup: reportCleanup, reportRetired: reportRetired)
     return NativePreparedAudioRoute(
       key: request.key, owner: owner, initialRevision: request.initialState.revision)
   }

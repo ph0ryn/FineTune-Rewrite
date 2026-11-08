@@ -134,6 +134,9 @@ public enum AudioRetirementResult: Equatable, Sendable {
 /// Resolves one current app group and one output UID. No OS acquisition without explicit live intent.
 @MainActor
 public protocol AudioRoutingRuntime: AnyObject {
+  /// Explicitly retries terminal cleanup retained without a PreparedAudioRoute handle.
+  /// This does not grant capture; preparations must wait for any in-flight retry to settle.
+  func requestCleanupRetry()
   func prepare(_ request: AudioRouteRequest) async throws -> any PreparedAudioRoute
 }
 

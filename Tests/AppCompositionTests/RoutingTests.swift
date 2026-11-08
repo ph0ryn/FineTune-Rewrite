@@ -467,6 +467,7 @@ struct ControlledAudioRoutingTests {
     controller.perform(.setRoute(identifier: application.identifier, mode: .single, uids: ["B"]))
     await controller.waitForCurrentWork()
     #expect(old.retirementAttempts == 1 && old.ioRunning && !old.retired)
+    #expect(runtime.cleanupRetryRequests == 1)
     #expect(controller.unresolvedRetirementFailures[old.key] == cleanup)
     #expect(runtime.handle("B")?.commits.isEmpty == true)
     // Passive observation is not permission to retry a failed resource operation.
@@ -476,7 +477,7 @@ struct ControlledAudioRoutingTests {
     if recovers { old.retirementError = nil }
     controller.perform(.requestCaptureStart)
     await controller.waitForCurrentWork()
-    #expect(old.retirementAttempts == 2)
+    #expect(old.retirementAttempts == 2 && runtime.cleanupRetryRequests == 2)
     let candidate = try #require(runtime.handle("B"))
     if recovers {
       #expect(old.retired && !old.ioRunning && candidate.rendering)
@@ -1381,6 +1382,8 @@ enum RoutingDeferredOperation: String, CaseIterable, Sendable {
 
 @MainActor
 final class RoutingProbeRuntime: AudioRoutingRuntime {
+  private(set) var cleanupRetryRequests = 0
+  func requestCleanupRetry() { cleanupRetryRequests += 1 }
   var requests: [AudioRouteRequest] = []
   var handles: [RoutingProbeRoute] = []
   var holdPreparation: Set<String> = []

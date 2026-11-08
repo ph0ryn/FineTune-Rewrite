@@ -282,6 +282,7 @@ public final class AudioController: AudioCommandHandling {
           knownPermissionDenied = false
           captureIntent = .userInitiated(sessionID: UInt64.random(in: 1...UInt64.max))
         }
+        runtime?.requestCleanupRetry()
         retryFailedRetirements()
         reconcileAll(explicitRetry: true)
       case .stopCapture:
