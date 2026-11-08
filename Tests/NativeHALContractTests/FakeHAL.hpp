@@ -54,6 +54,13 @@ struct FakeHAL {
     bool wrongPhysicalOutput = false;
     bool partial = true, holdAggregate = false;
     Fault fault = Fault::none, cleanupFault = Fault::none;
+    OSStatus stopStatus = noErr, destroyIOStatus = noErr, destroyAggregateStatus = noErr;
+    OSStatus destroyTapStatus = noErr;
+    OSStatus presenceStatus = noErr;
+    bool overridePresence = false, presenceValue = true;
+    AudioObjectID removeListenerFailureObject = kAudioObjectUnknown;
+    OSStatus removeListenerStatus = cleanupError;
+    std::uint32_t presenceQueries = 0;
     bool disabledStreams = false, oversized = false, preferredStereo = true;
     bool variableFrames = false, missingSubTap = false;
     bool rejectPrivateSubTapListeners = false, rejectCompositionListener = false;
@@ -70,6 +77,18 @@ struct FakeHAL {
         return taps.size() + aggregates.size() + ios.size() + listeners.size();
     }
     bool fails(Fault point) const { return fault == point || cleanupFault == point; }
+    bool aggregateExists(AudioObjectID id) const {
+        return std::any_of(aggregates.begin(), aggregates.end(),
+                           [id](const auto &a) { return a.id == id; });
+    }
+    void disappearAggregate(AudioObjectID id) {
+        std::erase_if(aggregates, [id](const auto &a) { return a.id == id; });
+        std::erase_if(ios, [id](const auto &io) { return io.device == id; });
+        // Physical device/stream, process and tap objects survive this external loss.
+        std::erase_if(listeners, [id](const auto &l) {
+            return l.object == id || l.object == id + 1000 || l.object == id + 2000;
+        });
+    }
     static FakeHAL &at(void *c) { return *static_cast<FakeHAL *>(c); }
     static StereoLayout stereo(bool isPlanar = false) {
         return {48000, isPlanar ? 2U : 1U,
@@ -140,6 +159,8 @@ struct FakeHAL {
         };
         a.destroyTap = [](void *c, AudioObjectID id) -> OSStatus {
             auto &f = at(c);
+            if (f.destroyTapStatus != noErr)
+                return f.destroyTapStatus;
             if (f.fails(Fault::destroyTap))
                 return cleanupError;
             std::erase_if(f.taps, [id](const auto &t) { return t.id == id; });
@@ -157,6 +178,10 @@ struct FakeHAL {
         };
         a.destroyAggregate = [](void *c, AudioObjectID id) -> OSStatus {
             auto &f = at(c);
+            if (f.destroyAggregateStatus != noErr)
+                return f.destroyAggregateStatus;
+            if (!f.aggregateExists(id))
+                return kAudioHardwareBadDeviceError;
             if (f.fails(Fault::destroyAggregate))
                 return cleanupError;
             for (auto &a : f.aggregates)
@@ -168,6 +193,11 @@ struct FakeHAL {
         };
         a.aggregatePresent = [](void *c, AudioObjectID id, bool &present) -> OSStatus {
             auto &f = at(c);
+            ++f.presenceQueries;
+            if (f.overridePresence) {
+                present = f.presenceValue;
+                return f.presenceStatus;
+            }
             // Query cannot manufacture disappearance before a destroy request.
             if (!f.holdAggregate)
                 std::erase_if(f.aggregates,
@@ -186,8 +216,12 @@ struct FakeHAL {
             f.ios.push_back({device, id, callback, data});
             return f.fault == Fault::io ? acquisitionError : noErr;
         };
-        a.destroyIOProc = [](void *c, AudioObjectID, AudioDeviceIOProcID id) -> OSStatus {
+        a.destroyIOProc = [](void *c, AudioObjectID device, AudioDeviceIOProcID id) -> OSStatus {
             auto &f = at(c);
+            if (f.destroyIOStatus != noErr)
+                return f.destroyIOStatus;
+            if (!f.aggregateExists(device))
+                return kAudioHardwareBadDeviceError;
             if (f.fails(Fault::destroyIO))
                 return cleanupError;
             if (std::any_of(f.ios.begin(), f.ios.end(),
@@ -239,9 +273,13 @@ struct FakeHAL {
                     i.running = true;
             return f.fault == Fault::start ? acquisitionError : noErr;
         };
-        a.stop = [](void *c, AudioObjectID, AudioDeviceIOProcID id) -> OSStatus {
+        a.stop = [](void *c, AudioObjectID device, AudioDeviceIOProcID id) -> OSStatus {
             auto &f = at(c);
             ++f.stops;
+            if (f.stopStatus != noErr)
+                return f.stopStatus;
+            if (!f.aggregateExists(device))
+                return kAudioHardwareBadDeviceError;
             if (f.fails(Fault::stop))
                 return cleanupError;
             for (auto &i : f.ios)
@@ -280,12 +318,17 @@ struct FakeHAL {
         a.removeListener = [](void *c, AudioObjectID object, AudioObjectPropertyAddress p,
                               AudioObjectPropertyListenerProc callback, void *data) -> OSStatus {
             auto &f = at(c);
+            if (object == f.removeListenerFailureObject)
+                return f.removeListenerStatus;
             if (f.fails(Fault::removeListener))
                 return cleanupError;
+            const auto before = f.listeners.size();
             std::erase_if(f.listeners, [&](const auto &l) {
                 return l.object == object && l.property.mSelector == p.mSelector &&
                        l.property.mScope == p.mScope && l.callback == callback && l.data == data;
             });
+            if (before == f.listeners.size())
+                return kAudioHardwareBadObjectError;
             return noErr;
         };
         return a;

@@ -776,17 +776,29 @@ extern "C" FTNativeResult ft_native_route_retire(FTNativeRoute *route, FTNativeE
             route->cleanup = problem;
         return fail(problem, error);
     };
+    // Device APIs can report !dev after external removal of our private aggregate.
+    // The status alone is not absence evidence; a separate successful query must agree.
+    auto aggregateDeviceCleanup = [&](OSStatus status, FTNativeOperation operation) {
+        if (status == kAudioHardwareBadDeviceError && route->aggregate) {
+            bool present = true;
+            if (route->api.aggregatePresent(route->api.context, route->aggregate, present) ==
+                    noErr &&
+                !present)
+                return FT_NATIVE_OK;
+        }
+        return cleanup(status, operation);
+    };
     if (route->startAttempted && !route->stopped && route->io) {
-        const auto result = cleanup(
+        const auto result = aggregateDeviceCleanup(
             route->api.stop(route->api.context, route->aggregate, route->io), FT_NATIVE_STOP);
         if (result != FT_NATIVE_OK)
             return result;
         route->stopped = true;
     }
     if (route->io) {
-        const auto result =
-            cleanup(route->api.destroyIOProc(route->api.context, route->aggregate, route->io),
-                    FT_NATIVE_DESTROY_IOPROC);
+        const auto result = aggregateDeviceCleanup(
+            route->api.destroyIOProc(route->api.context, route->aggregate, route->io),
+            FT_NATIVE_DESTROY_IOPROC);
         if (result != FT_NATIVE_OK)
             return result;
         route->io = nullptr;
@@ -803,9 +815,9 @@ extern "C" FTNativeResult ft_native_route_retire(FTNativeRoute *route, FTNativeE
     }
     if (route->aggregate) {
         if (!route->aggregateDestroyRequested) {
-            const auto result =
-                cleanup(route->api.destroyAggregate(route->api.context, route->aggregate),
-                        FT_NATIVE_DESTROY_AGGREGATE);
+            const auto result = aggregateDeviceCleanup(
+                route->api.destroyAggregate(route->api.context, route->aggregate),
+                FT_NATIVE_DESTROY_AGGREGATE);
             if (result != FT_NATIVE_OK)
                 return result;
             route->aggregateDestroyRequested = true;

@@ -30,6 +30,10 @@ struct Release {
             return;
         // Only fixture cleanup: explicit tests inspect debt before disabling injected errors.
         hal.fault = hal.cleanupFault = Fault::none;
+        hal.stopStatus = hal.destroyIOStatus = hal.destroyAggregateStatus = noErr;
+        hal.destroyTapStatus = noErr;
+        hal.overridePresence = false;
+        hal.removeListenerFailureObject = kAudioObjectUnknown;
         hal.holdAggregate = false;
         FTNativeError error{};
         FTNativeResult result = FT_NATIVE_PENDING;
@@ -635,6 +639,157 @@ void boundedCleanupDebt() {
     for (auto &owner : retained)
         owner.reset();
     CHECK(hal.resources() == 0);
+}
+void disappearedAggregateCleanup() {
+    invocations = 2;
+    for (const bool started : {true, false}) {
+        resetFixture();
+        auto p = prepare(request(state()));
+        if (!p || hal.ios.empty() || hal.listeners.empty())
+            return;
+        const auto io = hal.ios.back();
+        const auto listeners = hal.listeners; // Queued OS callbacks can outlive registrations.
+        if (started) {
+            commit(p, state());
+            Signal before;
+            before.render(io);
+            CHECK(!before.zero());
+        }
+        const auto &listener = listeners.back();
+        CHECK(listener.callback(listener.object, 1, &listener.property, listener.data) == noErr);
+        const auto invalidated = snapshot(p);
+        CHECK(invalidated.failure.kind == FT_NATIVE_BINDING_CHANGED);
+        CHECK(invalidated.failure.code == -5101);
+        hal.disappearAggregate(io.device);
+        CHECK(!hal.listeners.empty() && !hal.taps.empty());
+        FTNativeError error{};
+        CHECK(ft_native_route_retire(p.get(), &error) == FT_NATIVE_OK);
+        const auto retired = snapshot(p);
+        CHECK(retired.phase == FT_NATIVE_RETIRED && hal.resources() == 0);
+        CHECK(retired.failure.code == invalidated.failure.code &&
+              retired.failure.operation == invalidated.failure.operation);
+        CHECK(retired.cleanup_failure.kind == FT_NATIVE_NO_FAILURE);
+        CHECK(hal.presenceQueries == (started ? 4U : 3U));
+        CHECK(ft_native_route_release(p.get()) == FT_NATIVE_OK);
+        (void)p.release();
+        // A reused slot must reject the old IO/listener cookies, not touch its new route.
+        auto replacement = prepare(request(state()));
+        commit(replacement, state());
+        for (const auto &late : listeners)
+            CHECK(late.callback(late.object, 1, &late.property, late.data) == noErr);
+        Signal late;
+        late.render(io);
+        CHECK(late.zero());
+        CHECK(snapshot(replacement).failure.kind == FT_NATIVE_NO_FAILURE);
+        Signal current;
+        current.render(hal.ios.back());
+        CHECK(!current.zero());
+        replacement.reset();
+        CHECK(hal.resources() == 0);
+    }
+}
+void aggregateBadDeviceCounterexamples() {
+    invocations = 18;
+    for (const auto operation :
+         {FT_NATIVE_STOP, FT_NATIVE_DESTROY_IOPROC, FT_NATIVE_DESTROY_AGGREGATE}) {
+        // Present aggregate; failed probes with false out-param (including raw !obj/!dev);
+        // and an unrelated operation error even when the aggregate really disappeared.
+        for (unsigned mode = 0; mode < 6; ++mode) {
+            resetFixture();
+            auto p = prepare(request(state()));
+            if (!p || hal.ios.empty())
+                return;
+            const auto aggregate = hal.ios.back().device;
+            if (operation == FT_NATIVE_STOP)
+                commit(p, state());
+            const auto original = mode == 5 ? cleanupError : kAudioHardwareBadDeviceError;
+            if (operation == FT_NATIVE_STOP)
+                hal.stopStatus = original;
+            if (operation == FT_NATIVE_DESTROY_IOPROC)
+                hal.destroyIOStatus = original;
+            if (operation == FT_NATIVE_DESTROY_AGGREGATE)
+                hal.destroyAggregateStatus = original;
+            if (mode > 0 && mode < 5) {
+                hal.overridePresence = true;
+                hal.presenceValue = false;
+                hal.presenceStatus = mode == 1   ? cleanupError
+                                     : mode == 2 ? kAudioHardwareBadObjectError
+                                     : mode == 3 ? kAudioHardwareBadDeviceError
+                                                 : acquisitionError;
+            }
+            if (mode == 5)
+                hal.disappearAggregate(aggregate);
+            FTNativeError error{};
+            CHECK(ft_native_route_retire(p.get(), &error) == FT_NATIVE_FAILED);
+            CHECK(error.operation == operation && error.code == original);
+            CHECK(ft_native_route_release(p.get()) == FT_NATIVE_PENDING);
+            const auto debt = snapshot(p);
+            CHECK(debt.cleanup_failure.operation == operation &&
+                  debt.cleanup_failure.code == original);
+            CHECK(debt.phase == FT_NATIVE_RETIRING);
+            CHECK(!hal.taps.empty() && hal.resources() > 0);
+            const auto expectedProbes =
+                mode == 5 ? (operation == FT_NATIVE_DESTROY_AGGREGATE ? 1U : 0U) : 1U;
+            CHECK(hal.presenceQueries == expectedProbes);
+            if (mode != 5) {
+                CHECK(hal.aggregateExists(aggregate));
+                if (operation != FT_NATIVE_DESTROY_AGGREGATE)
+                    CHECK(!hal.ios.empty() && !hal.listeners.empty());
+            }
+            // A new explicit request may succeed only after the actual injected fault clears.
+            hal.stopStatus = hal.destroyIOStatus = hal.destroyAggregateStatus = noErr;
+            hal.overridePresence = false;
+            CHECK(ft_native_route_retire(p.get(), &error) == FT_NATIVE_OK);
+            CHECK(snapshot(p).cleanup_failure.code == original);
+            CHECK(snapshot(p).cleanup_failure.operation == operation);
+            CHECK(hal.resources() == 0);
+            p.reset();
+        }
+    }
+}
+void disappearedAggregateSurvivingDebt() {
+    invocations = 6;
+    for (unsigned mode = 0; mode < 6; ++mode) {
+        resetFixture();
+        auto p = prepare(request(state()));
+        if (!p || hal.ios.empty())
+            return;
+        commit(p, state());
+        const auto aggregate = hal.ios.back().device;
+        const auto tap = hal.taps.back().id;
+        const auto listener = hal.listeners.back();
+        CHECK(listener.callback(listener.object, 1, &listener.property, listener.data) == noErr);
+        hal.disappearAggregate(aggregate);
+        const auto primary = snapshot(p).failure;
+        const auto operation = mode >= 4 ? FT_NATIVE_DESTROY_TAP : FT_NATIVE_REMOVE_LISTENER;
+        const auto status = mode == 3 || mode == 5 ? kAudioHardwareBadDeviceError : cleanupError;
+        if (mode >= 4)
+            hal.destroyTapStatus = status;
+        else {
+            hal.removeListenerFailureObject = mode == 0 ? 801 : mode == 1 ? 71 : tap;
+            hal.removeListenerStatus = status;
+        }
+        FTNativeError error{};
+        CHECK(ft_native_route_retire(p.get(), &error) == FT_NATIVE_FAILED);
+        CHECK(error.operation == operation && error.code == status);
+        CHECK(ft_native_route_release(p.get()) == FT_NATIVE_PENDING);
+        CHECK(!hal.taps.empty());
+        CHECK(snapshot(p).failure.code == primary.code);
+        CHECK(snapshot(p).failure.kind == primary.kind &&
+              snapshot(p).failure.operation == primary.operation);
+        CHECK(snapshot(p).cleanup_failure.operation == operation);
+        CHECK(snapshot(p).cleanup_failure.code == status);
+        hal.destroyTapStatus = noErr;
+        hal.removeListenerFailureObject = kAudioObjectUnknown;
+        CHECK(ft_native_route_retire(p.get(), &error) == FT_NATIVE_OK);
+        CHECK(snapshot(p).failure.code == primary.code);
+        CHECK(snapshot(p).failure.kind == primary.kind &&
+              snapshot(p).failure.operation == primary.operation);
+        CHECK(snapshot(p).cleanup_failure.operation == operation);
+        CHECK(snapshot(p).cleanup_failure.code == status);
+        CHECK(hal.resources() == 0);
+        p.reset();
+    }
 }
 void savedTargetsAndPermit() {
     invocations = 3;
@@ -1461,7 +1616,7 @@ struct Result {
     void (*run)();
     std::size_t count = 0, checks = 0, failed = 0;
 };
-std::array<Result, 30> results{{
+std::array<Result, 33> results{{
     {"Tests/NativeHALContractTests/main.cpp::timingDisabledByDefault", timingDisabledByDefault},
     {"Tests/NativeHALContractTests/main.cpp::timingEnableLifecycleAndNullSafety",
      timingEnableLifecycleAndNullSafety},
@@ -1498,6 +1653,12 @@ std::array<Result, 30> results{{
     {"Tests/NativeHALContractTests/main.cpp::aggregateTapPolicyDecoding",
      aggregateTapPolicyDecoding},
     {"Tests/NativeHALContractTests/main.cpp::boundedCleanupDebt", boundedCleanupDebt},
+    {"Tests/NativeHALContractTests/main.cpp::disappearedAggregateCleanup",
+     disappearedAggregateCleanup},
+    {"Tests/NativeHALContractTests/main.cpp::aggregateBadDeviceCounterexamples",
+     aggregateBadDeviceCounterexamples},
+    {"Tests/NativeHALContractTests/main.cpp::disappearedAggregateSurvivingDebt",
+     disappearedAggregateSurvivingDebt},
     {"Tests/NativeHALContractTests/main.cpp::savedTargetsAndPermit", savedTargetsAndPermit},
     {"Tests/NativeHALContractTests/main.cpp::callbackSilenceAndInput", callbackSilenceAndInput},
     {"Tests/NativeHALContractTests/main.cpp::lateCloseAndReuse", lateCloseAndReuse},
