@@ -50,6 +50,7 @@ struct Aggregate {
 };
 struct FakeHAL {
     bool usage = true, selfPID = false, microphone = false, unsupportedOutput = false;
+    bool mismatchedOutputUID = false, aggregateOutput = false;
     bool wrongTapFormat = false, wrongRate = false, wrongCertificate = false, planar = false;
     bool wrongPhysicalOutput = false;
     bool partial = true, holdAggregate = false;
@@ -123,8 +124,9 @@ struct FakeHAL {
                 return failure(FT_NATIVE_UNAVAILABLE, FT_NATIVE_RESOLVE_OUTPUT, acquisitionError);
             out = {};
             out.id = std::strcmp(uid, "fixture-a") == 0 ? 801 : 802;
-            out.uid = uid;
+            out.uid = f.mismatchedOutputUID ? std::string(uid) + "-other" : uid;
             out.inputChannels = f.microphone ? 1 : 0;
+            out.aggregate = f.aggregateOutput;
             out.outputChannels = 2;
             out.nominalSampleRate = f.nominalRate;
             out.output = stereo(f.planar);

@@ -198,6 +198,46 @@ void capabilityAndCertificate() {
         CHECK(hal.resources() == 0);
     }
 }
+void resolveOutputRejections() {
+    invocations = 6;
+    // Each condition reports its own local code: a field failure that only exists while the
+    // device settles must stay attributable after the state has changed.
+    const std::int32_t expected[] = {
+        FT_NATIVE_OUTPUT_IDENTITY_MISMATCH,
+        FT_NATIVE_OUTPUT_CAPTURE_CHANNELS,
+        FT_NATIVE_OUTPUT_AGGREGATE,
+        FT_NATIVE_OUTPUT_STEREO_ORDER,
+        FT_NATIVE_OUTPUT_LAYOUT,
+        FT_NATIVE_OUTPUT_RATE_MISMATCH,
+    };
+    for (unsigned mode = 0; mode < 6; ++mode) {
+        resetFixture();
+        if (mode == 0)
+            hal.mismatchedOutputUID = true;
+        if (mode == 1)
+            hal.microphone = true;
+        if (mode == 2)
+            hal.aggregateOutput = true;
+        if (mode == 3)
+            hal.preferredStereo = false;
+        if (mode == 4)
+            hal.unsupportedOutput = true;
+        if (mode == 5)
+            hal.nominalRate = 44100;
+        const auto r = request(state());
+        FTNativeRoute *p = nullptr;
+        FTNativeError error{};
+        CHECK(ft_native_route_prepare(&r, &p, &error) == FT_NATIVE_FAILED);
+        CHECK(p == nullptr && hal.creates == 0 && hal.starts == 0 && hal.resources() == 0);
+        CHECK(error.kind == FT_NATIVE_UNSUPPORTED);
+        CHECK(error.operation == FT_NATIVE_RESOLVE_OUTPUT);
+        CHECK(error.code == expected[mode]);
+    }
+    // A device that passes every condition still prepares.
+    resetFixture();
+    auto r = prepare(request(state()));
+    CHECK(r != nullptr);
+}
 void switchWithOffsetTapInput() {
     invocations = 3;
     for (const UInt32 origin : {3U, 5U, 7U}) {
@@ -1862,7 +1902,7 @@ struct Result {
     void (*run)();
     std::size_t count = 0, checks = 0, failed = 0;
 };
-std::array<Result, 37> results{{
+std::array<Result, 38> results{{
     {"Tests/NativeHALContractTests/main.cpp::timingDisabledByDefault", timingDisabledByDefault},
     {"Tests/NativeHALContractTests/main.cpp::timingEnableLifecycleAndNullSafety",
      timingEnableLifecycleAndNullSafety},
@@ -1882,6 +1922,7 @@ std::array<Result, 37> results{{
     {"Tests/NativeHALContractTests/main.cpp::latestCommitState", latestCommitState},
     {"Tests/NativeHALContractTests/main.cpp::acquisitionGuards", acquisitionGuards},
     {"Tests/NativeHALContractTests/main.cpp::capabilityAndCertificate", capabilityAndCertificate},
+    {"Tests/NativeHALContractTests/main.cpp::resolveOutputRejections", resolveOutputRejections},
     {"Tests/NativeHALContractTests/main.cpp::switchWithOffsetTapInput", switchWithOffsetTapInput},
     {"Tests/NativeHALContractTests/main.cpp::idleTransportCanHandoffWithoutSourceSamples",
      idleTransportCanHandoffWithoutSourceSamples},

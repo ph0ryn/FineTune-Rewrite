@@ -535,6 +535,25 @@ FTNativeError installListeners(FTNativeRoute &route) {
 }
 } // namespace
 
+// The resolved physical output must be exactly the requested, non-aggregate, output-only stereo
+// device in a settled format. Returning the failing condition keeps a field failure attributable
+// after the device state changed; 0 means the device passed every check.
+std::int32_t rejectedOutput(const OutputDevice &physical, const char *requestedUID) {
+    if (physical.id == 0 || physical.uid != requestedUID)
+        return FT_NATIVE_OUTPUT_IDENTITY_MISMATCH;
+    if (physical.inputChannels != 0)
+        return FT_NATIVE_OUTPUT_CAPTURE_CHANNELS;
+    if (physical.aggregate)
+        return FT_NATIVE_OUTPUT_AGGREGATE;
+    if (!physical.stereoOrderKnown)
+        return FT_NATIVE_OUTPUT_STEREO_ORDER;
+    if (!validLayout(physical.output))
+        return FT_NATIVE_OUTPUT_LAYOUT;
+    if (physical.nominalSampleRate != physical.output.sampleRate)
+        return FT_NATIVE_OUTPUT_RATE_MISMATCH;
+    return 0;
+}
+
 FTNativeResult prepareWithHal(const FTNativeRouteRequest *request, FTNativeRoute **output,
                               FTNativeError *error, const HalAPI &api) {
     if (output)
@@ -575,10 +594,8 @@ FTNativeResult prepareWithHal(const FTNativeRouteRequest *request, FTNativeRoute
     if (auto problem = api.inspectOutput(api.context, request->output_uid, physical);
         problem.kind != FT_NATIVE_NO_FAILURE)
         return fail(problem, error);
-    if (physical.id == 0 || physical.uid != request->output_uid || physical.inputChannels != 0 ||
-        physical.aggregate || !physical.stereoOrderKnown || !validLayout(physical.output) ||
-        physical.nominalSampleRate != physical.output.sampleRate)
-        return fail(failure(FT_NATIVE_UNSUPPORTED, FT_NATIVE_RESOLVE_OUTPUT, invalidFormat), error);
+    if (const auto rejection = rejectedOutput(physical, request->output_uid); rejection != 0)
+        return fail(failure(FT_NATIVE_UNSUPPORTED, FT_NATIVE_RESOLVE_OUTPUT, rejection), error);
     auto *route = allocateOwner();
     if (!route)
         return fail(failure(FT_NATIVE_UNAVAILABLE, FT_NATIVE_INPUT), error);

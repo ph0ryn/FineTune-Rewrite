@@ -132,6 +132,9 @@ main usage description・armed・first-appliedは権限許可の証明ではな�
 ### 経路無効化の診断
 
 `bindingChanged / certifyFormat / -5101`はローカルの経路無効化コードで、HALの個別エラーやproperty selectorを表すものではありません。
+`resolveOutput`の拒否もHALのOSStatusではなく条件別のローカルコードで返します（-5110 identity、-5111 input channels、-5112 aggregate、-5113 stereo order、-5114 layout、-5115 sample-rate disagreement）。
+いずれも`unsupported`のまま条件を区別するので、表示は条件別の説明を出し、汎用の「unsupported format」で原因を隠しません。
+rate disagreementはデバイスがformat遷移中の一時状態でも成立しますが、この区別は再試行可否の判断ではなく、失敗後に状態が戻っても原因を特定できるようにするためのものです。
 nativeは無効化時に最初に記録権を得たイベントだけを保持し、property通知のobject・件数・最初のaddressと、IO callbackのdevice・入力構成・出力構成・出力データ欠損・frame不一致を区別します。
 この記録はイベント全体の発生順や根本原因の証明ではなく、既存の証明条件を緩めません。通常idle、DSPエラー、無効化前の状態から理由を推測して埋めることもありません。
 

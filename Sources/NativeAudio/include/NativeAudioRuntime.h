@@ -51,6 +51,18 @@ typedef enum FTNativeOperation {
     FT_NATIVE_DESTROY_TAP
 } FTNativeOperation;
 
+// Operation-local codes for an FT_NATIVE_RESOLVE_OUTPUT rejection, which always reports
+// FT_NATIVE_UNSUPPORTED. Each names the observed condition that failed so a failure stays
+// attributable after the device state changed; none of them is an OSStatus or a HAL selector.
+enum {
+    FT_NATIVE_OUTPUT_IDENTITY_MISMATCH = -5110, // Resolved id/uid differ from the request.
+    FT_NATIVE_OUTPUT_CAPTURE_CHANNELS = -5111,  // Device also exposes input channels.
+    FT_NATIVE_OUTPUT_AGGREGATE = -5112,         // Resolved device is an aggregate.
+    FT_NATIVE_OUTPUT_STEREO_ORDER = -5113,      // Preferred stereo order is not verified 1, 2.
+    FT_NATIVE_OUTPUT_LAYOUT = -5114,            // Output stream is not packed stereo float32.
+    FT_NATIVE_OUTPUT_RATE_MISMATCH = -5115      // Nominal and stream sample rates disagree.
+};
+
 typedef struct FTNativeError {
     FTNativeFailureKind kind;
     FTNativeOperation operation;
