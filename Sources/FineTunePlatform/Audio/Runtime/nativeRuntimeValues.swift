@@ -67,6 +67,31 @@ enum NativeRouteAction: Sendable, Equatable {
   case startMuted, commit, update
 }
 
+// A resolveOutput rejection reports the observed condition. Left generic, every rejection reads as
+// an unsupported format and a state that only exists while the device is settling cannot be acted on.
+private func resolveOutputMessage(_ error: FTNativeError) -> String? {
+  guard error.operation == FT_NATIVE_RESOLVE_OUTPUT, error.kind == FT_NATIVE_UNSUPPORTED else {
+    return nil
+  }
+  switch Int(error.code) {
+  case FT_NATIVE_OUTPUT_IDENTITY_MISMATCH:
+    return "The requested output no longer resolves to that audio device. Choose the output again."
+  case FT_NATIVE_OUTPUT_CAPTURE_CHANNELS:
+    return "This output also exposes input channels, so it cannot host a playback-only route."
+  case FT_NATIVE_OUTPUT_AGGREGATE:
+    return "This output is an aggregate device. Choose the physical output instead."
+  case FT_NATIVE_OUTPUT_STEREO_ORDER:
+    return "This output does not report the standard 1/2 stereo channel order."
+  case FT_NATIVE_OUTPUT_LAYOUT:
+    return "This output is not packed stereo float32, so it cannot host an audio route."
+  case FT_NATIVE_OUTPUT_RATE_MISMATCH:
+    return
+      "This output's nominal and stream sample rates disagree, so it is changing format. Try again."
+  default:
+    return nil
+  }
+}
+
 func nativeRouteFailure(_ error: FTNativeError) -> AudioRouteFailure {
   let kind: AudioRouteFailureKind
   switch error.kind {
@@ -105,6 +130,8 @@ func nativeRouteFailure(_ error: FTNativeError) -> AudioRouteFailure {
   if error.operation == FT_NATIVE_USAGE_DESCRIPTION {
     message =
       "Audio capture is unavailable in this build. Use the configured FineTune app or AudioProbe build."
+  } else if let rejected = resolveOutputMessage(error) {
+    message = rejected
   } else {
     switch kind {
     case .captureNotRequested:
