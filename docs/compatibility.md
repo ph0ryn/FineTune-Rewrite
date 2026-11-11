@@ -168,6 +168,21 @@ Quitボタン・⌘Q・アプリメニューは原作と同じ`NSApplication.ter
 新実装のdirectoryは必須の明示引数です。原作のApplication Support名前空間を暗黙に開きません。
 原作設定のimportを実装するときも、ユーザーが明示的に選ぶ操作として設計し、今回のテスト実行で本物の設定を移行・変更しません。
 
+## システムアラートの消音連動（原作にない独自動作）
+
+原作のsoftware tierミュートはtap内のゲインだけで、tap外のシステムアラート音は消しません。
+hardware/DDC tierは機器側のミュートでアラートも消えますが、HDMIなどhardwareミュートを持たない出力では
+「デバイス無音」でも未処理キーのビープが鳴ります。この差は受け入れ条件の違いとして扱い、次の独自動作にします。
+
+- System Soundsの出力先デバイスがsoftware tierでミュートされている間だけ、OSのアラート音量を0にする
+- 解除時はミュート前のアラート音量へ戻す。hardware/DDC tierと、System Soundsに出ていないデバイスのミュートでは何もしない
+- will-terminateでも同期的に戻し、保存した復元値は次回起動時に確認してから現在のミュートを評価する。終了と復元が競合しても値の取り違えを残さない
+- 復元値は保存schemaの`alertVolumeBeforeMuteSilencing`にだけ置き、アプリ設定のAlert Volumeとは別に扱う。silencing中はSettingsのAlert Volume操作を無効化する
+
+[policyと実際のモデルの接続](<../Tests/AppCompositionTests/SystemAlertSilencingTests.swift>)と
+[実モデルのミュート往復](<../Tests/AppCompositionTests/DeviceBackendCompositionTests.swift>)で確認します。
+OSのアラート音量を実際に変更する実機確認は別で、このunitの成功は実音声の確認ではありません。
+
 ## 新設計への適応
 
 純粋な入力・出力契約は直接保持できます。一方、旧private API、未使用engineを抱えるfixture、
