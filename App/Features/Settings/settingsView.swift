@@ -131,12 +131,20 @@ struct FineTuneSettingsView: View {
         }
         setting("Alert Volume", description: "Volume for alerts and notifications") {
           if let volume = bindings.alertVolume {
-            HStack(spacing: DesignTokens.Spacing.sm) {
-              Slider(value: volume, in: 0...1).frame(width: 230).accessibilityLabel("Alert volume")
-              VolumePercentageField(value: volume, range: 0...100, label: "Alert volume percentage")
-              if read().device.alertIsApplying { ProgressView().controlSize(.small) }
+            VStack(alignment: .trailing, spacing: DesignTokens.Spacing.xs) {
+              HStack(spacing: DesignTokens.Spacing.sm) {
+                Slider(value: volume, in: 0...1).frame(width: 230)
+                  .accessibilityLabel("Alert volume")
+                VolumePercentageField(
+                  value: volume, range: 0...100, label: "Alert volume percentage")
+                if read().device.alertIsApplying { ProgressView().controlSize(.small) }
+              }
+              .disabled(read().device.alertIsApplying || read().device.alertVolumeSilenced)
+              if read().device.alertVolumeSilenced {
+                Text("Alerts are silenced while the System Sounds device is muted.")
+                  .font(DesignTokens.Typography.rowDescription).foregroundStyle(.secondary)
+              }
             }
-            .disabled(read().device.alertIsApplying)
           } else {
             Text("Alert volume is unavailable.").foregroundStyle(.secondary)
           }

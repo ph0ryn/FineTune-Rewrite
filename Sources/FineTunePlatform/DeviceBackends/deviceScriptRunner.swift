@@ -59,6 +59,22 @@ public final class SystemDeviceScriptRunner: DeviceScriptRunning, Sendable {
       execution.cancel()
     }
   }
+
+  /// The AppKit will-terminate turn cannot await; this is the one synchronous execution.
+  public static func runBlocking(script: String) throws -> DeviceScriptResult {
+    let process = Process()
+    let output = Pipe()
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+    process.arguments = ["-e", script]
+    process.standardInput = FileHandle.nullDevice
+    process.standardOutput = output
+    process.standardError = output
+    try process.run()
+    let data = (try? output.fileHandleForReading.readToEnd()) ?? Data()
+    process.waitUntilExit()
+    return DeviceScriptResult(
+      status: process.terminationStatus, output: String(decoding: data, as: UTF8.self))
+  }
 }
 
 /// Only cancellation state and the owned child reference cross threads; all are under this lock.

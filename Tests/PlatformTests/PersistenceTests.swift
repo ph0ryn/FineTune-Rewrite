@@ -103,6 +103,22 @@ struct PersistenceTests {
     #expect(manager.lastSaveError == nil)
   }
 
+  @Test("Alert silencing restore intent survives flush and is absent again after clearing")
+  func alertSilencingRestoreIntent() throws {
+    let directory = try temporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let manager = SettingsManager(directory: directory, launchAtLoginService: LoginSpy())
+    #expect(manager.alertVolumeBeforeMuteSilencing == nil)
+    manager.setAlertVolumeBeforeMuteSilencing(0.42)
+    manager.flushSync()
+    let loaded = SettingsManager(directory: directory, launchAtLoginService: LoginSpy())
+    #expect(loaded.alertVolumeBeforeMuteSilencing == 0.42)
+    loaded.setAlertVolumeBeforeMuteSilencing(nil)
+    loaded.flushSync()
+    let cleared = SettingsManager(directory: directory, launchAtLoginService: LoginSpy())
+    #expect(cleared.alertVolumeBeforeMuteSilencing == nil)
+  }
+
   @Test("Debounced changes persist the latest snapshot rather than the first scheduled value")
   func debounceReadback() async throws {
     let directory = try temporaryDirectory()

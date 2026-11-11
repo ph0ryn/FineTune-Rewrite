@@ -42,6 +42,9 @@ public struct SavedSettings: Codable, Equatable, Sendable {
   public var softwareDeviceVolumes: [String: Float] = [:]
   public var softwareDeviceMuteStates: [String: Bool] = [:]
   public var softwareDeviceSavedVolumes: [String: Float] = [:]
+  /// The OS alert volume owned by a mute-triggered silencing. A launch restores it before
+  /// evaluating a new mute, so an interrupted or racing restore can finish on the next run.
+  public var alertVolumeBeforeMuteSilencing: Float?
   public var deviceVolumeTierOverride: [String: VolumeControlTier] = [:]
   public var deviceIconOverrides: [String: String] = [:]
   public var outputDevicePriority: [String] = []
@@ -88,6 +91,8 @@ public struct SavedSettings: Codable, Equatable, Sendable {
     softwareDeviceMuteStates = try read(.softwareDeviceMuteStates, default: [:])
     softwareDeviceSavedVolumes = Self.decodedGains(
       try read(.softwareDeviceSavedVolumes, default: [:]))
+    alertVolumeBeforeMuteSilencing = try values.decodeIfPresent(
+      Float.self, forKey: .alertVolumeBeforeMuteSilencing)
     deviceVolumeTierOverride = try read(.deviceVolumeTierOverride, default: [:])
     deviceIconOverrides = try read(.deviceIconOverrides, default: [:])
     outputDevicePriority = try read(.outputDevicePriority, default: [])

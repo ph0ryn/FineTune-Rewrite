@@ -14,6 +14,7 @@ final class DeviceControlModel {
   private let input: InputDeviceBackend
   private let systemSounds: SystemSoundBackend
   private let alertVolume: AlertVolumeBackend
+  private let alertSilencing: SystemAlertSilencing
   private let bluetooth: BluetoothDeviceBackend
   private let ddc: DDCVolumeBackend
   /// Reused when Root constructs the actual inspector; projection never performs a metadata query.
@@ -56,6 +57,8 @@ final class DeviceControlModel {
     self.input = input
     self.systemSounds = systemSounds
     self.alertVolume = alertVolume
+    self.alertSilencing = SystemAlertSilencing(
+      alertVolume: alertVolume, settings: settings)
     self.bluetooth = bluetooth
     self.ddc = ddc
     inspectorReader = reader
@@ -70,6 +73,7 @@ final class DeviceControlModel {
     commandError ?? readOutputSelectionFailure() ?? output.lastError?.localizedDescription
       ?? input.lastError?.localizedDescription
       ?? systemSounds.lastError?.localizedDescription ?? alertVolume.lastError?.localizedDescription
+      ?? alertSilencing.lastError
       ?? bluetooth.lastError?.localizedDescription ?? ddc.lastError?.localizedDescription
   }
 
@@ -117,7 +121,8 @@ final class DeviceControlModel {
       followsDefault: settings.isSystemSoundsFollowingDefault,
       alertVolume: alertVolume.displayedVolume,
       canSetAlertVolume: alertVolume.observedVolume != nil,
-      alertIsApplying: alertVolume.isApplying, error: lastError,
+      alertIsApplying: alertVolume.isApplying,
+      alertVolumeSilenced: alertSilencing.isSilenced, error: lastError,
       bluetooth: BluetoothPresentation(
         isPoweredOn: bluetooth.isPoweredOn,
         paired: bluetooth.pairedDevices.map { peer in
@@ -172,9 +177,13 @@ final class DeviceControlModel {
     probeInputs = currentProbeInputs
     input.start()
     systemSounds.start()
+    systemSounds.onOutputChanged = { [weak self] _ in
+      Task { @MainActor [weak self] in self?.reconcileAlertSilencing() }
+    }
+    alertSilencing.start()
+    reconcileAlertSilencing()
     bluetooth.start()
     ddc.start()
-    run { [alertVolume] in await alertVolume.refresh() }
     attempt { try followDefaultIfNeeded() }
     trackChanges()
   }
@@ -184,11 +193,37 @@ final class DeviceControlModel {
     generation &+= 1
     for task in tasks.values { task.cancel() }
     tasks.removeAll()
+    systemSounds.onOutputChanged = nil
     input.stop()
     systemSounds.stop()
-    alertVolume.stop()
     bluetooth.stop()
     await ddc.stop()
+    await alertSilencing.stop()
+    alertVolume.stop()
+  }
+
+  /// The AppKit will-terminate turn cannot await; alert silencing restores its OS value here.
+  func prepareForTermination() {
+    alertSilencing.prepareForTermination()
+  }
+
+  /// Joins the serial alert-silencing queue at lifecycle boundaries and in component tests.
+  func awaitAlertSilencing() async {
+    await alertSilencing.awaitTransitions()
+  }
+
+  /// A system-sounds mute that only exists inside the tap cannot silence OS alert sounds.
+  private func reconcileAlertSilencing() {
+    alertSilencing.update(target: systemAlertSilencingTarget)
+  }
+
+  private var systemAlertSilencingTarget: SystemAlertSilencingTarget? {
+    guard let uid = systemSounds.outputUID,
+      let device = devices.outputDevices.first(where: { $0.uid == uid }),
+      let isMuted = output.muteStates[device.id]
+    else { return nil }
+    return SystemAlertSilencingTarget(
+      deviceUID: uid, tier: output.outputVolumeBackend(for: device.id), isMuted: isMuted)
   }
 
   isolated deinit { for task in tasks.values { task.cancel() } }
@@ -204,6 +239,7 @@ final class DeviceControlModel {
       ddc.devicesDidChange()
     }
     attempt { try followDefaultIfNeeded() }
+    reconcileAlertSilencing()
   }
 
   func settingsDidChange() {
@@ -211,6 +247,7 @@ final class DeviceControlModel {
     inputPreferencesDidChange()
     outputPreferencesDidChange()
     attempt { try followDefaultIfNeeded() }
+    reconcileAlertSilencing()
   }
 
   /// UI, URL and keyboard all arrive through the same AudioController device-command hook.
@@ -286,9 +323,11 @@ final class DeviceControlModel {
         if let device = devices.device(for: uid) { output.applyTierOverrideChange(for: device.id) }
       default: throw DeviceBackendError.unsupported("This device command")
       }
+      reconcileAlertSilencing()
       onChange?()
     } catch {
       commandError = error.localizedDescription
+      reconcileAlertSilencing()
       onChange?()
       throw error
     }
@@ -379,6 +418,8 @@ final class DeviceControlModel {
       _ = alertVolume.requestedVolume
       _ = alertVolume.isApplying
       _ = alertVolume.lastError
+      _ = alertSilencing.isSilenced
+      _ = alertSilencing.lastError
       _ = bluetooth.pairedDevices
       _ = bluetooth.connectionPhases
       _ = bluetooth.connectionErrors

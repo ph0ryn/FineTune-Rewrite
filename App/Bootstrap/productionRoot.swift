@@ -548,6 +548,7 @@ final class ProductionRoot {
   }
 
   func prepareForTermination() {
+    deviceControl.prepareForTermination()
     lifecycle.prepareForTermination()
     hud.shutdown()
   }

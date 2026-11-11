@@ -162,6 +162,39 @@ struct DeviceBackendCompositionTests {
     #expect(await rig.asyncPorts.closes == 1)
     #expect(rig.provider.starts == 0 && rig.provider.stops == 0)
   }
+
+  @Test("A software system-sounds mute silences OS alerts and unmuting restores them")
+  func softwareMuteSilencesAlerts() async {
+    let rig = DeviceCompositionFixture(outputTier: .software)
+    rig.start()
+    await rig.model.awaitAlertSilencing()
+    #expect(rig.model.backend.alertVolume == 0.26 && !rig.model.backend.alertVolumeSilenced)
+    rig.controller.perform(.setDeviceMuted(scope: .output, uid: "speaker", muted: true))
+    await rig.model.awaitAlertSilencing()
+    #expect(rig.model.backend.alertVolumeSilenced && rig.model.backend.alertVolume == 0)
+    #expect(rig.settings.alertVolumeBeforeMuteSilencing == 0.26)
+    #expect(await rig.asyncPorts.alertPercent == 0)
+    rig.controller.perform(.setDeviceMuted(scope: .output, uid: "speaker", muted: false))
+    await rig.model.awaitAlertSilencing()
+    #expect(!rig.model.backend.alertVolumeSilenced && rig.model.backend.alertVolume == 0.26)
+    #expect(rig.settings.alertVolumeBeforeMuteSilencing == nil)
+    #expect(await rig.asyncPorts.alertPercent == 26)
+    await rig.stop()
+    #expect(rig.settings.alertVolumeBeforeMuteSilencing == nil)
+  }
+
+  @Test("A hardware mute does not touch the OS alert volume")
+  func hardwareMuteLeavesAlertsAlone() async {
+    let rig = DeviceCompositionFixture()
+    rig.start()
+    await rig.model.awaitAlertSilencing()
+    rig.controller.perform(.setDeviceMuted(scope: .output, uid: "speaker", muted: true))
+    await rig.model.awaitAlertSilencing()
+    #expect(!rig.model.backend.alertVolumeSilenced)
+    #expect(rig.settings.alertVolumeBeforeMuteSilencing == nil)
+    #expect(await rig.asyncPorts.alertScripts.filter { $0.hasPrefix("set ") }.isEmpty)
+    await rig.stop()
+  }
 }
 
 @MainActor
@@ -176,13 +209,16 @@ private final class DeviceCompositionFixture {
   let model: DeviceControlModel
   let controller: AudioController
 
-  init(clock testClock: DeviceBackendClock? = nil, useLiveDetection: Bool = false) {
+  init(
+    clock testClock: DeviceBackendClock? = nil, useLiveDetection: Bool = false,
+    outputTier: VolumeControlTier = .hardware
+  ) {
     settings = SettingsManager(
       directory: FileManager.default.temporaryDirectory.appendingPathComponent(
         "device-composition-\(UUID())"),
       launchAtLoginService: hal)
     let detector: (@MainActor (AudioDeviceID) -> VolumeControlTier)?
-    if useLiveDetection { detector = nil } else { detector = { _ in .hardware } }
+    if useLiveDetection { detector = nil } else { detector = { _ in outputTier } }
     output = CoreAudioDeviceVolumeAdapter(
       deviceProvider: provider, settingsManager: settings,
       autoDetectedBackend: detector,
@@ -347,8 +383,24 @@ private actor CompositionAsyncPorts: DeviceScriptRunning, BluetoothDeviceTranspo
   DDCDisplayTransport
 {
   var closes = 0
+  private(set) var alertPercent: Int
+  private(set) var alertScripts: [String] = []
+
+  init(alertPercent: Int = 26) {
+    self.alertPercent = alertPercent
+  }
+
   func run(script: String) async throws -> DeviceScriptResult {
-    DeviceScriptResult(status: 0, output: "26")
+    alertScripts.append(script)
+    if script == "get alert volume of (get volume settings)" {
+      return DeviceScriptResult(status: 0, output: "\(alertPercent)\n")
+    }
+    let prefix = "set volume alert volume "
+    guard script.hasPrefix(prefix), let requested = Int(script.dropFirst(prefix.count)) else {
+      return DeviceScriptResult(status: 1, output: "Unexpected unit-test script.")
+    }
+    alertPercent = requested
+    return DeviceScriptResult(status: 0, output: "")
   }
   func snapshot() async throws -> BluetoothTransportSnapshot {
     BluetoothTransportSnapshot(isPoweredOn: true, peers: [])

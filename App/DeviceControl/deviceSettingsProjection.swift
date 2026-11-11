@@ -13,6 +13,8 @@ struct DeviceSettingsPresentation: Equatable, Sendable {
   var alertVolume: Float?
   var canSetAlertVolume: Bool
   var alertIsApplying: Bool
+  /// True while a software mute of the System Sounds device owns the OS alert volume.
+  var alertVolumeSilenced: Bool
   var error: String?
   var bluetooth: BluetoothPresentation
 }

@@ -14,13 +14,43 @@ public final class AlertVolumeBackend {
 
   private let scripts: any DeviceScriptRunning
   private let clock: DeviceBackendClock
+  private let blockingScript: @Sendable (String) throws -> DeviceScriptResult
   private var generation: UInt64 = 0
   private var pendingWrite: Task<Void, any Error>?
   private static let readScript = "get alert volume of (get volume settings)"
 
-  public init(scriptRunner: any DeviceScriptRunning, clock: DeviceBackendClock) {
+  public init(
+    scriptRunner: any DeviceScriptRunning, clock: DeviceBackendClock,
+    blockingScript: @escaping @Sendable (String) throws -> DeviceScriptResult = {
+      try SystemDeviceScriptRunner.runBlocking(script: $0)
+    }
+  ) {
     scripts = scriptRunner
     self.clock = clock
+    self.blockingScript = blockingScript
+  }
+
+  /// The AppKit will-terminate turn cannot await or re-read; one blocking write restores silence.
+  /// A failed restore keeps its persisted intent for the next launch.
+  public func restoreForTermination(_ volume: Float) -> Bool {
+    guard volume.isFinite, (0...1).contains(volume) else { return false }
+    let percent = Int((volume * 100).rounded())
+    do {
+      let result = try blockingScript("set volume alert volume \(percent)")
+      guard result.status == 0 else {
+        lastError = DeviceBackendError.operationFailed(
+          "Unable to restore the system alert volume (status \(result.status)): \(result.output)")
+        return false
+      }
+      observedVolume = Float(percent) / 100
+      requestedVolume = nil
+      isApplying = false
+      lastError = nil
+      return true
+    } catch {
+      lastError = error
+      return false
+    }
   }
 
   public func refresh() async {

@@ -261,7 +261,8 @@ private final class SettingsTestSource {
 func testDeviceSettings() -> DeviceSettingsPresentation {
   DeviceSettingsPresentation(
     systemOutputUID: nil, systemOutputOptions: [], canSetSystemOutput: false, followsDefault: true,
-    alertVolume: nil, canSetAlertVolume: false, alertIsApplying: false, error: nil,
+    alertVolume: nil, canSetAlertVolume: false, alertIsApplying: false,
+    alertVolumeSilenced: false, error: nil,
     bluetooth: BluetoothPresentation(isPoweredOn: nil, paired: [], error: nil))
 }
 

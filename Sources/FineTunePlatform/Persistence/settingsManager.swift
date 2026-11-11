@@ -225,6 +225,13 @@ public final class SettingsManager {
   public func setSoftwareDeviceMuteState(for deviceUID: String, to muted: Bool) {
     change { $0.softwareDeviceMuteStates[deviceUID] = muted }
   }
+  /// Only the alert-silencing mirror writes this; its presence means a restore is still owed.
+  public var alertVolumeBeforeMuteSilencing: Float? {
+    settings.alertVolumeBeforeMuteSilencing
+  }
+  public func setAlertVolumeBeforeMuteSilencing(_ volume: Float?) {
+    change { $0.alertVolumeBeforeMuteSilencing = volume }
+  }
   private static func normalizedDeviceGain(_ volume: Float) -> Float {
     volume.isFinite ? max(0, min(1, volume)) : 1
   }
