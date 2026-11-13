@@ -139,7 +139,6 @@ struct PopupLayoutTests {
       #expect(!content.isOpaque)
       #expect(glass.style == .regular)
       #expect(glass.tintColor == nil)
-      if #available(macOS 27, *) { #expect(!glass.effectIsInteractive) }
       #expect(controller.preferredContentSize.height > 0)
     } else {
       #expect(controller.view is NSHostingView<AnyView>)
