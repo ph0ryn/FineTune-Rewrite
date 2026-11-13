@@ -94,13 +94,14 @@ jobs:
 
           func run(
             _ label: String, _ image: CGImage, _ level: VNRequestTextRecognitionLevel,
-            revision: Int? = nil
+            revision: Int? = nil, cpuOnly: Bool = false
           ) {
             let request = VNRecognizeTextRequest()
             request.recognitionLevel = level
             if let revision { request.revision = revision }
             request.recognitionLanguages = ["en-US"]
             request.usesLanguageCorrection = true
+            request.usesCPUOnly = cpuOnly
             do {
               try VNImageRequestHandler(cgImage: image, options: [:]).perform([request])
               let detected = request.results?.compactMap { $0.topCandidates(1).first?.string } ?? []
@@ -130,6 +131,8 @@ jobs:
             run("accurate-rev\(revision)", image, .accurate, revision: revision)
           }
           run("accurate-current", image, .accurate)
+          run("accurate-cpu-current", image, .accurate, cpuOnly: true)
+          run("accurate-cpu-rev1", image, .accurate, revision: 1, cpuOnly: true)
           run("fast-current", image, .fast)
           SWIFT
           xcrun swift /tmp/vision_probe.swift || true
