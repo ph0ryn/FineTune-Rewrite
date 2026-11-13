@@ -74,7 +74,7 @@ SwiftのXML/JSONLとnativeのreportをconfiguration別に保存します。
 - 元testの静的棚卸し・A/B/C分類・独自D・新Swift/CPP実行数を加算して、総成功数を作りません。
 
 CI設定があることと、CIが実際にpassしたことは区別します。
-ローカルはmacOS27/Xcode27.2/SDK27.2/Swift6.4.2/arm64、[CI設定](<../.github/workflows/check.yml>)もpublic preview image `xcode-27`上のmacOS27/Xcode27.2/SDK27.2です。
+ローカルはmacOS27/Xcode27.2/SDK27.2/Swift6.4.2/arm64、[CI設定](<../.github/workflows/check.yml>)はmacOS26/Xcode26.6/SDK26.5です（Xcode27 preview imageはVisionのaccurate OCRが失敗するため）。
 deployment target15.4での実機結果、両modeの同一入力証拠、別構成のsanitizer結果もそれぞれ分離します。
 
 ## DSPとnative境界

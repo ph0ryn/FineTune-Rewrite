@@ -9,13 +9,13 @@ permissions:
 
 jobs:
   check:
-    runs-on: xcode-27
+    runs-on: macos-26
     timeout-minutes: 20
     defaults:
       run:
         shell: bash
     env:
-      DEVELOPER_DIR: /Applications/Xcode_27.2.app/Contents/Developer
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -25,11 +25,11 @@ jobs:
         run: |
           version="$(xcodebuild -version)"
           printf '%s\n' "$version"
-          test "$version" = $'Xcode 27.2\nBuild version 27B52'
+          test "$version" = $'Xcode 26.6\nBuild version 17F113'
           test "$(uname -m)" = arm64
           sdk_version="$(xcrun --sdk macosx --show-sdk-version)"
           printf 'macOS SDK %s\n' "$sdk_version"
-          test "$sdk_version" = 27.2
+          test "$sdk_version" = 26.5
           sdk_path="$(xcrun --sdk macosx --show-sdk-path)"
           printf 'SDKROOT=%s\n' "$sdk_path" >> "$GITHUB_ENV"
       - name: Install check tools
@@ -64,75 +64,3 @@ jobs:
           if-no-files-found: warn
           include-hidden-files: true
           retention-days: 7
-
-  vision-probe:
-    strategy:
-      fail-fast: false
-      matrix:
-        image: [xcode-27, macos-26]
-    runs-on: ${{ matrix.image }}
-    timeout-minutes: 10
-    steps:
-      - name: Check out source
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: Probe Vision OCR
-        run: |
-          echo "== environment =="
-          sw_vers
-          uname -m
-          xcodebuild -version
-          xcrun --sdk macosx --show-sdk-version
-          system_profiler SPDisplaysDataType 2>/dev/null | head -8 || true
-          cat > /tmp/vision_probe.swift <<'SWIFT'
-          import AppKit
-          import CoreGraphics
-          import CoreText
-          import Foundation
-          import Vision
-
-          func run(
-            _ label: String, _ image: CGImage, _ level: VNRequestTextRecognitionLevel,
-            revision: Int? = nil, cpuOnly: Bool = false
-          ) {
-            let request = VNRecognizeTextRequest()
-            request.recognitionLevel = level
-            if let revision { request.revision = revision }
-            request.recognitionLanguages = ["en-US"]
-            request.usesLanguageCorrection = true
-            request.usesCPUOnly = cpuOnly
-            do {
-              try VNImageRequestHandler(cgImage: image, options: [:]).perform([request])
-              let detected = request.results?.compactMap { $0.topCandidates(1).first?.string } ?? []
-              print("\(label) OK: \(detected)")
-            } catch {
-              let ns = error as NSError
-              print("\(label) FAILED: \(error) domain=\(ns.domain) code=\(ns.code)")
-            }
-          }
-
-          let width = 320
-          let height = 80
-          let context = CGContext(
-            data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
-            space: CGColorSpaceCreateDeviceRGB(),
-            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
-          context.setFillColor(CGColor(gray: 1, alpha: 1))
-          context.fill(CGRect(x: 0, y: 0, width: width, height: height))
-          let title = NSAttributedString(
-            string: "Hello CI",
-            attributes: [.font: NSFont.systemFont(ofSize: 40), .foregroundColor: NSColor.black])
-          context.textPosition = CGPoint(x: 10, y: 20)
-          CTLineDraw(CTLineCreateWithAttributedString(title), context)
-          let image = context.makeImage()!
-          print("image: \(image.width)x\(image.height) bits=\(image.bitsPerPixel)")
-          for revision in [1, 2, 3] {
-            run("accurate-rev\(revision)", image, .accurate, revision: revision)
-          }
-          run("accurate-current", image, .accurate)
-          run("accurate-cpu-current", image, .accurate, cpuOnly: true)
-          run("accurate-cpu-rev1", image, .accurate, revision: 1, cpuOnly: true)
-          run("fast-current", image, .fast)
-          SWIFT
-          xcrun swift /tmp/vision_probe.swift || true
