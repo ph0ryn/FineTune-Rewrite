@@ -42,6 +42,82 @@ jobs:
           just --version
           just toolchain
           just check
+      - name: Probe Vision OCR availability
+        if: always()
+        continue-on-error: true
+        run: |
+          echo '== session =='
+          launchctl managername || true
+          echo '== standalone OCR =='
+          cat > /tmp/vision_probe.swift <<'SWIFT'
+          import AppKit
+          import CoreGraphics
+          import CoreText
+          import Foundation
+          import Vision
+
+          func run(_ label: String, _ image: CGImage, _ level: VNRequestTextRecognitionLevel) {
+            let request = VNRecognizeTextRequest()
+            request.recognitionLevel = level
+            request.recognitionLanguages = ["en-US"]
+            request.usesLanguageCorrection = true
+            do {
+              try VNImageRequestHandler(cgImage: image, options: [:]).perform([request])
+              let detected = request.results?.compactMap { $0.topCandidates(1).first?.string } ?? []
+              print("\(label) OK: \(detected)")
+            } catch {
+              let ns = error as NSError
+              print("\(label) FAILED: \(error) domain=\(ns.domain) code=\(ns.code)")
+              print("\(label) userInfo: \(ns.userInfo)")
+            }
+          }
+
+          let width = 320
+          let height = 80
+          let context = CGContext(
+            data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+          context.setFillColor(CGColor(gray: 1, alpha: 1))
+          context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+          let title = NSAttributedString(
+            string: "Hello CI",
+            attributes: [.font: NSFont.systemFont(ofSize: 40), .foregroundColor: NSColor.black])
+          context.textPosition = CGPoint(x: 10, y: 20)
+          CTLineDraw(CTLineCreateWithAttributedString(title), context)
+          let image = context.makeImage()!
+          print("image: \(image.width)x\(image.height) bits=\(image.bitsPerPixel)")
+          run("accurate/raw", image, .accurate)
+          run("fast/raw", image, .fast)
+
+          // Mirror the popup fixture: resample 3x onto an opaque white canvas before OCR.
+          let scaled = 3
+          let scaledContext = CGContext(
+            data: nil, width: image.width * scaled, height: image.height * scaled,
+            bitsPerComponent: 8, bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+          scaledContext.setFillColor(CGColor(gray: 1, alpha: 1))
+          scaledContext.fill(
+            CGRect(x: 0, y: 0, width: image.width * scaled, height: image.height * scaled))
+          scaledContext.draw(
+            image,
+            in: CGRect(x: 0, y: 0, width: image.width * scaled, height: image.height * scaled))
+          run("accurate/resampled", scaledContext.makeImage()!, .accurate)
+
+          do {
+            let revision = VNRecognizeTextRequest().revision
+            let languages = try VNRecognizeTextRequest.supportedRecognitionLanguages(
+              for: .accurate, revision: revision)
+            print("supported: \(Array(languages.prefix(6))) revision=\(revision)")
+          } catch {
+            print("supported FAILED: \(error)")
+          }
+          SWIFT
+          xcrun swift /tmp/vision_probe.swift || true
+          echo '== swift test without --disable-sandbox =='
+          xcrun swift test --scratch-path .build --jobs 2 --filter 'quitIsVisible' 2>&1 | tail -15 || true
+          echo '== swift test with --disable-sandbox =='
+          xcrun swift test --scratch-path .build --jobs 2 --disable-sandbox --filter 'quitIsVisible' 2>&1 | tail -15 || true
       # This disposable runner may register its built bundle; the local default gate never does.
       - name: Build unsigned app bundles on ephemeral runner
         run: |
