@@ -43,7 +43,10 @@ struct CaptureUsageTests {
     #expect(native.cleanupRetryRequests == 1 && native.requests.isEmpty && native.handles.isEmpty)
     let prepared = try await runtime.prepare(request)
     #expect(native.requests == [request])
-    #expect((prepared as AnyObject) === native.handle("A"))
+    // Keep this identity comparison out of #expect: the Swift 6.3.3 SILGen used by CI crashes on
+    // the reabstraction thunk that the macro's autoclosure produces for a class-bound existential.
+    let isOwnedHandle = (prepared as AnyObject) === native.handle("A")
+    #expect(isOwnedHandle)
     #expect(prepared.key == request.key)
   }
 }
