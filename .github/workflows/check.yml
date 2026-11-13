@@ -9,13 +9,13 @@ permissions:
 
 jobs:
   check:
-    runs-on: macos-26
+    runs-on: xcode-27
     timeout-minutes: 20
     defaults:
       run:
         shell: bash
     env:
-      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+      DEVELOPER_DIR: /Applications/Xcode_27.2.app/Contents/Developer
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -25,11 +25,11 @@ jobs:
         run: |
           version="$(xcodebuild -version)"
           printf '%s\n' "$version"
-          test "$version" = $'Xcode 26.6\nBuild version 17F113'
+          test "$version" = $'Xcode 27.2\nBuild version 27B52'
           test "$(uname -m)" = arm64
           sdk_version="$(xcrun --sdk macosx --show-sdk-version)"
           printf 'macOS SDK %s\n' "$sdk_version"
-          test "$sdk_version" = 26.5
+          test "$sdk_version" = 27.2
           sdk_path="$(xcrun --sdk macosx --show-sdk-path)"
           printf 'SDKROOT=%s\n' "$sdk_path" >> "$GITHUB_ENV"
       - name: Install check tools

@@ -48,7 +48,7 @@ Swiftとnativeの公開境界はC形式です。C++型や所有権をSwift側へ
 - Swift側はXcode付属の`swift format`、native側は[.clang-format](<.clang-format>)を使う
 
 ローカル検証環境はmacOS 27 / Xcode 27.2 / SDK 27.2 / Swift 6.4.2 / arm64です。
-[CI](<.github/workflows/check.yml>)はmacOS 26 / Xcode 26.6 / SDK 26.5を指定していますが、CIでの実行結果や最小対応OSでの動作確認とは別です。
+[CI](<.github/workflows/check.yml>)はmacOS 27 / Xcode 27.2 / SDK 27.2のpublic preview image `xcode-27`を指定していますが、CIでの実行結果や最小対応OSでの動作確認とは別です。
 製品のdeployment targetはmacOS 15.4です。
 
 ```bash
