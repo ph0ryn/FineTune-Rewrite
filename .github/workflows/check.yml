@@ -47,20 +47,3 @@ jobs:
         run: |
           just build-app debug
           just build-app release
-      - name: Upload test evidence
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: test-evidence
-          path: |
-            .build/test-results-*.xml
-            .build/test-events-*.jsonl
-            .build/test-dsp-results-*.json
-            .build/test-native-*-results-*.json
-            .build/native-hal-*/build.log
-            .build/native-hal-*/run.log
-            .build/native-hal-*/link-map.txt
-            .build/native-hal-*/undefined-symbols.log
-          if-no-files-found: warn
-          include-hidden-files: true
-          retention-days: 7
