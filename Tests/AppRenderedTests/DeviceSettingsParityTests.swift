@@ -211,6 +211,45 @@ struct DeviceSettingsParityTests {
     #expect(openedURLs == [copy.starURL, copy.licenseURL])
   }
 
+  @Test("A native button gets one action per real click and none on a miss")
+  func nativeButtonReceivesOnlyRealPointerClicks() throws {
+    _ = NSApplication.shared
+    let counter = NativeClickCounter()
+    let button = NSButton(
+      title: "Leaf", target: counter, action: #selector(NativeClickCounter.press(_:)))
+    button.frame = NSRect(x: 70, y: 35, width: 100, height: 50)
+    #expect(button.cell is NSButtonCell)
+    let probe = PointerProbeView(frame: NSRect(x: 180, y: 0, width: 60, height: 120))
+    let window = NSWindow(
+      contentRect: NSRect(x: -10_000, y: -10_000, width: 240, height: 120),
+      styleMask: .borderless, backing: .buffered, defer: false)
+    defer { window.close() }
+    window.isReleasedWhenClosed = false
+    let content = NSView(frame: NSRect(x: 0, y: 0, width: 240, height: 120))
+    content.addSubview(button)
+    content.addSubview(probe)
+    window.contentView = content
+    window.orderFrontRegardless()
+    #expect(window.windowNumber > 0)
+    #expect(button.window === window)
+    #expect(probe.window === window)
+    let target = content.convert(button.bounds, from: button)
+    let hit = CGPoint(x: target.midX, y: target.midY)
+    let miss = CGPoint(x: target.minX - 20, y: target.midY)
+    #expect(!target.contains(miss))
+    try sendMouseClick(in: window, at: miss)
+    #expect(counter.presses == 0)
+    try sendMouseClick(in: window, at: hit)
+    try sendMouseClick(in: window, at: hit)
+    #expect(counter.presses == 2)
+    let probeTarget = content.convert(probe.bounds, from: probe)
+    try sendMouseClick(in: window, at: CGPoint(x: probeTarget.midX, y: probeTarget.midY))
+    #expect(probe.events == ["down", "up"])
+    let stray = window.nextEvent(
+      matching: .leftMouseUp, until: .distantPast, inMode: .default, dequeue: false)
+    #expect(stray == nil)
+  }
+
   @Test("Missing About metadata is explicit rather than a fabricated release version")
   func aboutMissingMetadata() throws {
     let metadata = SettingsAboutPresentation(version: nil, build: nil, year: 2028)
@@ -335,6 +374,30 @@ struct DeviceSettingsParityTests {
   }
 }
 
+/// Counts real pointer-driven actions for the native-button regression; owned by that one test.
+@MainActor
+private final class NativeClickCounter: NSObject {
+  private(set) var presses = 0
+
+  @objc func press(_ sender: NSButton) {
+    presses += 1
+  }
+}
+
+/// Records the input an ordinary non-tracking NSView actually receives in the same regression.
+@MainActor
+private final class PointerProbeView: NSView {
+  private(set) var events: [String] = []
+
+  override func mouseDown(with event: NSEvent) {
+    events.append("down")
+  }
+
+  override func mouseUp(with event: NSEvent) {
+    events.append("up")
+  }
+}
+
 @MainActor
 @Observable
 private final class ObservedVolumeOverride {
@@ -434,15 +497,7 @@ private final class LeafUIFixture<Content: View> {
   }
 
   func click(_ point: CGPoint) throws {
-    let location = host.convert(point, to: nil)
-    for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
-      let event = try #require(
-        NSEvent.mouseEvent(
-          with: type, location: location, modifierFlags: [], timestamp: 0,
-          windowNumber: window.windowNumber, context: nil, eventNumber: 0,
-          clickCount: 1, pressure: type == .leftMouseDown ? 1 : 0))
-      window.sendEvent(event)
-    }
+    try sendMouseClick(in: window, at: host.convert(point, to: nil))
     render()
   }
 

@@ -1057,15 +1057,7 @@ private final class ShownPopupFixture {
 
   func sendClick(_ point: CGPoint, in view: NSView) throws {
     let window = try #require(view.window)
-    let location = view.convert(point, to: nil)
-    for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
-      let event = try #require(
-        NSEvent.mouseEvent(
-          with: type, location: location, modifierFlags: [], timestamp: 0,
-          windowNumber: window.windowNumber, context: nil, eventNumber: 0,
-          clickCount: 1, pressure: type == .leftMouseDown ? 1 : 0))
-      window.sendEvent(event)
-    }
+    try sendMouseClick(in: window, at: view.convert(point, to: nil))
   }
 
   func sendKey(_ characters: String, keyCode: UInt16) throws {
@@ -1202,15 +1194,7 @@ private final class PopupLayoutFixture {
 
   func sendClick(_ point: CGPoint, in view: NSView) throws {
     let window = try #require(view.window)
-    let location = view.convert(point, to: nil)
-    for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
-      let event = try #require(
-        NSEvent.mouseEvent(
-          with: type, location: location, modifierFlags: [], timestamp: 0,
-          windowNumber: window.windowNumber, context: nil, eventNumber: 0,
-          clickCount: 1, pressure: type == .leftMouseDown ? 1 : 0))
-      window.sendEvent(event)
-    }
+    try sendMouseClick(in: window, at: view.convert(point, to: nil))
     host.layoutSubtreeIfNeeded()
   }
 }

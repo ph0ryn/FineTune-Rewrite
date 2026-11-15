@@ -496,15 +496,7 @@ private final class AppEditGridFixture {
   }
 
   func click(_ frame: CGRect) throws {
-    let location = host.convert(CGPoint(x: frame.midX, y: frame.midY), to: nil)
-    for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
-      let event = try #require(
-        NSEvent.mouseEvent(
-          with: type, location: location, modifierFlags: [], timestamp: 0,
-          windowNumber: window.windowNumber, context: nil, eventNumber: 0,
-          clickCount: 1, pressure: type == .leftMouseDown ? 1 : 0))
-      window.sendEvent(event)
-    }
+    try sendMouseClick(in: window, at: host.convert(CGPoint(x: frame.midX, y: frame.midY), to: nil))
     host.layoutSubtreeIfNeeded()
     window.displayIfNeeded()
   }
@@ -577,15 +569,7 @@ private final class MixerControlFixture {
   }
 
   func click(_ point: CGPoint) throws {
-    let location = host.convert(point, to: nil)
-    for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
-      let event = try #require(
-        NSEvent.mouseEvent(
-          with: type, location: location, modifierFlags: [], timestamp: 0,
-          windowNumber: window.windowNumber, context: nil, eventNumber: 0,
-          clickCount: 1, pressure: type == .leftMouseDown ? 1 : 0))
-      window.sendEvent(event)
-    }
+    try sendMouseClick(in: window, at: host.convert(point, to: nil))
     refresh()
   }
 
