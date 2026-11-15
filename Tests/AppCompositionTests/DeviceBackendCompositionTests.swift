@@ -8,7 +8,7 @@ import Testing
 
 @testable import FineTune
 
-@Suite("Actual device composition and common commands")
+@Suite("Actual device composition and common commands", .serialized)
 @MainActor
 struct DeviceBackendCompositionTests {
   @Test(
@@ -129,20 +129,28 @@ struct DeviceBackendCompositionTests {
 
   @Test(
     "Bluetooth transient error clears in the actual model instead of being latched a second time")
-  func transientBluetoothFailure() async {
+  func transientBluetoothFailure() async throws {
     let gate = CompositionErrorClearGate()
     let rig = DeviceCompositionFixture(clock: DeviceBackendClock { try await gate.sleep($0) })
     rig.start()
     rig.model.backendActions.connectBluetooth("missing")
-    await gate.waitForRequest()
-    #expect(rig.model.backend.bluetooth.error != nil)
-    await withCheckedContinuation { continuation in
+    do {
+      try await gate.waitForRequest(timeout: .seconds(5))
+      #expect(rig.model.backend.bluetooth.error != nil)
+      let errorCleared = CompositionGateSignal(waitedFor: "Bluetooth lastError to clear")
       withObservationTracking {
         _ = rig.bluetooth.lastError
       } onChange: {
-        continuation.resume()
+        errorCleared.succeed()
       }
       Task { await gate.release() }
+      try await errorCleared.wait(timeout: .seconds(5))
+    } catch {
+      // Failure-path only: an unwinding wait must not leave the model and backend tasks stranded
+      // behind the intentionally held 4-second sleep. The original timeout/cancellation is kept.
+      await gate.release()
+      await rig.stop()
+      throw error
     }
     #expect(rig.model.backend.bluetooth.error == nil)
     #expect(rig.model.lastError == nil)
@@ -424,26 +432,109 @@ private struct CompositionDisplayChanges: DisplayParameterObserving {
 }
 private enum CompositionFailure: Error { case read, write }
 
+/// Bounded wait that failed because the gate's expected event never arrived.
+private struct CompositionGateTimeout: Error, CustomStringConvertible {
+  let waitedFor: String
+  let timeout: Duration
+  var description: String { "Timed out after \(timeout) waiting for \(waitedFor)" }
+}
+
+/// Single-shot suspension completed by a gate event, an explicit deadline, or cancellation.
+/// The first completion wins, so a late observation callback cannot resume a checked
+/// continuation twice.
+private final class CompositionGateSignal: @unchecked Sendable {
+  private let lock = NSLock()
+  private let waitedFor: String
+  private var continuation: CheckedContinuation<Void, any Error>?
+  private var result: Result<Void, any Error>?
+
+  init(waitedFor: String) { self.waitedFor = waitedFor }
+
+  /// Waits for a held operation that only `release()` or cancellation ends.
+  func wait() async throws {
+    try await withTaskCancellationHandler {
+      try await withCheckedThrowingContinuation { continuation in
+        install(continuation)
+      }
+    } onCancel: {
+      complete(.failure(CancellationError()))
+    }
+  }
+
+  /// Waits no longer than the deadline, then throws `CompositionGateTimeout`.
+  func wait(timeout: Duration) async throws {
+    try await withThrowingTaskGroup(of: Void.self) { group in
+      group.addTask { try await self.wait() }
+      group.addTask {
+        try await Task.sleep(for: timeout)
+        throw CompositionGateTimeout(waitedFor: self.waitedFor, timeout: timeout)
+      }
+      let result = await group.nextResult()
+      group.cancelAll()
+      while await group.nextResult() != nil {}
+      try result?.get()
+    }
+  }
+
+  func succeed() { complete(.success(())) }
+
+  private func install(_ continuation: CheckedContinuation<Void, any Error>) {
+    lock.lock()
+    if let result = self.result {
+      lock.unlock()
+      continuation.resume(with: result)
+      return
+    }
+    self.continuation = continuation
+    lock.unlock()
+  }
+
+  private func complete(_ result: Result<Void, any Error>) {
+    lock.lock()
+    guard self.result == nil else {
+      lock.unlock()
+      return
+    }
+    self.result = result
+    let continuation = self.continuation
+    self.continuation = nil
+    lock.unlock()
+    continuation?.resume(with: result)
+  }
+}
+
 /// One explicit error-clear barrier, not a second virtual scheduler.
 private actor CompositionErrorClearGate {
-  private var request: CheckedContinuation<Void, Never>?
-  private var waiters: [CheckedContinuation<Void, Never>] = []
+  private var request: CompositionGateSignal?
+  private var requestWaiters: [CompositionGateSignal] = []
+
   func sleep(_ duration: Duration) async throws {
     try Task.checkCancellation()
     guard duration == .seconds(4) else { return }
-    await withCheckedContinuation { continuation in
-      request = continuation
-      for waiter in waiters { waiter.resume() }
-      waiters.removeAll()
+    let signal = CompositionGateSignal(waitedFor: "the held 4-second error-clear sleep")
+    request = signal
+    defer {
+      if request === signal { request = nil }
     }
+    for waiter in requestWaiters { waiter.succeed() }
+    requestWaiters.removeAll()
+    try await signal.wait()
     try Task.checkCancellation()
   }
-  func waitForRequest() async {
+
+  /// Bounded by an explicit deadline; a missing request fails instead of hanging.
+  func waitForRequest(timeout: Duration) async throws {
+    try Task.checkCancellation()
     if request != nil { return }
-    await withCheckedContinuation { waiters.append($0) }
+    let waiter = CompositionGateSignal(waitedFor: "the 4-second error-clear sleep to start")
+    requestWaiters.append(waiter)
+    defer { requestWaiters.removeAll { $0 === waiter } }
+    try await waiter.wait(timeout: timeout)
   }
+
+  /// Resumes exactly the held sleep so the backend can clear its published error.
   func release() {
-    request?.resume()
+    request?.succeed()
     request = nil
   }
 }

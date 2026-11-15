@@ -10,6 +10,79 @@ import FineTunePlatform
 import SwiftUI
 import UniformTypeIdentifiers
 
+/// Text and section state the popup renders. `MixerView` reads this same value, so tests assert the
+/// production projection instead of re-deriving fixture state.
+struct MixerPopupSemantics {
+  struct CaptureNotice: Equatable {
+    var message: String
+    var actionLabel: String?
+  }
+
+  var outputName: String
+  var inputName: String
+  /// Raw applications for the requested mode, in render order. `MixerAppRow` derives its own text.
+  var apps: [MixerAppPresentation]
+  /// Ignored applications the edit grid lists separately; browse-mode badge and hint count them.
+  var ignoredApps: [MixerAppPresentation]
+  var sectionHeader: String
+  var emptyState: String?
+  var ignoredBadge: String?
+  var ignoredEmptyHint: String?
+  var captureNotice: CaptureNotice?
+
+  @MainActor
+  init(snapshot: MixerSnapshot, bindings: MixerBindings, editing: Bool = false) {
+    let visible = bindings.visibleApps(editing: editing).filter { !$0.isIgnored }
+    let ignored = bindings.visibleApps(editing: true).filter(\.isIgnored)
+    outputName = snapshot.outputDevices.first(where: \.isDefault)?.device.name ?? "No Output"
+    inputName = snapshot.inputDevices.first(where: \.isDefault)?.device.name ?? "No Input"
+    apps = visible
+    ignoredApps = ignored
+    sectionHeader = "APPS"
+    emptyState = !editing && visible.isEmpty ? "No apps playing audio" : nil
+    ignoredBadge = !editing && !ignored.isEmpty ? "\(ignored.count) ignored" : nil
+    ignoredEmptyHint =
+      !editing && visible.isEmpty && !ignored.isEmpty
+      ? "\(ignored.count) ignored · edit to manage" : nil
+    captureNotice = snapshot.captureNotice.map { notice in
+      let actionLabel: String?
+      switch notice.action {
+      case .requestPermission: actionLabel = "Allow System Audio"
+      case .openSettings: actionLabel = "Open System Settings"
+      case .retryCapture, nil: actionLabel = nil
+      }
+      return CaptureNotice(message: notice.message, actionLabel: actionLabel)
+    }
+  }
+}
+
+/// The production two-column edit grid. Rendering this value uses the same columns, spacing and
+/// row composition as the popup instead of recomputing a column width in the test.
+@MainActor
+struct MixerAppEditGrid: View {
+  static let columns = [
+    GridItem(.flexible(), spacing: DesignTokens.Spacing.xs),
+    GridItem(.flexible(), spacing: DesignTokens.Spacing.xs),
+  ]
+
+  let apps: [MixerAppPresentation]
+  let bindings: MixerBindings
+
+  var body: some View {
+    LazyVGrid(columns: Self.columns, spacing: DesignTokens.Spacing.xs) {
+      ForEach(apps) { app in
+        // Edit mode resets keyboard state and handles only Escape, so rows show no draft or focus.
+        MixerAppRow(
+          app: app, bindings: bindings, isEditing: true,
+          percentageDraft: nil,
+          isEQExpanded: .constant(false)
+        )
+        .id(PopupKeyboardNavModel.RowID.app(persistenceID: app.id))
+      }
+    }
+  }
+}
+
 @MainActor
 struct MixerView: View {
   let read: () -> MixerSnapshot
@@ -93,29 +166,31 @@ struct MixerView: View {
 
   private var content: some View {
     let snapshot = read()
+    let semantics = MixerPopupSemantics(
+      snapshot: snapshot, bindings: bindings, editing: isEditing)
     return VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
       MixerHeader(
         scope: $scope, isEditing: isEditing,
-        outputName: snapshot.outputDevices.first(where: \.isDefault)?.device.name ?? "No Output",
-        inputName: snapshot.inputDevices.first(where: \.isDefault)?.device.name ?? "No Input",
+        outputName: semantics.outputName,
+        inputName: semantics.inputName,
         edit: {
           isEditing.toggle()
           keyboard = MixerKeyboardState()
           draggedDeviceUID = nil
           syncNavigation()
         }, retryAudio: actions.requestCapturePermission, settings: actions.openSettings)
-      if let notice = read().captureNotice {
+      if let notice = semantics.captureNotice {
         HStack(spacing: DesignTokens.Spacing.sm) {
           Label(notice.message, systemImage: "exclamationmark.triangle")
             .font(DesignTokens.Typography.rowDescription)
           Spacer(minLength: 0)
-          if let action = notice.action {
-            switch action {
+          if let label = notice.actionLabel {
+            switch snapshot.captureNotice?.action {
             case .requestPermission:
-              Button("Allow System Audio", action: actions.requestCapturePermission)
+              Button(label, action: actions.requestCapturePermission)
             case .openSettings:
-              Button("Open System Settings", action: actions.openCaptureSettings)
-            case .retryCapture:
+              Button(label, action: actions.openCaptureSettings)
+            case .retryCapture, nil:
               EmptyView()
             }
           }
@@ -137,27 +212,20 @@ struct MixerView: View {
           }, actions: actions.backend)
       }
       Divider().padding(.vertical, DesignTokens.Spacing.xs)
-      applicationsSection
+      applicationsSection(semantics: semantics)
       Divider().padding(.vertical, DesignTokens.Spacing.xs)
       MixerFooter(quit: quit)
     }
   }
 
-  private let appEditColumns = [
-    GridItem(.flexible(), spacing: DesignTokens.Spacing.xs),
-    GridItem(.flexible(), spacing: DesignTokens.Spacing.xs),
-  ]
-
-  private var applicationsSection: some View {
-    let apps = bindings.visibleApps(editing: isEditing).filter { !$0.isIgnored }
-    let ignored = bindings.visibleApps(editing: true).filter(\.isIgnored)
+  private func applicationsSection(semantics: MixerPopupSemantics) -> some View {
     return VStack(alignment: .leading, spacing: 0) {
       HStack {
-        Text("APPS").font(DesignTokens.Typography.sectionHeader)
+        Text(semantics.sectionHeader).font(DesignTokens.Typography.sectionHeader)
           .tracking(DesignTokens.Typography.sectionHeaderTracking)
         Spacer()
-        if !isEditing && !ignored.isEmpty {
-          Text("\(ignored.count) ignored").font(DesignTokens.Typography.caption)
+        if let badge = semantics.ignoredBadge {
+          Text(badge).font(DesignTokens.Typography.caption)
             .foregroundStyle(DesignTokens.Colors.textTertiary)
         }
       }
@@ -165,33 +233,27 @@ struct MixerView: View {
       .padding(.bottom, DesignTokens.Spacing.xs)
       if isEditing {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
-          LazyVGrid(columns: appEditColumns, spacing: DesignTokens.Spacing.xs) {
-            ForEach(apps) { app in appRow(app) }
-          }
-          if !ignored.isEmpty {
+          MixerAppEditGrid(apps: semantics.apps, bindings: bindings)
+          if !semantics.ignoredApps.isEmpty {
             Divider().padding(.vertical, DesignTokens.Spacing.xs)
             Text("IGNORED").font(DesignTokens.Typography.sectionHeader)
               .tracking(DesignTokens.Typography.sectionHeaderTracking)
               .foregroundStyle(DesignTokens.Colors.sectionHeaderText)
               .padding(.bottom, DesignTokens.Spacing.xs)
-            LazyVGrid(columns: appEditColumns, spacing: DesignTokens.Spacing.xs) {
-              ForEach(ignored) { app in appRow(app) }
-            }
+            MixerAppEditGrid(apps: semantics.ignoredApps, bindings: bindings)
           }
         }
-      } else if apps.isEmpty {
+      } else if let emptyState = semantics.emptyState {
         HStack {
           Spacer()
           VStack(spacing: DesignTokens.Spacing.sm) {
             Image(systemName: "speaker.slash").font(.title)
               .foregroundStyle(DesignTokens.Colors.textTertiary)
-            Text("No apps playing audio").font(.callout)
+            Text(emptyState).font(.callout)
               .foregroundStyle(DesignTokens.Colors.textSecondary)
-            if !ignored.isEmpty {
-              Text("\(ignored.count) ignored · edit to manage").font(
-                DesignTokens.Typography.caption
-              )
-              .foregroundStyle(DesignTokens.Colors.textTertiary)
+            if let hint = semantics.ignoredEmptyHint {
+              Text(hint).font(DesignTokens.Typography.caption)
+                .foregroundStyle(DesignTokens.Colors.textTertiary)
             }
           }
           Spacer()
@@ -199,7 +261,7 @@ struct MixerView: View {
         .padding(.vertical, DesignTokens.Spacing.xl)
       } else {
         VStack(alignment: .leading, spacing: 0) {
-          ForEach(apps) { app in appRow(app) }
+          ForEach(semantics.apps) { app in appRow(app) }
         }
       }
     }

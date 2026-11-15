@@ -30,7 +30,7 @@ struct AudioProcessGroupingTests {
     #expect(source.observer.registrations.isEmpty)
     #expect(source.clock.schedules == 0)
     #expect(source.monitor.observation.health == .notStarted)
-    #expect(throws: (any Error).self) {
+    #expect(throws: AudioAppObservationResolutionError.unavailable("Com.Player")) {
       try source.monitor.resolveApp(identifier: "Com.Player", processRevision: 7)
     }
   }
@@ -84,7 +84,7 @@ struct AudioProcessGroupingTests {
           == .failed("Application metadata has an invalid or duplicate process identity."))
       #expect(source.monitor.activeApps.only?.processObjectIDs == good.processObjectIDs)
       #expect(source.monitor.activeApps.only?.processRevision == good.processRevision)
-      #expect(throws: (any Error).self) {
+      #expect(throws: AudioAppObservationResolutionError.unavailable(good.persistenceIdentifier)) {
         try source.monitor.resolveApp(
           identifier: good.persistenceIdentifier, processRevision: good.processRevision)
       }
@@ -105,7 +105,7 @@ struct AudioProcessGroupingTests {
       #expect(source.monitor.lastError != nil)
       #expect(source.monitor.activeApps.only?.processObjectIDs == good.processObjectIDs)
       #expect(source.monitor.activeApps.only?.processRevision == good.processRevision)
-      #expect(throws: (any Error).self) {
+      #expect(throws: AudioAppObservationResolutionError.unavailable(good.persistenceIdentifier)) {
         try source.monitor.resolveApp(
           identifier: good.persistenceIdentifier, processRevision: good.processRevision)
       }
@@ -238,17 +238,17 @@ struct AudioProcessGroupingTests {
     #expect(
       try source.monitor.resolveApp(identifier: "Com.Player", processRevision: app.processRevision)
         .id == 100)
-    #expect(throws: (any Error).self) {
+    #expect(throws: AudioAppObservationResolutionError.unavailable("com.player")) {
       try source.monitor.resolveApp(identifier: "com.player", processRevision: app.processRevision)
     }
     source.inventory.processes.append(observationProcess(11, pid: 100))
     source.monitor.refresh()
-    #expect(throws: (any Error).self) {
+    #expect(throws: AudioAppObservationResolutionError.bindingChanged("Com.Player")) {
       try source.monitor.resolveApp(identifier: "Com.Player", processRevision: app.processRevision)
     }
     source.inventory.failure = ObservationTestError.reader
     source.monitor.refresh()
-    #expect(throws: (any Error).self) {
+    #expect(throws: AudioAppObservationResolutionError.unavailable("Com.Player")) {
       try source.monitor.resolveApp(
         identifier: "Com.Player", processRevision: source.monitor.activeApps[0].processRevision)
     }
@@ -342,12 +342,12 @@ struct AudioProcessGroupingTests {
       #expect(source.monitor.observation.activeApps.map(\.id) == apps.map(\.id))
     }
     source.monitor.start()
-    #expect(!published.isEmpty)
+    #expect(published == [1])
     #expect(source.clock.schedules == 1)
     #expect(
       source.observer.registrations.contains { $0.selector == kAudioProcessPropertyIsRunning })
     source.clock.fire()
-    #expect(source.inventory.reads >= 2)
+    #expect(source.inventory.reads == 2)
     let callbacks = source.observer.callbacks
     let lateTick = source.clock.tick
     source.monitor.stop()

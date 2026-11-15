@@ -1,3 +1,4 @@
+import AppTestSupport
 import FineTuneControl
 import FineTuneDomain
 import FineTunePlatform
@@ -131,7 +132,7 @@ struct ControlledAudioRoutingTests {
     let old = try #require(runtime.handle("A"))
     #expect(controller.activeDeviceUIDs(for: application.identifier) == ["A"])
     controller.perform(.setRoute(identifier: application.identifier, mode: .single, uids: ["B"]))
-    await runtime.wait("started:B")
+    try await runtime.wait("started:B")
     let candidate = try #require(runtime.handle("B"))
     #expect(old.retirementAttempts == 0 && old.rendering)
     #expect(candidate.commits.isEmpty && !candidate.rendering)
@@ -144,7 +145,7 @@ struct ControlledAudioRoutingTests {
     #expect(abs(try #require(old.levels.last).effectiveLoudnessVolume - 0.18) < 0.000_001)
     #expect(abs(try #require(candidate.levels.last).effectiveLoudnessVolume - 0.24) < 0.000_001)
     candidate.arm()
-    await runtime.wait("retire:A")
+    try await runtime.wait("retire:A")
     #expect(candidate.commits.isEmpty && !candidate.rendering)
     old.finishRetirement()
     await controller.waitForCurrentWork()
@@ -174,7 +175,7 @@ struct ControlledAudioRoutingTests {
     eq.bandGains[0] = 7
     let nextUpdate = route.updates.count + 1
     controller.perform(.setEQ(identifier: application.identifier, settings: eq))
-    await runtime.wait("update:A:\(nextUpdate)")
+    try await runtime.wait("update:A:\(nextUpdate)")
     controller.perform(.setGain(identifier: application.identifier, gain: 0.2))
     controller.perform(.setMuted(identifier: application.identifier, muted: true))
     let latest = try #require(route.levels.last)
@@ -210,21 +211,21 @@ struct ControlledAudioRoutingTests {
       .setEQ(
         identifier: application.identifier,
         settings: EQSettings(bandGains: Array(repeating: 2, count: 10))))
-    await runtime.wait("update:A:\(nextUpdate)")
+    try await runtime.wait("update:A:\(nextUpdate)")
     // Join only the existing update before adding a handoff that must remain pending.
     let updating = Task { @MainActor in
       runtime.emit("draining-old-update")
       await controller.waitForCurrentWork()
     }
-    await runtime.wait("draining-old-update")
+    try await runtime.wait("draining-old-update")
     runtime.holdArmed = ["B"]
     runtime.holdRetirement = ["A"]
     controller.perform(.setRoute(identifier: application.identifier, mode: .single, uids: ["B"]))
-    await runtime.wait("started:B")
+    try await runtime.wait("started:B")
     let candidate = try #require(runtime.handle("B"))
     #expect(old.rendering && old.retirementAttempts == 0)
     candidate.arm()
-    await runtime.wait("retire:A")
+    try await runtime.wait("retire:A")
     #expect(old.cancelled && !old.retired && !old.rendering)
     #expect(candidate.commits.isEmpty && !candidate.rendering)
     let currentFailure: AudioRouteFailure? =
@@ -304,7 +305,7 @@ struct ControlledAudioRoutingTests {
     runtime.holdRetirement = ["B"]
     controller.perform(
       .setRoute(identifier: silentApplication.identifier, mode: .single, uids: ["C"]))
-    await runtime.wait("retire:\(silentApplication.identifier):B")
+    try await runtime.wait("retire:\(silentApplication.identifier):B")
     #expect(!failed.retired && runtime.handle("C")?.commits.isEmpty == true)
     #expect(controller.lastFailure == failure)
     runtime.releaseUpdates("B")
@@ -338,15 +339,15 @@ struct ControlledAudioRoutingTests {
     runtime.holdOperations["B"] = operation
     runtime.holdRetirement = ["B"]
     controller.perform(.setRoute(identifier: application.identifier, mode: .single, uids: ["B"]))
-    await runtime.wait("deferred-\(operation.rawValue):B")
+    try await runtime.wait("deferred-\(operation.rawValue):B")
     let late = try #require(runtime.handle("B"))
     controller.perform(.setRoute(identifier: application.identifier, mode: .single, uids: ["C"]))
-    await runtime.wait("retire:B")
+    try await runtime.wait("retire:B")
     let replacement = try #require(runtime.handle("C"))
     #expect(late.cancelled && !late.retired && replacement.commits.isEmpty)
     #expect(controller.routeObservations[late.key]?.failure == nil)
     runtime.releaseOperation("B")
-    await runtime.wait("late-cancelled:B")
+    try await runtime.wait("late-cancelled:B")
     // The new cancellation appears only after retirement began, then survives the quiescent ACK.
     late.finishRetirement()
     await controller.waitForCurrentWork()
@@ -379,19 +380,19 @@ struct ControlledAudioRoutingTests {
     let original = try #require(runtime.handle("A"))
     runtime.holdOperations["B"] = .commit
     controller.perform(.setRoute(identifier: application.identifier, mode: .single, uids: ["B"]))
-    await runtime.wait("deferred-commit:B")
+    try await runtime.wait("deferred-commit:B")
     let superseded = try #require(runtime.handle("B"))
     #expect(original.retired && superseded.ioRunning)
     runtime.holdArmed = ["C"]
     runtime.holdRetirement = ["B"]
     controller.perform(.setRoute(identifier: application.identifier, mode: .single, uids: ["C"]))
-    await runtime.wait("started:C")
+    try await runtime.wait("started:C")
     let replacement = try #require(runtime.handle("C"))
-    await runtime.wait("retire:B")
+    try await runtime.wait("retire:B")
     #expect(superseded.cancelled && !superseded.ioRunning && !superseded.retired)
     #expect(superseded.retirementAttempts == 1)
     runtime.releaseOperation("B")
-    await runtime.wait("late-cancelled:B")
+    try await runtime.wait("late-cancelled:B")
     #expect(superseded.cancellationsDuringRetirement == 0)
     superseded.finishRetirement()
     #expect(replacement.ioRunning && replacement.commits.isEmpty && !replacement.rendering)
@@ -421,7 +422,7 @@ struct ControlledAudioRoutingTests {
     await controller.waitForCurrentWork()
     runtime.holdOperations["B"] = .commit
     controller.perform(.setRoute(identifier: application.identifier, mode: .single, uids: ["B"]))
-    await runtime.wait("deferred-commit:B")
+    try await runtime.wait("deferred-commit:B")
     let superseded = try #require(runtime.handle("B"))
     let failure = AudioRouteFailure(stage: "retire", message: "Cancelled IO cleanup failed")
     runtime.holdArmed = ["C"]
@@ -429,10 +430,10 @@ struct ControlledAudioRoutingTests {
     runtime.retirementCallbackFailure = failure
     runtime.retirementCallbackUsesCleanup = true
     controller.perform(.setRoute(identifier: application.identifier, mode: .single, uids: ["C"]))
-    await runtime.wait("started:C")
+    try await runtime.wait("started:C")
     runtime.releaseOperation("B")
-    await runtime.wait("late-cancelled:B")
-    await runtime.wait("retire:B")
+    try await runtime.wait("late-cancelled:B")
+    try await runtime.wait("retire:B")
     #expect(superseded.retirementAttempts == 1)
     runtime.holdRetirement = []
     runtime.retirementCallbackFailure = nil
@@ -519,7 +520,7 @@ struct ControlledAudioRoutingTests {
     runtime.holdRetirement = ["A"]
     controller.perform(.requestCaptureStart)
     controller.perform(.requestCaptureStart)
-    await runtime.wait("retire:A:2")
+    try await runtime.wait("retire:A:2")
     #expect(old.retirementAttempts == 2 && !old.retired)
     #expect(controller.unresolvedRetirementFailures[old.key] == failure)
     #expect(runtime.handles.filter { $0.key.deviceUID == "B" }.allSatisfy { $0.commits.isEmpty })
@@ -557,12 +558,12 @@ struct ControlledAudioRoutingTests {
     old.retirementError = nil
     runtime.holdRetirementReceipt = ["A"]
     controller.perform(.requestCaptureStart)
-    await runtime.wait("retirement-receipt:A")
+    try await runtime.wait("retirement-receipt:A")
     #expect(old.retired && controller.unresolvedRetirementFailures.isEmpty)
     // This new plan starts after ACK removed the native owner, but before the call's receipt.
     let nextPrepare = runtime.requests.count + 1
     controller.perform(.setRoute(identifier: application.identifier, mode: .single, uids: ["A"]))
-    await runtime.wait("prepare:A:\(nextPrepare)")
+    try await runtime.wait("prepare:A:\(nextPrepare)")
     runtime.releaseRetirementReceipt("A", result: receiptFails ? .failed(failure) : .retired)
     await controller.waitForCurrentWork()
     #expect(!runtime.committedBeforeRetirementReceipt)
@@ -592,12 +593,12 @@ struct ControlledAudioRoutingTests {
     controller.perform(.requestCaptureStart)
     await controller.waitForCurrentWork()
     controller.perform(.setRoute(identifier: application.identifier, mode: .single, uids: ["B"]))
-    await runtime.wait("prepare:B")
+    try await runtime.wait("prepare:B")
     controller.perform(.setRoute(identifier: application.identifier, mode: .single, uids: ["C"]))
-    await runtime.wait("commit:C")
+    try await runtime.wait("commit:C")
     runtime.releasePreparation("B")
     await controller.waitForCurrentWork()
-    await runtime.wait("retired:B")
+    try await runtime.wait("retired:B")
     let stale = try #require(runtime.handle("B"))
     let current = try #require(runtime.handle("C"))
     #expect(stale.cancelled && stale.retired && stale.commits.isEmpty)
@@ -703,7 +704,7 @@ struct ControlledAudioRoutingTests {
     #expect(controller.knownPermissionDenied)
     runtime.holdArmed = ["A"]
     controller.perform(.requestCaptureStart)
-    await runtime.wait("started:A")
+    try await runtime.wait("started:A")
     let replacement = try #require(runtime.handle("A"))
     #expect(replacement.key != old.key && !controller.knownPermissionDenied)
     old.onObservation?(denied)
@@ -742,7 +743,7 @@ struct ControlledAudioRoutingTests {
       controller.perform(
         .setRoute(identifier: application.identifier, mode: .single, uids: [target]))
     }
-    await runtime.wait("retire:A")
+    try await runtime.wait("retire:A")
     let replacement = try #require(runtime.handle(target))
     #expect(replacement.key != old.key)
     if pending {
@@ -783,7 +784,7 @@ struct ControlledAudioRoutingTests {
     runtime.retirementCallbackFailure = cleanup
     runtime.retirementCallbackUsesCleanup = cleanupChannel
     controller.perform(.setRoute(identifier: application.identifier, mode: .single, uids: ["B"]))
-    await runtime.wait("retire:A")
+    try await runtime.wait("retire:A")
     let candidate = try #require(runtime.handle("B"))
     old.finishRetirement()
     await controller.waitForCurrentWork()
@@ -864,7 +865,7 @@ struct ControlledAudioRoutingTests {
     await controller.waitForCurrentWork()
     let old = try #require(runtime.handle("A"))
     controller.perform(.setRoute(identifier: application.identifier, mode: .single, uids: ["B"]))
-    await runtime.wait("retire:A")
+    try await runtime.wait("retire:A")
     let candidate = try #require(runtime.handle("B"))
     controller.perform(.stopCapture)
     // No second same-token wait: finish in this actor turn, then inspect every collected request.
@@ -939,7 +940,7 @@ struct ControlledAudioRoutingTests {
     } else {
       controller.observeOutputs([], defaultUID: nil)
     }
-    await runtime.wait("retired:A")
+    try await runtime.wait("retired:A")
     #expect(controller.activeDeviceUIDs(for: application.identifier).isEmpty && route.retired)
     #expect(settings.appSettings.explicitUserCaptureEnabled)
     #expect(settings.getDeviceRouting(for: application.identifier) == "A")
@@ -966,7 +967,7 @@ struct ControlledAudioRoutingTests {
       .setEQ(
         identifier: application.identifier,
         settings: EQSettings(bandGains: Array(repeating: 1, count: 10))))
-    await runtime.wait("update:A:\(nextUpdate)")
+    try await runtime.wait("update:A:\(nextUpdate)")
     let applied = try #require(route.updates.last).revision
     route.nextUpdateReceipt = AudioRouteObservation(
       key: route.key, phase: .accepted,
@@ -1002,7 +1003,7 @@ struct ControlledAudioRoutingTests {
     let old = try #require(runtime.handle("A"))
     runtime.holdPreparation = ["B"]
     controller.perform(.setRoute(identifier: application.identifier, mode: .single, uids: ["B"]))
-    await runtime.wait("prepare:B")
+    try await runtime.wait("prepare:B")
     let late = try #require(runtime.handle("B"))
     controller.perform(.stopCapture)
     var shutdownComplete = false
@@ -1010,7 +1011,7 @@ struct ControlledAudioRoutingTests {
       await controller.shutdown()
       shutdownComplete = true
     }
-    await runtime.wait("retired:A")
+    try await runtime.wait("retired:A")
     #expect(!shutdownComplete && !late.retired && old.retirementAttempts == 1)
     runtime.releasePreparation("B")
     await stopping.value
@@ -1042,7 +1043,7 @@ struct ControlledAudioRoutingTests {
     runtime.retirementCallbackUsesCleanup = cleanupChannel
     runtime.retirementFailureOrder = order
     controller.perform(.setRoute(identifier: application.identifier, mode: .single, uids: ["B"]))
-    await runtime.wait("retire:A")
+    try await runtime.wait("retire:A")
     let candidate = try #require(runtime.handle("B"))
     // Bound the Red: quiescence always arrives, but never turns an operation error into success.
     if order == .errorWithRetiredAfterPending {
@@ -1077,7 +1078,7 @@ struct ControlledAudioRoutingTests {
       stage: "start-cleanup", message: "Callback start cleanup failure")
     if afterReceipt { runtime.holdArmed = ["B"] } else { runtime.startCleanupFailure = failure }
     controller.perform(.setRoute(identifier: application.identifier, mode: .single, uids: ["B"]))
-    await runtime.wait("started:B")
+    try await runtime.wait("started:B")
     let candidate = try #require(runtime.handle("B"))
     if afterReceipt {
       candidate.onObservation?(
@@ -1129,7 +1130,7 @@ struct ControlledAudioRoutingTests {
       .setEQ(
         identifier: application.identifier,
         settings: EQSettings(bandGains: Array(repeating: 1, count: 10))))
-    await runtime.wait("update:A:\(expectedUpdates)")
+    try await runtime.wait("update:A:\(expectedUpdates)")
     controller.perform(.setGain(identifier: application.identifier, gain: 0.4))
     route.onObservation?(
       AudioRouteObservation(
@@ -1162,7 +1163,7 @@ struct ControlledAudioRoutingTests {
     let old = try #require(runtime.handle("A"))
     runtime.holdPreparation = ["B"]
     controller.observeOutputs([a, b], defaultUID: "B")
-    await runtime.wait("prepare:B")
+    try await runtime.wait("prepare:B")
     let candidate = try #require(runtime.handle("B"))
     decision.value = .routeToApprovedUID("A")
     if notifySnapshot { controller.observeOutputs([a, b], defaultUID: "B") }
@@ -1207,7 +1208,7 @@ struct ControlledAudioRoutingTests {
     controller.observeOutputs([a, b], defaultUID: "A")
     controller.observeApplications([application])
     controller.perform(.requestCaptureStart)
-    await runtime.wait("prepare:A")
+    try await runtime.wait("prepare:A")
     let pending = try #require(runtime.handle("A"))
     try policy.selectDefaultOutput(uid: "B")
     #expect(writes == ["B"] && policy.intendedDefaultUID == "B" && actual.actualUID == "B")
@@ -1369,227 +1370,6 @@ private final class RoutingDefaultWriter {
 private final class RoutingDecisionProbe {
   var value: ControlDefaultOutputRoutingDecision = .followObserved
   var actualUID: String? = "A"
-}
-
-enum RoutingRetirementFailureOrder: CaseIterable, Sendable {
-  case errorBeforePending, errorAndRetiredBeforePending, errorBeforeRetiredResult,
-    errorWithRetiredAfterPending
-}
-
-enum RoutingDeferredOperation: String, CaseIterable, Sendable {
-  case start, commit
-}
-
-@MainActor
-final class RoutingProbeRuntime: AudioRoutingRuntime {
-  private(set) var cleanupRetryRequests = 0
-  func requestCleanupRetry() { cleanupRetryRequests += 1 }
-  var requests: [AudioRouteRequest] = []
-  var handles: [RoutingProbeRoute] = []
-  var holdPreparation: Set<String> = []
-  var holdArmed: Set<String> = []
-  var holdRetirement: Set<String> = []
-  var holdRetirementReceipt: Set<String> = []
-  var committedBeforeRetirementReceipt = false
-  private var retirementReceipts: [String: CheckedContinuation<AudioRetirementResult, Never>] = [:]
-  var holdUpdates: Set<String> = []
-  var holdOperations: [String: RoutingDeferredOperation] = [:]
-  var prepareFailure: AudioRouteFailure?
-  var retirementCallbackFailure: AudioRouteFailure?
-  var retirementCallbackUsesCleanup = false
-  var retirementFailureOrder: RoutingRetirementFailureOrder = .errorBeforePending
-  var startCleanupFailure: AudioRouteFailure?
-  var commitCleanupFailure: AudioRouteFailure?
-  private var occurred: Set<String> = []
-  private var waiters: [String: [CheckedContinuation<Void, Never>]] = [:]
-  private var preparationGates: [String: CheckedContinuation<Void, Never>] = [:]
-  private var updateGates: [String: CheckedContinuation<Void, Never>] = [:]
-  private var operationGates: [String: CheckedContinuation<Void, Never>] = [:]
-  func prepare(_ request: AudioRouteRequest) async throws -> any PreparedAudioRoute {
-    requests.append(request)
-    let route = RoutingProbeRoute(key: request.key, runtime: self)
-    handles.append(route)
-    emit("prepare:\(request.key.deviceUID)")
-    emit("prepare:\(request.key.deviceUID):\(requests.count)")
-    if holdPreparation.contains(request.key.deviceUID) {
-      await withCheckedContinuation { preparationGates[request.key.deviceUID] = $0 }
-    }
-    if let prepareFailure { throw prepareFailure }
-    return route
-  }
-  func waitForRetirementReceipt(_ uid: String) async -> AudioRetirementResult {
-    await withCheckedContinuation {
-      retirementReceipts[uid] = $0
-      emit("retirement-receipt:\(uid)")
-    }
-  }
-  func releaseRetirementReceipt(_ uid: String, result: AudioRetirementResult) {
-    holdRetirementReceipt.remove(uid)
-    retirementReceipts.removeValue(forKey: uid)?.resume(returning: result)
-  }
-  func recordCommit() {
-    if !retirementReceipts.isEmpty { committedBeforeRetirementReceipt = true }
-  }
-  func handle(_ uid: String) -> RoutingProbeRoute? { handles.last { $0.key.deviceUID == uid } }
-  func emit(_ name: String) {
-    occurred.insert(name)
-    for waiter in waiters.removeValue(forKey: name) ?? [] { waiter.resume() }
-  }
-  func wait(_ name: String) async {
-    if occurred.contains(name) { return }
-    await withCheckedContinuation { waiters[name, default: []].append($0) }
-  }
-  func releasePreparation(_ uid: String) {
-    holdPreparation.remove(uid)
-    preparationGates.removeValue(forKey: uid)?.resume()
-  }
-  func suspendUpdate(_ uid: String) async {
-    if holdUpdates.contains(uid) { await withCheckedContinuation { updateGates[uid] = $0 } }
-  }
-  func releaseUpdates(_ uid: String) {
-    holdUpdates.remove(uid)
-    updateGates.removeValue(forKey: uid)?.resume()
-  }
-  func suspendOperation(_ operation: RoutingDeferredOperation, uid: String) async {
-    if holdOperations[uid] == operation {
-      emit("deferred-\(operation.rawValue):\(uid)")
-      await withCheckedContinuation { operationGates[uid] = $0 }
-    }
-  }
-  func releaseOperation(_ uid: String) {
-    holdOperations[uid] = nil
-    operationGates.removeValue(forKey: uid)?.resume()
-  }
-}
-
-@MainActor
-final class RoutingProbeRoute: PreparedAudioRoute {
-  let key: AudioRouteKey
-  unowned let runtime: RoutingProbeRuntime
-  var onObservation: (@MainActor (AudioRouteObservation) -> Void)?
-  var commits: [AudioOutputState] = []
-  var updates: [AudioOutputState] = []
-  var nextUpdateReceipt: AudioRouteObservation?
-  var levels: [AudioOutputLevels] = []
-  var rendering = false
-  // OS IO/tap muting survives closing render admission; only retirement actually stops it.
-  var ioRunning = false
-  var retired = false
-  var cancelled = false
-  var retirementAttempts = 0
-  var retirementError: AudioRouteFailure?
-  var cancellationsDuringRetirement = 0
-  private var primaryFailure: AudioRouteFailure?
-  init(key: AudioRouteKey, runtime: RoutingProbeRuntime) {
-    self.key = key
-    self.runtime = runtime
-  }
-  func startMuted(state: AudioOutputState) async throws -> AudioRouteObservation {
-    try checkAdmission()
-    await runtime.suspendOperation(.start, uid: key.deviceUID)
-    try checkAdmission(latchPrimary: true)
-    if let failure = runtime.startCleanupFailure {
-      onObservation?(AudioRouteObservation(key: key, phase: .started, cleanupFailure: failure))
-    }
-    ioRunning = true
-    runtime.emit("started:\(key.deviceUID)")
-    return AudioRouteObservation(
-      key: key, phase: runtime.holdArmed.contains(key.deviceUID) ? .started : .armed,
-      acceptedRevision: state.revision)
-  }
-  func arm() { onObservation?(AudioRouteObservation(key: key, phase: .armed)) }
-  func commit(state: AudioOutputState) async throws -> AudioRouteObservation {
-    try checkAdmission()
-    await runtime.suspendOperation(.commit, uid: key.deviceUID)
-    try checkAdmission(latchPrimary: true)
-    runtime.recordCommit()
-    commits.append(state)
-    ioRunning = true
-    rendering = true
-    if let failure = runtime.commitCleanupFailure {
-      onObservation?(AudioRouteObservation(key: key, phase: .committed, cleanupFailure: failure))
-    }
-    runtime.emit("commit:\(key.deviceUID)")
-    return AudioRouteObservation(key: key, phase: .committed, acceptedRevision: state.revision)
-  }
-  func update(state: AudioOutputState) async throws -> AudioRouteObservation {
-    updates.append(state)
-    runtime.emit("update:\(key.deviceUID):\(updates.count)")
-    await runtime.suspendUpdate(key.deviceUID)
-    if let receipt = nextUpdateReceipt {
-      nextUpdateReceipt = nil
-      return receipt
-    }
-    // Match the native adapter's post-await admission check without changing injected receipts.
-    try checkAdmission()
-    return AudioRouteObservation(key: key, phase: .accepted, acceptedRevision: state.revision)
-  }
-  private func checkAdmission(latchPrimary: Bool = false) throws {
-    guard !cancelled && !retired else {
-      let failure = AudioRouteFailure(
-        kind: .cancelled, stage: "native", message: "The audio route was cancelled.")
-      if latchPrimary {
-        primaryFailure = failure
-        runtime.emit("late-cancelled:\(key.deviceUID)")
-      }
-      throw failure
-    }
-  }
-  func requestLevels(_ levels: AudioOutputLevels) { self.levels.append(levels) }
-  func cancel() {
-    // The production adapter's admission cancellation stops its current observation monitor.
-    // Control must not repeat it after retirement has installed the PENDING progress monitor.
-    if retirementAttempts > 0 && !retired { cancellationsDuringRetirement += 1 }
-    cancelled = true
-    rendering = false
-  }
-  func retire() async -> AudioRetirementResult {
-    cancel()
-    retirementAttempts += 1
-    runtime.emit("retire:\(key.deviceUID):\(retirementAttempts)")
-    if let error = retirementError {
-      onObservation?(AudioRouteObservation(key: key, phase: .failed, cleanupFailure: error))
-      return .failed(error)
-    }
-    ioRunning = false
-    if runtime.holdRetirementReceipt.contains(key.deviceUID) {
-      finishRetirement()
-      return await runtime.waitForRetirementReceipt(key.deviceUID)
-    }
-    runtime.emit("retire:\(key.deviceUID)")
-    runtime.emit("retire:\(key.appIdentifier):\(key.deviceUID)")
-    if runtime.holdRetirement.contains(key.deviceUID) && !retired {
-      let earlyError = runtime.retirementFailureOrder != .errorWithRetiredAfterPending
-      onObservation?(
-        AudioRouteObservation(
-          key: key, phase: .retiring,
-          failure: earlyError && !runtime.retirementCallbackUsesCleanup
-            ? runtime.retirementCallbackFailure : nil,
-          cleanupFailure: earlyError && runtime.retirementCallbackUsesCleanup
-            ? runtime.retirementCallbackFailure : nil))
-      if runtime.retirementCallbackFailure != nil {
-        if runtime.retirementFailureOrder == .errorAndRetiredBeforePending { finishRetirement() }
-        if runtime.retirementFailureOrder == .errorBeforeRetiredResult {
-          finishRetirement()
-          return .retired
-        }
-      }
-      return .pending
-    }
-    finishRetirement()
-    return .retired
-  }
-  func finishRetirement(failure: AudioRouteFailure? = nil, cleanupFailure: AudioRouteFailure? = nil)
-  {
-    retired = true
-    rendering = false
-    ioRunning = false
-    onObservation?(
-      AudioRouteObservation(
-        key: key, phase: .retired, failure: failure ?? primaryFailure,
-        cleanupFailure: cleanupFailure))
-    runtime.emit("retired:\(key.deviceUID)")
-  }
 }
 
 @MainActor

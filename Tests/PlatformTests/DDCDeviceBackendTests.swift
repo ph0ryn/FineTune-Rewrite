@@ -4,7 +4,7 @@ import Testing
 
 @testable import FineTunePlatform
 
-@Suite("DDC packet and device backend")
+@Suite("DDC packet and device backend", .timeLimit(.minutes(1)))
 @MainActor
 struct DDCDeviceBackendTests {
   @Test("DDC volume requests preserve the fixed protocol bytes and 16-bit values")
@@ -19,7 +19,7 @@ struct DDCDeviceBackendTests {
     let valid = volumeReply
     let value = try DDCPacketCodec.parseVolumeReply(valid)
     #expect(value.current == 75 && value.maximum == 100)
-    #expect(throws: (any Error).self) {
+    #expect(throws: DDCPacketError.invalidResponse) {
       try DDCPacketCodec.parseVolumeReply(Array(valid.dropLast()))
     }
     var checksum = valid
@@ -31,7 +31,7 @@ struct DDCDeviceBackendTests {
       var wrong = valid
       wrong[index] = changed
       wrong[10] = wrong.prefix(10).reduce(0x50, ^)
-      #expect(throws: (any Error).self) { try DDCPacketCodec.parseVolumeReply(wrong) }
+      #expect(throws: DDCPacketError.invalidResponse) { try DDCPacketCodec.parseVolumeReply(wrong) }
     }
     var unsupported = valid
     unsupported[3] = 1
@@ -60,7 +60,7 @@ struct DDCDeviceBackendTests {
     #expect(try DDCWireSession(io: io.operations).readVolume().current == 75)
     #expect(io.writes.count == 4 && io.events.filter { $0 == "sleep100" }.count == 1)
     let failed = DDCWireFixture(replies: [], writeStatuses: [Int32](repeating: -5, count: 10))
-    #expect(throws: (any Error).self) {
+    #expect(throws: DeviceBackendError.osStatus(-5)) {
       try DDCWireSession(io: failed.operations).writeVolume(rawValue: 40)
     }
     #expect(failed.writes.count == 10 && failed.reads.isEmpty)
@@ -88,11 +88,13 @@ struct DDCDeviceBackendTests {
     #expect(try DDCWireSession(io: io.operations).readEDID() == edid)
     #expect(io.reads == [DDCWireFixture.Read(chip: 0x50, address: 0, count: 128)])
     data[20] ^= 1
-    #expect(throws: (any Error).self) { try DDCDisplayEDID(bytes: data) }
+    #expect(throws: DDCPacketError.checksumMismatch) { try DDCDisplayEDID(bytes: data) }
     data[0] = 1
     data[127] = 0 &- data.prefix(127).reduce(0, &+)
-    #expect(throws: (any Error).self) { try DDCDisplayEDID(bytes: data) }
-    #expect(throws: (any Error).self) { try DDCDisplayEDID(bytes: Array(data.prefix(30))) }
+    #expect(throws: DDCPacketError.invalidResponse) { try DDCDisplayEDID(bytes: data) }
+    #expect(throws: DDCPacketError.invalidResponse) {
+      try DDCDisplayEDID(bytes: Array(data.prefix(30)))
+    }
   }
 
   @Test("Matching needs evidence in both directions and never falls back to transport or ordinal")
@@ -182,12 +184,15 @@ struct DDCDeviceBackendTests {
     #expect(rig.backend.states["unit"]?.isMuted == false && rig.notifications.active == 1)
     #expect(await rig.transport.writes.isEmpty)
     #expect(rig.preferences.volumes.isEmpty)
-    #expect(throws: (any Error).self) { try rig.backend.requestVolume(forUID: "removed", to: 0.5) }
+    #expect(
+      throws: DeviceBackendError.operationFailed(
+        "The selected device's DDC display is not currently available."
+      )
+    ) { try rig.backend.requestVolume(forUID: "removed", to: 0.5) }
     let callback = rig.notifications.callbacks.first
     await rig.backend.stop()
     let calls = await rig.transport.discoverCalls
     callback?()
-    await Task.yield()
     #expect(rig.notifications.active == 0 && rig.backend.states.isEmpty)
     #expect(await rig.transport.discoverCalls == calls)
   }
@@ -195,102 +200,208 @@ struct DDCDeviceBackendTests {
   @Test("Trailing volume coalescing publishes actual readback and only the latest persisted wish")
   func controllerDebounce() async throws {
     let rig = DDCTestRig()
-    await rig.ready()
-    try rig.backend.requestVolume(forUID: "unit", to: 0.2)
-    await rig.clock.waitForSleepCount(1)
-    try rig.backend.requestVolume(forUID: "unit", to: 0.8)
-    await rig.clock.waitForSleepCount(2)
-    #expect(rig.backend.states["unit"]?.observedPercent == 75)
-    await rig.clock.advance(by: .milliseconds(100))
-    await rig.waitForIdle()
-    #expect(await rig.transport.writes == [80])
-    #expect(rig.backend.states["unit"]?.observedPercent == 80)
-    #expect(rig.backend.states["unit"]?.requestedPercent == nil)
-    #expect(rig.preferences.getDDCVolume(for: "unit") == 80)
-    await rig.backend.stop()
+    var supersededWriteForCleanup: Task<Void, Never>?
+    var replacementWriteForCleanup: Task<Void, Never>?
+    try await withFailureCleanup(
+      operation: {
+        await rig.ready()
+        try rig.backend.requestVolume(forUID: "unit", to: 0.2)
+        try await rig.clock.waitForSleepCount(1)
+        let supersededWrite = rig.backend.currentWriteTasks()["unit"]
+        supersededWriteForCleanup = supersededWrite
+        try rig.backend.requestVolume(forUID: "unit", to: 0.8)
+        let replacementWrite = rig.backend.currentWriteTasks()["unit"]
+        replacementWriteForCleanup = replacementWrite
+        try await rig.clock.waitForSleepCount(2)
+        #expect(rig.backend.states["unit"]?.observedPercent == 75)
+        await rig.clock.advance(by: .milliseconds(100))
+        if let supersededWrite {
+          try await waitForOwnedTask(
+            supersededWrite, waitedFor: "the superseded DDC write",
+            releasing: { await rig.clock.cancelAllSleeps() })
+        }
+        if let replacementWrite {
+          try await waitForOwnedTask(
+            replacementWrite, waitedFor: "the replacement DDC write",
+            releasing: { await rig.clock.cancelAllSleeps() })
+        }
+        await rig.waitForIdle()
+        #expect(await rig.transport.writes == [80])
+        #expect(rig.backend.states["unit"]?.observedPercent == 80)
+        #expect(rig.backend.states["unit"]?.requestedPercent == nil)
+        #expect(rig.preferences.getDDCVolume(for: "unit") == 80)
+        await rig.backend.stop()
+      },
+      cleanup: {
+        await rig.cleanUpAfterFailure(
+          additionalTasks: [
+            supersededWriteForCleanup,
+            replacementWriteForCleanup,
+          ].compactMap { $0 })
+      })
+  }
+
+  @Test("A debounce shortfall is reported, released and drained instead of parking the suite")
+  func controllerDebounceShortfallCleansUp() async throws {
+    let rig = DDCTestRig()
+    var writeForCleanup: Task<Void, Never>?
+    try await withFailureCleanup(
+      operation: {
+        await rig.ready()
+        try rig.backend.requestVolume(forUID: "unit", to: 0.8)
+        try await rig.clock.waitForSleepCount(1)
+        let write = try #require(rig.backend.currentWriteTasks()["unit"])
+        writeForCleanup = write
+        // The 99ms advance cannot reach the 100ms debounce; the old unbounded `task.value` await
+        // here was the reviewed hang and did not return on the suite time limit.
+        await rig.clock.advance(by: .milliseconds(99))
+        do {
+          try await waitForOwnedTask(
+            write, waitedFor: "the short-fallen DDC write", timeout: .milliseconds(100),
+            releasing: { await rig.clock.cancelAllSleeps() })
+          Issue.record("The short-fallen DDC write was reported as complete")
+        } catch let failure as TestTaskWaitTimeout {
+          // Expected: the missed deadline is thrown after the release and bounded drain above.
+          #expect(failure.finishedAfterRelease)
+        }
+        #expect(rig.backend.states["unit"]?.isApplying == false)
+        #expect(rig.backend.states["unit"]?.error != nil)
+        await rig.waitForIdle()
+        #expect(await rig.transport.writes.isEmpty)
+        await rig.backend.stop()
+      },
+      cleanup: {
+        await rig.cleanUpAfterFailure(additionalTasks: writeForCleanup.map { [$0] } ?? [])
+      })
   }
 
   @Test("Returning to the observed value cancels a not-yet-issued write without leaving pending UI")
   func cancelledBackToObserved() async throws {
     let rig = DDCTestRig()
-    await rig.ready()
-    try rig.backend.requestVolume(forUID: "unit", to: 0.2)
-    await rig.clock.waitForSleepCount(1)
-    try rig.backend.requestVolume(forUID: "unit", to: 0.75)
-    #expect(rig.backend.states["unit"]?.isApplying == false)
-    #expect(rig.backend.states["unit"]?.requestedPercent == nil)
-    #expect(await rig.transport.writes.isEmpty)
-    await rig.backend.stop()
+    var cancelledWriteForCleanup: Task<Void, Never>?
+    try await withFailureCleanup(
+      operation: {
+        await rig.ready()
+        try rig.backend.requestVolume(forUID: "unit", to: 0.2)
+        try await rig.clock.waitForSleepCount(1)
+        let cancelledWrite = rig.backend.currentWriteTasks()["unit"]
+        cancelledWriteForCleanup = cancelledWrite
+        try rig.backend.requestVolume(forUID: "unit", to: 0.75)
+        #expect(rig.backend.states["unit"]?.isApplying == false)
+        #expect(rig.backend.states["unit"]?.requestedPercent == nil)
+        #expect(await rig.transport.writes.isEmpty)
+        if let cancelledWrite { await cancelledWrite.value }
+        await rig.backend.stop()
+      },
+      cleanup: {
+        await rig.cleanUpAfterFailure(
+          additionalTasks: cancelledWriteForCleanup.map { [$0] } ?? [])
+      })
   }
 
   @Test("Returning to the old observation still compensates an already-issued physical write")
   func issuedWriteNeedsCompensation() async throws {
     let rig = DDCTestRig()
-    await rig.ready()
-    await rig.transport.setHoldWrites(true)
-    try rig.backend.requestVolume(forUID: "unit", to: 0.2)
-    await rig.clock.waitForSleepCount(1)
-    await rig.clock.advance(by: .milliseconds(100))
-    await rig.transport.waitForWriteCount(1)
-    try rig.backend.requestVolume(forUID: "unit", to: 0.75)
-    if rig.backend.states["unit"]?.isApplying != true {
-      Issue.record(
-        "An issued write can still change hardware; its old observation is not a confirmed latest target"
-      )
-      await rig.backend.stop()
-      await rig.transport.completeHeld(value: DDCVCPValue(current: 20, maximum: 100))
-      return
-    }
-    await rig.transport.completeHeld(value: DDCVCPValue(current: 20, maximum: 100))
-    await rig.transport.waitForReturnCount(1)
-    await rig.transport.setHoldWrites(false)
-    await rig.clock.waitForSleepCount(2)
-    await rig.clock.advance(by: .milliseconds(100))
-    await rig.waitForIdle()
-    #expect(await rig.transport.writes == [20, 75])
-    #expect(rig.backend.states["unit"]?.observedPercent == 75)
-    await rig.backend.stop()
+    var issuedWriteForCleanup: Task<Void, Never>?
+    var replacementWriteForCleanup: Task<Void, Never>?
+    try await withFailureCleanup(
+      operation: {
+        await rig.ready()
+        await rig.transport.setHoldWrites(true)
+        try rig.backend.requestVolume(forUID: "unit", to: 0.2)
+        try await rig.clock.waitForSleepCount(1)
+        await rig.clock.advance(by: .milliseconds(100))
+        try await rig.transport.waitForWriteCount(1)
+        let issuedWrite = try #require(rig.backend.currentWriteTasks()["unit"])
+        issuedWriteForCleanup = issuedWrite
+        try rig.backend.requestVolume(forUID: "unit", to: 0.75)
+        let replacementWrite = rig.backend.currentWriteTasks()["unit"]
+        replacementWriteForCleanup = replacementWrite
+        if rig.backend.states["unit"]?.isApplying != true {
+          Issue.record(
+            "An issued write can still change hardware; its old observation is not a confirmed latest target"
+          )
+          await rig.backend.stop()
+          await rig.transport.completeHeld(value: DDCVCPValue(current: 20, maximum: 100))
+          await issuedWrite.value
+          if let replacementWrite { await replacementWrite.value }
+          return
+        }
+        await rig.transport.completeHeld(value: DDCVCPValue(current: 20, maximum: 100))
+        try await rig.transport.waitForReturnCount(1)
+        // The transport event precedes the task's remaining work; await that exact issued task.
+        await issuedWrite.value
+        await rig.transport.setHoldWrites(false)
+        try await rig.clock.waitForSleepCount(2)
+        await rig.clock.advance(by: .milliseconds(100))
+        if let replacementWrite {
+          try await waitForOwnedTask(
+            replacementWrite, waitedFor: "the replacement DDC write",
+            releasing: { await rig.clock.cancelAllSleeps() })
+        }
+        await rig.waitForIdle()
+        #expect(await rig.transport.writes == [20, 75])
+        #expect(rig.backend.states["unit"]?.observedPercent == 75)
+        await rig.backend.stop()
+      },
+      cleanup: {
+        await rig.cleanUpAfterFailure(
+          additionalTasks: [issuedWriteForCleanup, replacementWriteForCleanup].compactMap { $0 })
+      })
   }
 
   @Test("An unknown readback scale terminates pending work and removes write capability")
   func unknownWriteReadbackScale() async throws {
     let rig = DDCTestRig()
-    await rig.ready()
-    await rig.transport.setMaximum(255)
-    try rig.backend.requestVolume(forUID: "unit", to: 0.8)
-    await rig.clock.waitForSleepCount(1)
-    await rig.clock.advance(by: .milliseconds(100))
-    await rig.waitForIdle()
-    #expect(rig.backend.states["unit"]?.observedPercent == nil)
-    #expect(rig.backend.states["unit"]?.error != nil)
-    #expect(throws: (any Error).self) { try rig.backend.requestVolume(forUID: "unit", to: 0.5) }
-    await rig.backend.stop()
+    try await withFailureCleanup(
+      operation: {
+        await rig.ready()
+        await rig.transport.setMaximum(255)
+        try rig.backend.requestVolume(forUID: "unit", to: 0.8)
+        try await rig.clock.waitForSleepCount(1)
+        await rig.clock.advance(by: .milliseconds(100))
+        await rig.waitForIdle()
+        #expect(rig.backend.states["unit"]?.observedPercent == nil)
+        #expect(rig.backend.states["unit"]?.error != nil)
+        #expect(
+          throws: DeviceBackendError.operationFailed(
+            "Non-percentage DDC speaker volume is not supported by this device."
+          )
+        ) { try rig.backend.requestVolume(forUID: "unit", to: 0.5) }
+        await rig.backend.stop()
+      },
+      cleanup: { await rig.cleanUpAfterFailure() })
   }
 
   @Test("Mute saves logical volume, requires zero readback and restores an edited muted wish")
   func muteRestore() async throws {
     let rig = DDCTestRig()
-    await rig.ready()
-    try rig.backend.requestMute(forUID: "unit", to: true)
-    #expect(rig.backend.states["unit"]?.isMuted == false)
-    #expect(rig.preferences.getDDCSavedVolume(for: "unit") == 75 && rig.preferences.flushCount == 1)
-    await rig.clock.waitForSleepCount(1)
-    await rig.clock.advance(by: .milliseconds(100))
-    await rig.waitForIdle()
-    #expect(rig.backend.states["unit"]?.observedPercent == 0)
-    #expect(rig.backend.states["unit"]?.isMuted == true)
-    #expect(rig.backend.states["unit"]?.requestedPercent == 75)
-    try rig.backend.requestVolume(forUID: "unit", to: 0.4)
-    #expect(await rig.transport.writes == [0])
-    #expect(rig.backend.states["unit"]?.requestedPercent == 40)
-    try rig.backend.requestMute(forUID: "unit", to: false)
-    await rig.clock.waitForSleepCount(2)
-    await rig.clock.advance(by: .milliseconds(100))
-    await rig.waitForIdle()
-    #expect(await rig.transport.writes == [0, 40])
-    #expect(rig.backend.states["unit"]?.observedPercent == 40)
-    #expect(rig.backend.states["unit"]?.isMuted == false)
-    await rig.backend.stop()
+    try await withFailureCleanup(
+      operation: {
+        await rig.ready()
+        try rig.backend.requestMute(forUID: "unit", to: true)
+        #expect(rig.backend.states["unit"]?.isMuted == false)
+        #expect(
+          rig.preferences.getDDCSavedVolume(for: "unit") == 75 && rig.preferences.flushCount == 1)
+        try await rig.clock.waitForSleepCount(1)
+        await rig.clock.advance(by: .milliseconds(100))
+        await rig.waitForIdle()
+        #expect(rig.backend.states["unit"]?.observedPercent == 0)
+        #expect(rig.backend.states["unit"]?.isMuted == true)
+        #expect(rig.backend.states["unit"]?.requestedPercent == 75)
+        try rig.backend.requestVolume(forUID: "unit", to: 0.4)
+        #expect(await rig.transport.writes == [0])
+        #expect(rig.backend.states["unit"]?.requestedPercent == 40)
+        try rig.backend.requestMute(forUID: "unit", to: false)
+        try await rig.clock.waitForSleepCount(2)
+        await rig.clock.advance(by: .milliseconds(100))
+        await rig.waitForIdle()
+        #expect(await rig.transport.writes == [0, 40])
+        #expect(rig.backend.states["unit"]?.observedPercent == 40)
+        #expect(rig.backend.states["unit"]?.isMuted == false)
+        await rig.backend.stop()
+      },
+      cleanup: { await rig.cleanUpAfterFailure() })
   }
 
   @Test(
@@ -298,39 +409,58 @@ struct DDCDeviceBackendTests {
   )
   func mismatchAndLateMute() async throws {
     let rig = DDCTestRig()
-    await rig.ready()
-    await rig.transport.setReadbackOverride(55)
-    try rig.backend.requestVolume(forUID: "unit", to: 0.8)
-    await rig.clock.waitForSleepCount(1)
-    await rig.clock.advance(by: .milliseconds(100))
-    await rig.waitForIdle()
-    #expect(rig.backend.states["unit"]?.observedPercent == 55)
-    #expect(rig.backend.states["unit"]?.error != nil && rig.backend.lastError != nil)
-    await rig.transport.setHoldWrites(true)
-    try rig.backend.requestMute(forUID: "unit", to: true)
-    await rig.clock.waitForSleepCount(2)
-    await rig.clock.advance(by: .milliseconds(100))
-    await rig.transport.waitForWriteCount(2)
-    #expect(rig.backend.states["unit"]?.isMuted == false)
-    await rig.backend.stop()
-    await rig.transport.completeHeld(value: DDCVCPValue(current: 0, maximum: 100))
-    await rig.transport.waitForReturnCount(2)
-    await Task.yield()
-    #expect(rig.backend.states.isEmpty)
+    var pendingWriteForCleanup: Task<Void, Never>?
+    try await withFailureCleanup(
+      operation: {
+        await rig.ready()
+        await rig.transport.setReadbackOverride(55)
+        try rig.backend.requestVolume(forUID: "unit", to: 0.8)
+        try await rig.clock.waitForSleepCount(1)
+        await rig.clock.advance(by: .milliseconds(100))
+        await rig.waitForIdle()
+        #expect(rig.backend.states["unit"]?.observedPercent == 55)
+        #expect(rig.backend.states["unit"]?.error != nil && rig.backend.lastError != nil)
+        await rig.transport.setHoldWrites(true)
+        try rig.backend.requestMute(forUID: "unit", to: true)
+        try await rig.clock.waitForSleepCount(2)
+        await rig.clock.advance(by: .milliseconds(100))
+        try await rig.transport.waitForWriteCount(2)
+        #expect(rig.backend.states["unit"]?.isMuted == false)
+        let pendingWrite = try #require(rig.backend.currentWriteTasks()["unit"])
+        pendingWriteForCleanup = pendingWrite
+        await rig.backend.stop()
+        await rig.transport.completeHeld(value: DDCVCPValue(current: 0, maximum: 100))
+        try await rig.transport.waitForReturnCount(2)
+        // The transport event precedes the task's remaining work; await that exact task to decide.
+        await pendingWrite.value
+        #expect(rig.backend.states.isEmpty)
+      },
+      cleanup: {
+        await rig.cleanUpAfterFailure(
+          additionalTasks: pendingWriteForCleanup.map { [$0] } ?? [])
+      })
   }
 
   @Test("Saved volume is restored only after explicit start, current UID and a supported probe")
   func savedRestore() async throws {
     let rig = DDCTestRig(storedVolume: 60)
-    #expect(await rig.transport.writes.isEmpty)
-    await rig.ready()
-    await rig.clock.waitForSleepCount(1)
-    await rig.clock.advance(by: .milliseconds(100))
-    await rig.waitForIdle()
-    #expect(await rig.transport.writes == [60])
-    rig.candidates.values = []
-    #expect(throws: (any Error).self) { try rig.backend.requestVolume(forUID: "unit", to: 0.5) }
-    await rig.backend.stop()
+    try await withFailureCleanup(
+      operation: {
+        #expect(await rig.transport.writes.isEmpty)
+        await rig.ready()
+        try await rig.clock.waitForSleepCount(1)
+        await rig.clock.advance(by: .milliseconds(100))
+        await rig.waitForIdle()
+        #expect(await rig.transport.writes == [60])
+        rig.candidates.values = []
+        #expect(
+          throws: DeviceBackendError.operationFailed(
+            "The selected device's DDC display is not currently available."
+          )
+        ) { try rig.backend.requestVolume(forUID: "unit", to: 0.5) }
+        await rig.backend.stop()
+      },
+      cleanup: { await rig.cleanUpAfterFailure() })
   }
 
   @Test("A failed pre-mute preference flush cannot mute hardware or claim success")
@@ -338,7 +468,11 @@ struct DDCDeviceBackendTests {
     let rig = DDCTestRig()
     await rig.ready()
     rig.preferences.nextFlushError = "Disk full"
-    #expect(throws: (any Error).self) { try rig.backend.requestMute(forUID: "unit", to: true) }
+    #expect(
+      throws: DeviceBackendError.operationFailed(
+        "The pre-mute display volume could not be saved: Disk full"
+      )
+    ) { try rig.backend.requestMute(forUID: "unit", to: true) }
     #expect(rig.backend.states["unit"]?.isMuted == false)
     #expect(await rig.transport.writes.isEmpty)
     #expect(rig.backend.states["unit"]?.error != nil)
@@ -355,7 +489,11 @@ struct DDCDeviceBackendTests {
     #expect(rig.backend.states["unit"]?.error != nil)
     #expect(rig.backend.unavailableReasons["unit"] != nil)
     #expect(rig.preferences.getDDCVolume(for: "unit") == 75)
-    #expect(throws: (any Error).self) { try rig.backend.requestVolume(forUID: "unit", to: 0.5) }
+    #expect(
+      throws: DeviceBackendError.operationFailed(
+        "Non-percentage DDC speaker volume is not supported by this device."
+      )
+    ) { try rig.backend.requestVolume(forUID: "unit", to: 0.5) }
     #expect(await rig.transport.writes.isEmpty)
     await rig.backend.stop()
   }
@@ -431,19 +569,39 @@ private final class DDCTestRig {
 
   func ready() async {
     backend.start()
+    let scheduledProbe = backend.scheduledProbe
     await backend.probe()
+    await scheduledProbe?.value
   }
 
+  /// Awaits the write tasks the backend owns instead of a transient `isApplying` observation.
+  /// Each wait is bounded, so a missed manual-clock deadline is diagnosed instead of parking.
   func waitForIdle() async {
-    while backend.states["unit"]?.isApplying == true {
-      await withCheckedContinuation { continuation in
-        withObservationTracking {
-          _ = backend.states
-        } onChange: {
-          continuation.resume()
+    while true {
+      let tasks = Array(backend.currentWriteTasks().values)
+      if tasks.isEmpty { return }
+      for task in tasks {
+        do {
+          try await waitForOwnedTask(
+            task, waitedFor: "the DDC write to become idle",
+            releasing: { await clock.cancelAllSleeps() })
+        } catch {
+          Issue.record("\(error)")
+          return
         }
       }
     }
+  }
+
+  /// Releases held fixture writes and drains owned tasks if a test exits through an error.
+  /// Every drain is bounded so failure cleanup cannot itself park the suite.
+  func cleanUpAfterFailure(additionalTasks: [Task<Void, Never>] = []) async {
+    var tasks = Array(backend.currentWriteTasks().values)
+    tasks.append(contentsOf: additionalTasks)
+    await backend.stop()
+    await transport.completeHeld(value: DDCVCPValue(current: 75, maximum: 100))
+    await clock.cancelAllSleeps()
+    await drainOwnedTasks(tasks, waitedFor: "DDC failure cleanup")
   }
 }
 
@@ -495,11 +653,23 @@ private actor DDCFixtureTransport: DDCDisplayTransport {
   private var readbackOverride: UInt16?
   private var holdWrites = false
   private var pending: [CheckedContinuation<DDCVCPValue, any Error>] = []
-  private var writeBarriers: [(Int, CheckedContinuation<Void, Never>)] = []
-  private var returnBarriers: [(Int, CheckedContinuation<Void, Never>)] = []
   private var returned = 0
+  private let writeEntries: AsyncStream<Int>
+  private let writeEntryEvents: AsyncStream<Int>.Continuation
+  private let writeReturns: AsyncStream<Int>
+  private let writeReturnEvents: AsyncStream<Int>.Continuation
   var discoverCalls = 0
   var writes: [Int] = []
+
+  /// Events carry the cumulative count so a wait can target a count reached before it began.
+  init() {
+    let entries = AsyncStream<Int>.makeStream()
+    let returns = AsyncStream<Int>.makeStream()
+    writeEntries = entries.stream
+    writeEntryEvents = entries.continuation
+    writeReturns = returns.stream
+    writeReturnEvents = returns.continuation
+  }
 
   func discover() async throws -> [DDCDisplaySnapshot] {
     discoverCalls += 1
@@ -512,21 +682,18 @@ private actor DDCFixtureTransport: DDCDisplayTransport {
   func writeVolume(displayID: UUID, percent: Int) async throws -> DDCVCPValue {
     guard displayID == id else { throw DeviceBackendError.unavailableDevice(displayID.uuidString) }
     writes.append(percent)
+    writeEntryEvents.yield(writes.count)
     let value: DDCVCPValue
     if holdWrites {
       value = try await withCheckedThrowingContinuation { continuation in
         pending.append(continuation)
-        wakeWrites()
       }
     } else {
       value = DDCVCPValue(current: readbackOverride ?? UInt16(percent), maximum: maximum)
-      wakeWrites()
     }
     current = value.current
     returned += 1
-    let ready = returnBarriers.filter { $0.0 <= returned }
-    returnBarriers.removeAll { $0.0 <= returned }
-    for barrier in ready { barrier.1.resume() }
+    writeReturnEvents.yield(returned)
     return value
   }
 
@@ -544,17 +711,16 @@ private actor DDCFixtureTransport: DDCDisplayTransport {
     pending.removeAll()
     for continuation in all { continuation.resume(returning: value) }
   }
-  func waitForWriteCount(_ count: Int) async {
-    guard writes.count < count else { return }
-    await withCheckedContinuation { writeBarriers.append((count, $0)) }
+  /// Each event count has one five-second deadline; a missing event fails locally.
+  func waitForWriteCount(_ count: Int) async throws {
+    _ = try await waitForStreamValue(
+      in: writeEntries, finishing: writeEntryEvents,
+      waitedFor: "DDC write entry count \(count)", matches: { $0 >= count })
   }
-  func waitForReturnCount(_ count: Int) async {
-    guard returned < count else { return }
-    await withCheckedContinuation { returnBarriers.append((count, $0)) }
-  }
-  private func wakeWrites() {
-    let ready = writeBarriers.filter { $0.0 <= writes.count }
-    writeBarriers.removeAll { $0.0 <= writes.count }
-    for barrier in ready { barrier.1.resume() }
+
+  func waitForReturnCount(_ count: Int) async throws {
+    _ = try await waitForStreamValue(
+      in: writeReturns, finishing: writeReturnEvents,
+      waitedFor: "DDC write return count \(count)", matches: { $0 >= count })
   }
 }

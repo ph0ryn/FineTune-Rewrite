@@ -397,7 +397,7 @@ struct BufferMappingTests {
 
   @Test("Zero-frame buffer: output zeroed, no crash")
   func zeroFrameBuffer() {
-    // frameCount = 0 should hit the guard and memset output to zero.
+    // frameCount = 0 should hit the guard and write zero declared output frames.
     // Use frames=1 for allocation but set mDataByteSize=0 to simulate zero-length.
     let input = TestABL(buffers: [(channels: 2, frames: 1)])
     let output = TestABL(buffers: [(channels: 2, frames: 1)])
@@ -406,9 +406,15 @@ struct BufferMappingTests {
     input.bufferList[0].mDataByteSize = 0
     output.bufferList[0].mDataByteSize = 0
 
+    // The declared capacity is zero, so a sentinel behind the buffer must not be written.
+    output.data(at: 0)[0] = 42
+
     var vol: Float = 1.0
-    // Should not crash.
     processWithDefaults(input: input, output: output, currentVol: &vol)
+
+    #expect(vol == 1.0)
+    #expect(output.bufferList[0].mDataByteSize == 0)
+    #expect(output.data(at: 0)[0] == 42)
   }
 }
 

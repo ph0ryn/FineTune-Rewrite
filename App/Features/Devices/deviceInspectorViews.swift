@@ -262,6 +262,16 @@ struct DeviceDetailSheet: View {
     return !isInput && allowsVolumeOverride && hasOverrideAction && autoTier != .software
   }
 
+  /// Exact visible and accessibility copy for the observed automatic tier;
+  /// `softwareVolumeControls` renders both values.
+  static func automaticTierBadge(_ tier: VolumeControlTier) -> String {
+    "Auto: \(tierDisplayName(tier))"
+  }
+
+  static func automaticTierAccessibilityLabel(_ tier: VolumeControlTier) -> String {
+    "Auto-detected volume control: \(tierDisplayName(tier))"
+  }
+
   /// This is the actual SwiftUI binding, also exercised by rewrite boundary tests.
   var useSoftwareBinding: Binding<Bool> {
     guard !isInput, allowsVolumeOverride, let onOverrideChange else {
@@ -310,14 +320,13 @@ struct DeviceDetailSheet: View {
     {
       Divider()
       HStack(spacing: DesignTokens.Spacing.xs) {
-        Text("Auto: \(Self.tierDisplayName(autoDetectedTier))")
+        Text(Self.automaticTierBadge(autoDetectedTier))
           .font(DesignTokens.Typography.caption.weight(.semibold))
           .foregroundStyle(DesignTokens.Colors.textSecondary)
           .padding(.horizontal, 6).padding(.vertical, 2)
           .background(DesignTokens.Colors.glassFillStrong, in: Capsule())
           .fixedSize()
-          .accessibilityLabel(
-            "Auto-detected volume control: \(Self.tierDisplayName(autoDetectedTier))")
+          .accessibilityLabel(Self.automaticTierAccessibilityLabel(autoDetectedTier))
         Toggle("Use FineTune's software volume", isOn: useSoftwareBinding).toggleStyle(.switch)
           .font(DesignTokens.Typography.pickerText)
       }

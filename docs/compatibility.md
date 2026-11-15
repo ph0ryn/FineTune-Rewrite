@@ -16,7 +16,7 @@
 最終Debug/Releaseは各**Swift 1055宣言/1349呼出し（7 products）**と
 **C++ 49 named units/6654呼出し（6 programs）**がpassし、完全監査は両方errors0です。
 有限入力の展開と実function/case終了を照合した結果であり、元966との件数合わせではありません。
-[実行証拠の読み方と限界](<test-migration.md#確定した移植実行結果>)に詳細を記録します。
+[実行証拠の読み方と限界](<test-migration.md#移植時に確定したsnapshot>)に詳細を記録します。
 これは注入可能なunit/componentと静的な製品consumer接続の受入れで、
 実機の音声・権限・OS event順序・GUI見た目・長時間/RT deadlineまで完了したという意味ではありません。
 
@@ -59,18 +59,19 @@ popoverの外側クリック・dismiss・window所有はnative SwiftUIへ任せ�
 表示とkeyboard navigationは同じprojection順に従い、保存済みのpin/ignore値やRootの経路所有は変更しません。
 全Mixerのpixel単位の一致を保証するものではありません。
 
-[表示回帰テスト](<../Tests/AppCompositionTests/MixerControlAppearanceTests.swift>)はfakeを接続した実コンポーネントをoffscreen描画し、
+[表示回帰テスト](<../Tests/AppRenderedTests/MixerControlAppearanceTests.swift>)はfakeを接続した実コンポーネントをoffscreen描画し、
 3つのpopup sizeとlight/darkのidle軌道・icon headerを確認します。
 専用window内のnative pointer eventで、通常/ミュート時の音量操作とtab・編集・設定・Quitのfake actionも検証します。
 入出力それぞれで3つのpopup sizeの行内余白をクリックし、内部controlとの操作分離とdefault再書込の抑制を確認します。
 選択中バッジはlight/darkの実bitmapと、観測default変更後にaccent表示が消えることを確認します。
 `FINETUNE_MIXER_CONTROL_EVIDENCE`に出力先を指定すると、その描画PNGを保存できます。
-[アプリ行テスト](<../Tests/AppCompositionTests/AppRowPresentationTests.swift>)は3つの幅で40pt行・percentage位置・非default subtitleを実描画し、
+[アプリ行テスト](<../Tests/AppRenderedTests/AppRowPresentationTests.swift>)は3つの幅でproduction rowをoffscreen描画し、40pt行・percentage位置・control frame/actionを確認します。
+productionの`MixerAppRow`は`MixerAppRowPresentation`からname/subtitleを得ます。テストもその型のsemantic projection値をassertしますが、これは文字列内容の確認であり、実際のText nodeやglyphの可視性・遮蔽のない描画は証明しません。
 active icon/name/mute/slider/boost/EQの操作分離と、停止中・ミュート・dark時の共通slider操作をnative pointer eventで確認します。
 実際のpicker menuでもSingle/Multi/default/UID選択をfake actionへ通し、観測更新の前に選択状態を先行変更しないことを確認します。
 `FINETUNE_APP_ROW_EVIDENCE`で行・picker menuの描画PNGを保存できます。
-編集gridは3つの幅で実描画の名前列を調べ、2列・44pt行送りとpin/ignore/unignoreのUID別actionを確認します。
-[popupテスト](<../Tests/AppCompositionTests/PopupLayoutTests.swift>)はQuitの下部配置・⌘Qと、表示中の自然な高さ変更も検証します。
+編集gridはproductionの2列layoutを3つの幅で描画し、44pt行送りと実際のpin/ignore/unignore buttonのapp ID別actionを確認します。name glyphの可視性を検証するものではありません。
+[popupテスト](<../Tests/AppRenderedTests/PopupLayoutTests.swift>)はQuitの下部配置・⌘Qと、表示中の自然な高さ変更も検証します。
 transientな親popup内で出力先pickerを実際に開き、child windowの出力行をクリックしても親を閉じず、対象appへroute actionが届くことを確認します。
 これらの成功を、最小対応OSのnative thumb、実機音声、全UIの操作・見た目の検証へ拡張しません。
 
@@ -87,7 +88,7 @@ OS通知には操作元の情報がないため、この短い区間内のContro
 期限後の新しい外部選択は尊重し、古い書込の確認待ちやtimeoutで元へ戻しません。未解消の失敗は、時間経過や同じUIDの再通知だけでは消しません。
 補正後も選択を維持できない場合や確認が期限切れになった場合は、無限に書き戻さず、Mixer・Settingsへ失敗を表示します。要求先の健全な観測または新しい選択で解消します。
 観測されたdefault UIDとpolicy承認先は分けたままとし、補正で既存の健全なアプリ経路を強制作り直ししたり、captureの再試行範囲を広げたりしません。
-この有限な補正と追従・固定経路の維持は、[policyテスト](<../Tests/AppCompositionTests/OutputPolicyTests.swift>)と[実Graphのテスト](<../Tests/AppCompositionTests/OutputPolicyRoutingTests.swift>)で確認します。
+この有限な補正と追従・固定経路の維持は、[policyテスト](<../Tests/AppPolicyContractTests/OutputPolicyTests.swift>)と[実Graphのテスト](<../Tests/AppCompositionTests/OutputPolicyRoutingTests.swift>)で確認します。
 Bluetooth所有権を永続的に固定する機能ではなく、AirPods実機での補正効果・可聴連続性はこのテストの保証に含めません。
 
 切り替えを取り消したcandidateは、callbackの受付を閉じたまま継続用のread ownerとして残さず、次の経路のarmedを待たずに回収を開始します。

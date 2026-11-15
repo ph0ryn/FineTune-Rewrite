@@ -119,7 +119,7 @@ struct AudioObservationTests {
     source.monitor.refresh()
     source.reader.inventory = observationDevices([])
     source.monitor.refresh()
-    #expect(revisions.count == 3)
+    #expect(revisions == [1, 2, 3])
     #expect(source.monitor.outputDevices.isEmpty)
   }
 

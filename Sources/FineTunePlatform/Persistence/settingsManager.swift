@@ -9,10 +9,15 @@ import Observation
 public final class SettingsManager {
   public typealias Settings = SavedSettings
 
+  private static let debounceInterval = Duration.milliseconds(500)
+
   private var settings = Settings()
   @ObservationIgnored private let fileStore: SettingsFileStore
   @ObservationIgnored private let launchAtLoginService: any LaunchAtLoginService
-  @ObservationIgnored private var saveTask: Task<Void, Never>?
+  @ObservationIgnored private let debounceSleep: @Sendable (Duration) async throws -> Void
+  /// Internal test seam: the scheduled debounced write, readable but not replaceable outside this
+  /// type so a test can await that exact task's completion instead of polling the file.
+  @ObservationIgnored private(set) var saveTask: Task<Void, Never>?
   @ObservationIgnored private var writeBlockedAfterLoadFailure = false
 
   public private(set) var lastLoadError: String?
@@ -21,12 +26,26 @@ public final class SettingsManager {
 
   /// The composition root must choose a directory explicitly; this library never
   /// implicitly opens the original app's settings. Loading does not register login.
-  public init(
+  public convenience init(
     directory: URL,
     launchAtLoginService: any LaunchAtLoginService = SystemLaunchAtLoginService()
   ) {
+    self.init(
+      directory: directory, launchAtLoginService: launchAtLoginService,
+      debounceSleep: { duration in try await Task.sleep(for: duration) })
+  }
+
+  /// Internal seam only: tests replace the wall-clock debounce with a controlled sleeper so a
+  /// scheduled write is proven without a real-time race. The requested interval is passed through
+  /// so a test can verify the scheduler asked for the intended duration. Production always waits
+  /// for `debounceInterval`.
+  init(
+    directory: URL, launchAtLoginService: any LaunchAtLoginService,
+    debounceSleep: @escaping @Sendable (Duration) async throws -> Void
+  ) {
     fileStore = SettingsFileStore(directory: directory)
     self.launchAtLoginService = launchAtLoginService
+    self.debounceSleep = debounceSleep
     do {
       if let loaded = try fileStore.load() { settings = loaded }
     } catch {
@@ -75,11 +94,12 @@ public final class SettingsManager {
   private func change(_ update: (inout Settings) -> Void) {
     update(&settings)
     saveTask?.cancel()
+    let debounceSleep = debounceSleep
     saveTask = Task { @MainActor [weak self] in
       do {
-        try await Task.sleep(for: .milliseconds(500))
+        try await debounceSleep(Self.debounceInterval)
       } catch {
-        // Task.sleep throws on cancellation: superseded writes must not reach disk.
+        // The debounce wait throws on cancellation: superseded writes must not reach disk.
         return
       }
       guard !Task.isCancelled else { return }

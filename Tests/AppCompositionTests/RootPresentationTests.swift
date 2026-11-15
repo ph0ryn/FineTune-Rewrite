@@ -1,4 +1,5 @@
 import AppKit
+import AppTestSupport
 import AudioToolbox
 import FineTuneControl
 import FineTuneDomain
@@ -66,8 +67,7 @@ struct RootPresentationTests {
     observe("speaker")
     clock.now = 0.3
     observe("bt")
-    var sleeps = clock.requests.stream.makeAsyncIterator()
-    #expect(await sleeps.next() == .seconds(2))
+    #expect(try await clock.waitForNextRequest() == .seconds(2))
     if !timeout { observe("speaker") }
     let presentation = fixture.presentation()
     #expect(presentation.mixerSnapshot().error == nil)
@@ -81,10 +81,8 @@ struct RootPresentationTests {
     }
     if timeout {
       clock.now = 2.301
-      var completions = clock.completions.stream.makeAsyncIterator()
       clock.advance()
-      _ = await completions.next()
-      await Task.yield()
+      try await clock.waitForNextCompletion()
     } else {
       clock.now = 0.6
       observe("bt")
@@ -389,12 +387,12 @@ struct RootPresentationTests {
     runtime.holdOperations["B"] = operation
     runtime.holdRetirement = ["B"]
     controller.perform(.setRoute(identifier: "unit.player", mode: .single, uids: ["B"]))
-    await runtime.wait("deferred-\(operation.rawValue):B")
+    try await runtime.wait("deferred-\(operation.rawValue):B")
     let late = try #require(runtime.handle("B"))
     controller.perform(.setRoute(identifier: "unit.player", mode: .single, uids: ["C"]))
-    await runtime.wait("retire:B")
+    try await runtime.wait("retire:B")
     runtime.releaseOperation("B")
-    await runtime.wait("late-cancelled:B")
+    try await runtime.wait("late-cancelled:B")
     late.finishRetirement()
     await controller.waitForCurrentWork()
     let current = try #require(runtime.handle("C"))
@@ -443,15 +441,15 @@ struct RootPresentationTests {
     runtime.holdUpdates = ["speaker"]
     let nextUpdate = retained.updates.count + 1
     controller.perform(.setGain(identifier: "unit.player", gain: 0.5))
-    await runtime.wait("update:speaker:\(nextUpdate)")
+    try await runtime.wait("update:speaker:\(nextUpdate)")
     let updating = Task { @MainActor in
       runtime.emit("draining-retained-update")
       await controller.waitForCurrentWork()
     }
-    await runtime.wait("draining-retained-update")
+    try await runtime.wait("draining-retained-update")
     runtime.holdOperations["B"] = .commit
     controller.perform(.setRoute(identifier: "unit.player", mode: .multi, uids: ["speaker", "B"]))
-    await runtime.wait("deferred-commit:B")
+    try await runtime.wait("deferred-commit:B")
     // No delayed full-state receipt may accidentally re-latch the fault after B's commit clears it.
     runtime.releaseUpdates("speaker")
     await updating.value
@@ -481,7 +479,7 @@ struct RootPresentationTests {
     #expect(presentation.settingsSnapshot().error == expected)
     runtime.holdArmed = ["speaker"]
     controller.perform(.setRoute(identifier: "unit.player", mode: .multi, uids: ["speaker", "B"]))
-    await runtime.wait("started:speaker")
+    try await runtime.wait("started:speaker")
     let recovered = try #require(runtime.handle("speaker"))
     #expect(recovered !== retained && recovered.commits.isEmpty)
     #expect(controller.routeFailures["unit.player"] == failure)
@@ -712,7 +710,7 @@ struct RootPresentationTests {
     #expect(fixture.effects.commands == commands)
     runtime.holdArmed = ["headphones"]
     controller.perform(.setRoute(identifier: "unit.player", mode: .single, uids: ["headphones"]))
-    await runtime.wait("started:headphones")
+    try await runtime.wait("started:headphones")
     let candidate = try #require(runtime.handle("headphones"))
     #expect(candidate.commits.isEmpty && route.retirementAttempts == 0)
     #expect(controller.lastFailure == failure)

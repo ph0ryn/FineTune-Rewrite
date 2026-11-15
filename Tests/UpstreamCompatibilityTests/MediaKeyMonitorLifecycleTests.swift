@@ -22,8 +22,12 @@ import Testing
 struct MediaKeyMonitorLifecycleTests {
 
   private func makeMonitor(
-    mediaKeyControlEnabled: Bool = true
-  ) -> (MediaKeyMonitor, MediaKeyStatus, SettingsManager, RecordingMediaKeyHUD) {
+    mediaKeyControlEnabled: Bool = true,
+    installSucceeds: Bool = false
+  ) -> (
+    MediaKeyMonitor, MediaKeyStatus, SettingsManager, RecordingMediaKeyHUD,
+    TestMediaKeyTapInstaller
+  ) {
     let tempDir = FileManager.default.temporaryDirectory
       .appendingPathComponent(UUID().uuidString)
     let settings = SettingsManager(
@@ -35,6 +39,7 @@ struct MediaKeyMonitorLifecycleTests {
     let status = MediaKeyStatus()
     let popup = PopupVisibilityService()
     let hud = RecordingMediaKeyHUD()
+    let tap = TestMediaKeyTapInstaller(installSucceeds: installSucceeds)
 
     let monitor = MediaKeyMonitor(
       decoder: StubMediaKeyDecoder(),
@@ -43,12 +48,12 @@ struct MediaKeyMonitorLifecycleTests {
       hudController: hud,
       popupVisibility: popup,
       mediaKeyStatus: status,
-      tapInstaller: TestMediaKeyTapInstaller(),
+      tapInstaller: tap,
       readDevice: { nil },
       writeVolume: { _, _ in preconditionFailure("lifecycle tests never write devices") },
       writeMute: { _, _ in preconditionFailure("lifecycle tests never write devices") }
     )
-    return (monitor, status, settings, hud)
+    return (monitor, status, settings, hud, tap)
   }
 
   @Test(
@@ -58,7 +63,7 @@ struct MediaKeyMonitorLifecycleTests {
     // but we can verify that stop() itself is safe to call with no tap installed.
     // If a tap *were* installed, the hook would fire — we test the hook wiring
     // by verifying stop() does NOT call the hook when no source was registered.
-    let (monitor, _, _, _) = makeMonitor()
+    let (monitor, _, _, _, _) = makeMonitor()
 
     var hookFired = false
     monitor.onRunLoopSourceRemoved = { hookFired = true }
@@ -72,7 +77,7 @@ struct MediaKeyMonitorLifecycleTests {
 
   @Test("start() with mediaKeyControlEnabled=false does not set isOffline (no tap attempted)")
   func startDisabledDoesNotGoOffline() {
-    let (monitor, status, _, _) = makeMonitor(mediaKeyControlEnabled: false)
+    let (monitor, status, _, _, _) = makeMonitor(mediaKeyControlEnabled: false)
     monitor.start()
     // isOffline is only set by tapCreate failure, not by a guarded early return.
     #expect(status.isOffline == false)
@@ -80,25 +85,26 @@ struct MediaKeyMonitorLifecycleTests {
 
   @Test("stop() is idempotent — calling twice does not crash")
   func stopIdempotent() {
-    let (monitor, _, _, _) = makeMonitor()
+    let (monitor, _, _, _, tap) = makeMonitor()
     monitor.stop()
     monitor.stop()
-    // No assertion needed — test passes if no crash / precondition failure.
+    #expect(monitor.watchdogOpen == false)
+    #expect(tap.events == ["stop", "stop"])
   }
 
   @Test("start() is idempotent — calling twice does not install duplicate tap")
   func startIdempotent() {
-    // Without Accessibility permission we can't install a real tap, but we can
-    // verify start() guards on tap == nil and does not crash when called twice.
-    let (monitor, _, _, _) = makeMonitor()
+    // An installed tap sets the guard that makes the second start a no-op.
+    let (monitor, _, _, _, tap) = makeMonitor(installSucceeds: true)
     monitor.start()
     monitor.start()
-    // Test passes if no crash.
+    #expect(tap.events == ["install"])
+    #expect(tap.installed)
   }
 
   @Test("watchdogOpen is false after stop() cancels the watchdog task")
   func stopCancelsWatchdog() {
-    let (monitor, _, _, _) = makeMonitor()
+    let (monitor, _, _, _, _) = makeMonitor()
     // Prime a watchdog without a real tap (handleTapDisabled is safe to call standalone).
     monitor.handleTapDisabled()
     #expect(monitor.watchdogOpen == true)
@@ -111,7 +117,7 @@ struct MediaKeyMonitorLifecycleTests {
 
   @Test("10 handle(.volumeUp(isRepeat: true)) calls produce showCallCount == 10")
   func tenRepeatsTenShowCalls() {
-    let (monitor, _, _, hud) = makeMonitor()
+    let (monitor, _, _, hud, _) = makeMonitor()
     // Invoke handleCore directly so we don't depend on a wired-up AudioEngine
     // default device — this is equivalent to 10 `handle(.volumeUp(isRepeat: true))`
     // calls with popup hidden and no fullscreen app, on a hardware-tier device

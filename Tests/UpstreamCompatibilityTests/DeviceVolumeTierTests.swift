@@ -1,3 +1,6 @@
+// Copyright (C) 2026 Ronit Singh
+// Derived from ronitsingh10/FineTune, FineTuneTests/DeviceVolumeTierTests.swift
+// Upstream revision: 2285279d36d3f8115c1c2d4aecd904f1bdf96a51
 // FineTuneTests/DeviceVolumeTierTests.swift
 // Phase 1 of the device-type refactor (issue #238): tests for the per-device
 // volume-tier override, runtime auto-promotion on write-failure, and the

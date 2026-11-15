@@ -1,3 +1,4 @@
+import AppTestSupport
 import FineTuneControl
 import FineTuneDomain
 import FineTunePlatform
@@ -91,7 +92,7 @@ struct InputPolicyTests {
 
   @Test(
     "Grace follows pinned non-BT two seconds / BT and BLE five seconds", arguments: [false, true])
-  func connectionGraceUsesObservedTransport(bluetooth: Bool) async {
+  func connectionGraceUsesObservedTransport(bluetooth: Bool) async throws {
     let (store, _) = fixture()
     store.setLockedInputDeviceUID("built-in")
     store.setPreferredInputDeviceUID("built-in")
@@ -111,15 +112,12 @@ struct InputPolicyTests {
       builtInUIDs: ["built-in"], bluetoothUIDs: bluetooth ? ["new"] : [])
     #expect(policy.graceConnectionUID == "new")
     #expect(policy.graceDuration == .seconds(bluetooth ? 5 : 2))
-    var requests = clock.requests.stream.makeAsyncIterator()
-    #expect(await requests.next() == .seconds(bluetooth ? 5 : 2))
+    #expect(try await clock.waitForNextRequest() == .seconds(bluetooth ? 5 : 2))
     policy.observe(
       availableUIDs: [], defaultUID: nil, builtInUIDs: [], bluetoothUIDs: [],
       failure: "Input read failed")
     clock.advance()
-    var completions = clock.completions.stream.makeAsyncIterator()
-    _ = await completions.next()
-    await Task.yield()
+    try await clock.waitForNextCompletion()
     #expect(writes.isEmpty && policy.lastFailure?.message == "Input read failed")
     #expect(policy.availableUIDs == ["built-in", "new"] && policy.observedDefaultUID == "built-in")
     #expect(store.preferredInputDeviceUID == "built-in")

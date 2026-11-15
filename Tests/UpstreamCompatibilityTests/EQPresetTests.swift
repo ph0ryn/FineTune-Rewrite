@@ -1,3 +1,6 @@
+// Copyright (C) 2026 Ronit Singh
+// Derived from ronitsingh10/FineTune, FineTuneTests/EQPresetTests.swift
+// Upstream revision: 2285279d36d3f8115c1c2d4aecd904f1bdf96a51
 // FineTuneTests/EQPresetTests.swift
 // Tests for EQPreset definitions, EQSettings normalization, and band contracts.
 // Pure logic — no audio hardware, no CoreAudio.

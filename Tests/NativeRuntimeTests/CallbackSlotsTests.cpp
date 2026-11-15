@@ -7,6 +7,7 @@
 #include <atomic>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <latch>
 #include <new>
 #include <thread>
@@ -26,11 +27,16 @@ extern "C" __attribute__((noinline)) void *cookieABIEcho(std::uint32_t, const vo
 
 namespace {
 int failures = 0;
+std::size_t assertions = 0;
 const char *activeCase = nullptr;
+const char *firstFailure = nullptr;
 std::atomic<bool> countAllocations{false};
 std::atomic<unsigned> allocations{0};
 void check(bool condition, const char *message) {
+    ++assertions;
     if (!condition) {
+        if (!firstFailure)
+            firstFailure = message;
         ++failures;
         std::fprintf(stderr, "FAIL %s: %s\n", activeCase, message);
     }
@@ -216,9 +222,16 @@ void operator delete(void *pointer) noexcept { std::free(pointer); }
 void operator delete[](void *pointer) noexcept { std::free(pointer); }
 
 int main(int argc, char **argv) {
-    finetune::test::NativeTestReport report(argc, argv,
-                                            "Tests/NativeRuntimeTests/CallbackSlotsTests.cpp");
-    if (!report.ready()) {
+    const char *reportPath = nullptr;
+    if (argc != 1) {
+        if (argc != 3 || std::strcmp(argv[1], "--report") != 0 || argv[2][0] == '\0') {
+            std::fputs("Usage: NativeSlotTests [--report path.json]\n", stderr);
+            return EXIT_FAILURE;
+        }
+        reportPath = argv[2];
+    }
+    finetune::test::NativeTestReport report;
+    if (reportPath && !report.begin(reportPath)) {
         return EXIT_FAILURE;
     }
     struct Unit {
@@ -226,23 +239,41 @@ int main(int argc, char **argv) {
         void (*run)();
     };
     const Unit units[]{
-        {"cookiePointerRoundTrip", cookiePointerRoundTrip},
-        {"firstCallbackAndClosedEntry", firstCallbackAndClosedEntry},
-        {"lateOldCookieAfterReuse", lateOldCookieAfterReuse},
-        {"pausedReaderPreventsReclamation", pausedReaderPreventsReclamation},
-        {"leaseMovesHaveOneReaderOwnership", leaseMovesHaveOneReaderOwnership},
-        {"boundedCapacityAndFreshReuse", boundedCapacityAndFreshReuse},
-        {"callbackPathDoesNotAllocate", callbackPathDoesNotAllocate},
+        {"Tests/NativeRuntimeTests/CallbackSlotsTests.cpp::cookiePointerRoundTrip",
+         cookiePointerRoundTrip},
+        {"Tests/NativeRuntimeTests/CallbackSlotsTests.cpp::firstCallbackAndClosedEntry",
+         firstCallbackAndClosedEntry},
+        {"Tests/NativeRuntimeTests/CallbackSlotsTests.cpp::lateOldCookieAfterReuse",
+         lateOldCookieAfterReuse},
+        {"Tests/NativeRuntimeTests/CallbackSlotsTests.cpp::pausedReaderPreventsReclamation",
+         pausedReaderPreventsReclamation},
+        {"Tests/NativeRuntimeTests/CallbackSlotsTests.cpp::leaseMovesHaveOneReaderOwnership",
+         leaseMovesHaveOneReaderOwnership},
+        {"Tests/NativeRuntimeTests/CallbackSlotsTests.cpp::boundedCapacityAndFreshReuse",
+         boundedCapacityAndFreshReuse},
+        {"Tests/NativeRuntimeTests/CallbackSlotsTests.cpp::callbackPathDoesNotAllocate",
+         callbackPathDoesNotAllocate},
     };
     finetune::test::NativeTestResult results[std::size(units)];
     for (std::size_t i = 0; i < std::size(units); ++i) {
         const auto &unit = units[i];
         activeCase = unit.id;
-        const int before = failures;
+        firstFailure = nullptr;
+        const int beforeFailures = failures;
+        const auto beforeAssertions = assertions;
         unit.run();
-        results[i] = {unit.id, before == failures};
-        std::printf("%s NativeRuntime.CallbackSlots.%s\n", before == failures ? "PASS" : "FAIL",
-                    unit.id);
+        if (assertions == beforeAssertions) {
+            ++assertions;
+            ++failures;
+            firstFailure = "case made no assertions";
+        }
+        results[i] = {unit.id,
+                      1,
+                      1,
+                      assertions - beforeAssertions,
+                      static_cast<std::size_t>(failures - beforeFailures),
+                      firstFailure};
+        std::printf("%s %s\n", failures == beforeFailures ? "PASS" : "FAIL", unit.id);
     }
     std::printf("Native callback slot contracts: %d failures, %zu named cases\n", failures,
                 std::size(units));

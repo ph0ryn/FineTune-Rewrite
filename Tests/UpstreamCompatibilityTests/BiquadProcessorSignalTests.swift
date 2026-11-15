@@ -1,3 +1,6 @@
+// Copyright (C) 2026 Ronit Singh
+// Derived from ronitsingh10/FineTune, FineTuneTests/BiquadProcessorSignalTests.swift
+// Upstream revision: 2285279d36d3f8115c1c2d4aecd904f1bdf96a51
 // FineTuneTests/BiquadProcessorSignalTests.swift
 // vDSP signal-domain integration tests for BiquadProcessor.
 //

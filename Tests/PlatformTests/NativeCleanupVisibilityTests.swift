@@ -30,7 +30,10 @@ struct NativeCleanupVisibilityTests {
     // A different successful owner must not imply that either failed owner was released.
     runtime.recordRetired(
       AudioRouteKey(appIdentifier: "another.app", deviceUID: "another-output", generation: 3))
-    #expect(runtime.unresolvedCleanupFailures.count == 2)
+    #expect(
+      runtime.unresolvedCleanupFailures == [
+        first: firstObservation, second: secondObservation,
+      ])
 
     runtime.recordRetired(first)
     #expect(runtime.unresolvedCleanupFailures == [second: secondObservation])
@@ -107,7 +110,7 @@ struct NativeCleanupVisibilityTests {
   }
 
   @Test @MainActor
-  func passiveVisibilityDoesNotResolveProcessesRetryOrClearDebt() async {
+  func passiveVisibilityDoesNotResolveProcessesRetryOrClearDebt() {
     var resolutions = 0
     let runtime = NativeAudioRoutingRuntime(resolveApp: { identifier, _ in
       resolutions += 1
@@ -118,13 +121,12 @@ struct NativeCleanupVisibilityTests {
     runtime.recordCleanup(first, failure: failure)
     runtime.recordCleanup(second, failure: failure)
 
-    // Allow queued MainActor work without requesting preparation or injecting completion.
-    // This verifies passive runtime state only, not the private pool's failed-entry guard.
-    for _ in 0..<10 {
-      await Task.yield()
-      #expect(runtime.unresolvedCleanupFailures.count == 2)
-      #expect(runtime.lastCleanupFailure == observation(second))
-    }
+    // Recording debt is passive: it must not schedule process resolution or clear the debt.
+    #expect(
+      runtime.unresolvedCleanupFailures == [
+        first: observation(first), second: observation(second),
+      ])
+    #expect(runtime.lastCleanupFailure == observation(second))
     #expect(resolutions == 0)
     #expect(notifications == 2)
   }

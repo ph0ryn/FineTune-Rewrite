@@ -1,10 +1,11 @@
+import AppTestSupport
 import Foundation
 import Observation
 import Testing
 
 @testable import FineTune
 
-@Suite("Application lifecycle without live OS services")
+@Suite("Application lifecycle without live OS services", .timeLimit(.minutes(1)))
 @MainActor
 struct BootstrapLifecycleTests {
   @Test("Cached observation maintenance survives suspension without delivering suspended effects")
@@ -14,26 +15,53 @@ struct BootstrapLifecycleTests {
     let probe = LifecycleServiceProbe()
     let coordinator = LifecycleCoordinator(settings: fixture.settings, ports: probe.ports)
     let cache = LifecycleDefaultCache()
+    let (events, eventSink) = AsyncStream<LifecycleObservationEvent>.makeStream()
     var delivered: [String] = []
-    await coordinator.start()
-    coordinator.observeWhileStarted(
-      read: {
-        _ = cache.uid
-        _ = cache.failure
+    try await withAsyncTestCleanup(
+      operation: {
+        await coordinator.start()
+        coordinator.observeWhileStarted(
+          read: {
+            let uid = cache.uid
+            let failure = cache.failure
+            eventSink.yield(.read(uid: uid, failure: failure))
+          },
+          onChange: {
+            delivered.append(cache.uid)
+            eventSink.yield(.delivery(cache.uid))
+          })
+        let initial = try await waitForTestStreamElement(
+          of: events, finishing: eventSink, waitedFor: "initial cached observation")
+        #expect(initial == .read(uid: "A", failure: nil))
+        await coordinator.handle(.systemWillSleep)
+        cache.failure = "Default read unavailable while suspended"
+        let suspended = try await waitForTestStreamElement(
+          of: events, finishing: eventSink, waitedFor: "suspended cached observation")
+        #expect(
+          suspended == .read(uid: "A", failure: "Default read unavailable while suspended"))
+        #expect(delivered.isEmpty)
+        await coordinator.handle(.systemDidWake)
+        cache.failure = nil
+        let resumedRead = try await waitForTestStreamElement(
+          of: events, finishing: eventSink, waitedFor: "resumed cached observation")
+        #expect(resumedRead == .read(uid: "A", failure: nil))
+        let resumedDelivery = try await waitForTestStreamElement(
+          of: events, finishing: eventSink, waitedFor: "resumed observation delivery")
+        #expect(resumedDelivery == .delivery("A"))
+        #expect(delivered == ["A"])
+        cache.uid = "B"
+        let changedRead = try await waitForTestStreamElement(
+          of: events, finishing: eventSink, waitedFor: "changed cached observation")
+        #expect(changedRead == .read(uid: "B", failure: nil))
+        let changedDelivery = try await waitForTestStreamElement(
+          of: events, finishing: eventSink, waitedFor: "changed observation delivery")
+        #expect(changedDelivery == .delivery("B"))
+        #expect(delivered == ["A", "B"])
       },
-      onChange: { delivered.append(cache.uid) })
-    await coordinator.handle(.systemWillSleep)
-    cache.failure = "Default read unavailable while suspended"
-    await drainObservationTasks()
-    #expect(delivered.isEmpty)
-    await coordinator.handle(.systemDidWake)
-    cache.failure = nil
-    await drainObservationTasks()
-    #expect(delivered == ["A"])
-    cache.uid = "B"
-    await drainObservationTasks()
-    #expect(delivered == ["A", "B"])
-    await coordinator.stop()
+      cleanup: {
+        eventSink.finish()
+        await coordinator.stop()
+      })
   }
 
   @Test("Queued observations cannot re-arm an old session after stop and restart")
@@ -43,27 +71,59 @@ struct BootstrapLifecycleTests {
     let probe = LifecycleServiceProbe()
     let coordinator = LifecycleCoordinator(settings: fixture.settings, ports: probe.ports)
     let cache = LifecycleDefaultCache()
+    let (events, eventSink) = AsyncStream<LifecycleObservationEvent>.makeStream()
     var delivered: [String] = []
-    await coordinator.start()
-    coordinator.observeWhileStarted(
-      read: { _ = cache.uid }, onChange: { delivered.append("old:\(cache.uid)") })
-    cache.uid = "late"
-    await coordinator.stop()
-    await coordinator.start()
-    coordinator.observeWhileStarted(
-      read: { _ = cache.uid }, onChange: { delivered.append("new:\(cache.uid)") })
-    cache.uid = "B"
-    await drainObservationTasks()
-    #expect(delivered == ["new:B"])
-    cache.uid = "C"
-    await drainObservationTasks()
-    #expect(delivered == ["new:B", "new:C"])
-    await coordinator.stop()
-  }
-
-  private func drainObservationTasks() async {
-    // Bounded executor turns, not a real timer, polling loop, or production scheduler.
-    for _ in 0..<8 { await Task.yield() }
+    try await withAsyncTestCleanup(
+      operation: {
+        await coordinator.start()
+        coordinator.observeWhileStarted(
+          read: {
+            let uid = cache.uid
+            eventSink.yield(.read(uid: uid, failure: nil))
+          },
+          onChange: {
+            delivered.append("old:\(cache.uid)")
+            eventSink.yield(.delivery("old:\(cache.uid)"))
+          })
+        let initial = try await waitForTestStreamElement(
+          of: events, finishing: eventSink, waitedFor: "initial lifecycle observation")
+        #expect(initial == .read(uid: "A", failure: nil))
+        cache.uid = "late"
+        await coordinator.stop()
+        await coordinator.start()
+        coordinator.observeWhileStarted(
+          read: {
+            let uid = cache.uid
+            eventSink.yield(.read(uid: uid, failure: nil))
+          },
+          onChange: {
+            delivered.append("new:\(cache.uid)")
+            eventSink.yield(.delivery("new:\(cache.uid)"))
+          })
+        let restarted = try await waitForTestStreamElement(
+          of: events, finishing: eventSink, waitedFor: "restarted lifecycle observation")
+        #expect(restarted == .read(uid: "late", failure: nil))
+        cache.uid = "B"
+        let changedB = try await waitForTestStreamElement(
+          of: events, finishing: eventSink, waitedFor: "B lifecycle observation")
+        #expect(changedB == .read(uid: "B", failure: nil))
+        let deliveryB = try await waitForTestStreamElement(
+          of: events, finishing: eventSink, waitedFor: "B lifecycle delivery")
+        #expect(deliveryB == .delivery("new:B"))
+        #expect(delivered == ["new:B"])
+        cache.uid = "C"
+        let changedC = try await waitForTestStreamElement(
+          of: events, finishing: eventSink, waitedFor: "C lifecycle observation")
+        #expect(changedC == .read(uid: "C", failure: nil))
+        let deliveryC = try await waitForTestStreamElement(
+          of: events, finishing: eventSink, waitedFor: "C lifecycle delivery")
+        #expect(deliveryC == .delivery("new:C"))
+        #expect(delivered == ["new:B", "new:C"])
+      },
+      cleanup: {
+        eventSink.finish()
+        await coordinator.stop()
+      })
   }
 
   @Test("Construction is inert; explicit starts and stops are idempotent")
@@ -277,6 +337,12 @@ private final class LifecycleDefaultCache {
   var failure: String?
 }
 
+/// Test-owned observation events: reads prove re-registration, deliveries prove an onChange ran.
+private enum LifecycleObservationEvent: Equatable, Sendable {
+  case read(uid: String, failure: String?)
+  case delivery(String)
+}
+
 @MainActor
 private final class LifecycleServiceProbe {
   var audioActive = false
@@ -309,14 +375,27 @@ private final class LifecycleServiceProbe {
     backgroundFinished = false
     let started = AsyncStream<Void>.makeStream()
     let pending = AsyncStream<Void>.makeStream()
-    backgroundTask = Task { @MainActor in
+    backgroundTask = Task { @MainActor [weak self] in
       started.continuation.yield(())
       for await _ in pending.stream {}
-      self.backgroundFinished = true
+      self?.backgroundFinished = true
     }
-    var readiness = started.stream.makeAsyncIterator()
-    _ = await readiness.next()
-    if failStartup { throw LifecycleProbeFailure(operation: "startup") }
+    do {
+      _ = try await waitForTestStreamElement(
+        of: started.stream, finishing: started.continuation,
+        waitedFor: "lifecycle service startup")
+      started.continuation.finish()
+      if failStartup { throw LifecycleProbeFailure(operation: "startup") }
+    } catch {
+      started.continuation.finish()
+      pending.continuation.finish()
+      backgroundTask?.cancel()
+      await backgroundTask?.value
+      backgroundTask = nil
+      audioActive = false
+      inputActive = false
+      throw error
+    }
   }
 
   private func shutdown() async throws {

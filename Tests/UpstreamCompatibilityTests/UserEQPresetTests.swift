@@ -2,7 +2,9 @@
 // Copyright (C) 2026 Ronit Singh
 // Derived from ronitsingh10/FineTune, FineTuneTests/UserEQPresetTests.swift
 // Upstream revision: 2285279d36d3f8115c1c2d4aecd904f1bdf96a51
-// Adaptation: Original inputs/assertions preserved; managers use explicit test login service with original temporary paths.
+// Adaptation: Upstream test IDs and behavior guarantees remain; managers use explicit test login service with original temporary paths.
+// The sorting method loads version-12 settings.json with fixed, unsorted createdAt values and asserts
+// exact newest-first IDs.
 
 // FineTuneTests/UserEQPresetTests.swift
 // Tests for UserEQPreset model and SettingsManager CRUD operations.
@@ -176,32 +178,52 @@ struct UserEQPresetCRUDTests {
 
   @Test("getUserPresets returns presets sorted by createdAt descending (newest first)")
   func getPresetsSortedNewestFirst() throws {
-    let (manager, dir) = try makeTempManager()
+    let dir = FileManager.default.temporaryDirectory
+      .appendingPathComponent("FineTuneTests-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
     defer { cleanupDir(dir) }
 
-    // Create presets with known timestamps via the model, then verify order
-    // Since createUserPreset uses Date(), we create with slight delays conceptually.
-    // But we can't control the date. Instead, create multiple and verify count + order.
-    let first = manager.createUserPreset(name: "First", settings: EQSettings())
-    let second = manager.createUserPreset(name: "Second", settings: EQSettings())
-    let third = manager.createUserPreset(name: "Third", settings: EQSettings())
+    // Fixed createdAt values (seconds since 2001-01-01 UTC) are stored oldest, newest,
+    // middle so the file order is not already the sorted order. The fixture exercises
+    // the real startup path: SettingsManager loads <directory>/settings.json.
+    let fixture = #"""
+      {
+          "version": 12,
+          "userEQPresets": [
+              {
+                  "id": "11111111-1111-4111-8111-111111111111",
+                  "name": "Oldest",
+                  "settings": {"bandGains": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], "isEnabled": true},
+                  "createdAt": 1000000
+              },
+              {
+                  "id": "22222222-2222-4222-8222-222222222222",
+                  "name": "Newest",
+                  "settings": {"bandGains": [10, 9, 8, 7, 6, 5, 4, 3, 2, 1], "isEnabled": false},
+                  "createdAt": 3000000
+              },
+              {
+                  "id": "33333333-3333-4333-8333-333333333333",
+                  "name": "Middle",
+                  "settings": {"bandGains": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "isEnabled": true},
+                  "createdAt": 2000000
+              }
+          ]
+      }
+      """#
+    try Data(fixture.utf8).write(to: dir.appendingPathComponent("settings.json"), options: .atomic)
 
+    let manager = SettingsManager(directory: dir, launchAtLoginService: TestLaunchAtLoginService())
+    #expect(manager.lastLoadError == nil)
     let presets = manager.getUserPresets()
+
     #expect(presets.count == 3)
-
-    // Newest first: third should be first or tied (same millisecond possible).
-    // Verify the order is non-ascending by createdAt.
-    for i in 0..<(presets.count - 1) {
-      #expect(
-        presets[i].createdAt >= presets[i + 1].createdAt,
-        "Preset at index \(i) should be newer than or equal to index \(i + 1)")
-    }
-
-    // Verify all three IDs are present
-    let ids = Set(presets.map(\.id))
-    #expect(ids.contains(first.id))
-    #expect(ids.contains(second.id))
-    #expect(ids.contains(third.id))
+    #expect(
+      presets.map(\.id.uuidString) == [
+        "22222222-2222-4222-8222-222222222222",
+        "33333333-3333-4333-8333-333333333333",
+        "11111111-1111-4111-8111-111111111111",
+      ])
   }
 
   @Test("getUserPresets returns all created presets")

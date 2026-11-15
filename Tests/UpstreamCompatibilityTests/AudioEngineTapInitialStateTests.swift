@@ -1,3 +1,6 @@
+// Copyright (C) 2026 Ronit Singh
+// Derived from ronitsingh10/FineTune, FineTuneTests/AudioEngineTapInitialStateTests.swift
+// Upstream revision: 2285279d36d3f8115c1c2d4aecd904f1bdf96a51
 // FineTuneTests/AudioEngineTapInitialStateTests.swift
 // The original first-sound guarantees now exercise the actual shared Control owner and Prepared route port.
 
@@ -24,11 +27,15 @@ final class RecordingPreparedAudioRoute: PreparedAudioRoute {
   private(set) var events: [Event] = []
   let activationError: AudioRouteFailure?
   private(set) var retired = false
-  private var retirementWaiters: [CheckedContinuation<Void, Never>] = []
+  private let retirementSignals: AsyncStream<Void>
+  private let retirementSignal: AsyncStream<Void>.Continuation
 
   init(key: AudioRouteKey, activationError: AudioRouteFailure? = nil) {
     self.key = key
     self.activationError = activationError
+    let retirement = AsyncStream<Void>.makeStream(bufferingPolicy: .bufferingNewest(1))
+    retirementSignals = retirement.stream
+    retirementSignal = retirement.continuation
   }
   func startMuted(state: AudioOutputState) async throws -> AudioRouteObservation {
     events.append(.startMuted(state))
@@ -49,13 +56,69 @@ final class RecordingPreparedAudioRoute: PreparedAudioRoute {
   func retire() async -> AudioRetirementResult {
     events.append(.retire)
     retired = true
-    for waiter in retirementWaiters { waiter.resume() }
-    retirementWaiters.removeAll()
+    retirementSignal.yield(())
     return .retired
   }
-  func waitUntilRetired() async {
-    if retired { return }
-    await withCheckedContinuation { retirementWaiters.append($0) }
+  /// Buffered retire signal with a 30-second failure deadline and cancellation-safe stream cleanup.
+  func waitUntilRetired() async throws {
+    let signals = retirementSignals
+    let signal = retirementSignal
+    let deadline = ContinuousClock.now + .seconds(30)
+    await withTaskCancellationHandler {
+      await withTaskGroup(of: RetirementWaitResult.self) { group in
+        group.addTask {
+          var iterator = signals.makeAsyncIterator()
+          return await iterator.next() == nil ? .streamFinished : .retired
+        }
+        group.addTask {
+          do {
+            try await Task.sleep(until: deadline, clock: .continuous)
+            return .deadlineExpired
+          } catch {
+            return .cancelled
+          }
+        }
+        var retiredObserved = false
+        var reportedFailure = false
+        for await result in group {
+          switch result {
+          case .retired:
+            retiredObserved = true
+            group.cancelAll()
+          case .deadlineExpired:
+            if !retiredObserved && !reportedFailure {
+              reportedFailure = true
+              Issue.record("Prepared route did not retire within 30 seconds")
+              signal.finish()
+            }
+            group.cancelAll()
+          case .streamFinished:
+            if !retiredObserved && !reportedFailure && !Task.isCancelled {
+              reportedFailure = true
+              Issue.record("Prepared route retirement stream ended before retirement")
+            }
+            signal.finish()
+            group.cancelAll()
+          case .cancelled:
+            if Task.isCancelled {
+              signal.finish()
+              group.cancelAll()
+            }
+          }
+        }
+      }
+    } onCancel: {
+      signal.finish()
+    }
+    try Task.checkCancellation()
+    signal.finish()
+  }
+
+  private enum RetirementWaitResult: Sendable {
+    case retired
+    case streamFinished
+    case deadlineExpired
+    case cancelled
   }
 }
 
@@ -368,7 +431,7 @@ struct AudioEngineRouteBoundaryTests {
     await engine.controller.waitForCurrentWork()
     #expect(runtime.routes.count == 2)
     let candidate = try #require(runtime.routes.last)
-    await candidate.waitUntilRetired()
+    try await candidate.waitUntilRetired()
     #expect(
       engine.controller.activeDeviceUIDs(for: setup.app.persistenceIdentifier) == [setup.device.uid]
     )
@@ -391,7 +454,7 @@ struct AudioEngineRouteBoundaryTests {
     let route = try #require(runtime.routes.first)
     setup.processes.activeApps = []
     engine.ingestObservations()
-    await route.waitUntilRetired()
+    try await route.waitUntilRetired()
     #expect(engine.apps.isEmpty)
     #expect(engine.controller.activeDeviceUIDs(for: setup.app.persistenceIdentifier).isEmpty)
     #expect(

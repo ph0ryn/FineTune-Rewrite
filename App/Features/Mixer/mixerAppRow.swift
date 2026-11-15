@@ -9,6 +9,18 @@ import FineTuneDomain
 import Foundation
 import SwiftUI
 
+/// Text the row renders. `MixerAppRow` reads this same value for its name and optional route line.
+struct MixerAppRowPresentation: Equatable {
+  var name: String
+  var subtitle: String?
+
+  @MainActor
+  init(app: MixerAppPresentation, bindings: MixerBindings) {
+    name = app.name
+    subtitle = MixerAppRoutePicker.subtitle(app, bindings: bindings)
+  }
+}
+
 @MainActor
 struct MixerAppRow: View {
   let app: MixerAppPresentation
@@ -25,6 +37,9 @@ struct MixerAppRow: View {
   @State private var isPinHovered = false
   @State private var isEyeHovered = false
 
+  private var presentation: MixerAppRowPresentation {
+    MixerAppRowPresentation(app: app, bindings: bindings)
+  }
   private var decorationOpacity: Double { app.isActive || isEditing ? 1 : 0.6 }
   private var sliderValue: Double { VolumeMapping.gainToSlider(app.gain) }
 
@@ -48,9 +63,10 @@ struct MixerAppRow: View {
           appIcon
         }
         VStack(alignment: .leading, spacing: 1) {
-          Text(app.name).font(DesignTokens.Typography.rowName).lineLimit(1).help(app.name)
+          Text(presentation.name).font(DesignTokens.Typography.rowName).lineLimit(1)
+            .help(presentation.name)
             .foregroundStyle(app.isIgnored ? DesignTokens.Colors.textSecondary : .primary)
-          if !isEditing, let subtitle = MixerAppRoutePicker.subtitle(app, bindings: bindings) {
+          if !isEditing, let subtitle = presentation.subtitle {
             Text(subtitle).font(.system(size: 9))
               .foregroundStyle(DesignTokens.Colors.textTertiary)
               .lineLimit(1).help(bindings.routeLabel(app))

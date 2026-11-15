@@ -1,5 +1,6 @@
 // Independent settings projection/binding tests; no global settings or key registration.
 import AppKit
+import AppTestSupport
 import FineTuneControl
 import FineTuneDomain
 import FineTunePlatform
@@ -8,7 +9,6 @@ import SwiftUI
 import Testing
 
 @testable import FineTune
-
 @Suite("Settings live bindings")
 @MainActor
 struct SettingsViewTests {

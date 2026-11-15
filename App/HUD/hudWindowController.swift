@@ -10,8 +10,10 @@ final class HUDWindowController {
   private let settingsManager: SettingsManager
   private let mediaKeyStatus: MediaKeyStatus
   private let popupVisibility: PopupVisibilityService
+  /// Delay seam: production stays continuous; tests release the exact hide deadline.
+  private let clock: DeviceBackendClock
   private var panel: NSPanel?
-  private var hideTask: Task<Void, Never>?
+  private(set) var hideTask: Task<Void, Never>?
   private var lastStyle: HUDStyle = .tahoe
   private var soundSettingsObserver: NSObjectProtocol?
   private var swallowedAt: ContinuousClock.Instant?
@@ -28,11 +30,12 @@ final class HUDWindowController {
 
   init(
     settingsManager: SettingsManager, mediaKeyStatus: MediaKeyStatus,
-    popupVisibility: PopupVisibilityService
+    popupVisibility: PopupVisibilityService, clock: DeviceBackendClock = .continuous
   ) {
     self.settingsManager = settingsManager
     self.mediaKeyStatus = mediaKeyStatus
     self.popupVisibility = popupVisibility
+    self.clock = clock
     soundSettingsObserver = DistributedNotificationCenter.default().addObserver(
       forName: Notification.Name("com.apple.sound.settingsChangedNotification"), object: nil,
       queue: .main
@@ -168,8 +171,9 @@ final class HUDWindowController {
   private func scheduleHide() {
     hideTask?.cancel()
     let delay = hideDelay(for: lastStyle)
+    let clock = clock
     hideTask = Task { @MainActor [weak self] in
-      do { try await Task.sleep(for: delay) } catch { return }
+      do { try await clock.sleep(delay) } catch { return }
       guard !Task.isCancelled else { return }
       self?.hide()
     }

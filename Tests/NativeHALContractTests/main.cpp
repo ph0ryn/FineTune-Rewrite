@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Real C exports + real runtime/DSP, only the external OS provider is replaced.
 #include "../../Sources/NativeAudio/Runtime/AggregateTapPolicy.hpp"
+#include "../NativeRuntimeTests/NativeTestReport.hpp"
 #include "AllocationWatch.hpp"
 #include "FakeHAL.hpp"
 #include <array>
@@ -15,17 +16,27 @@
 
 namespace {
 using namespace native_hal_fixture;
-std::size_t checks = 0, failures = 0, invocations = 1;
+std::size_t assertions = 0, failures = 0, inputs = 1;
 const char *currentID = "startup";
-void check(bool condition, const char *property) {
-    ++checks;
+const char *firstFailure = nullptr;
+bool check(bool condition, const char *property) {
+    ++assertions;
     if (!condition) {
+        if (!firstFailure)
+            firstFailure = property;
         if (failures < 16)
             std::fprintf(stderr, "%s: %s\n", currentID, property);
         ++failures;
+        return false;
     }
+    return true;
 }
 #define CHECK(expr) check(bool(expr), #expr)
+#define REQUIRE(expr)                                                                              \
+    do {                                                                                           \
+        if (!check(bool(expr), #expr))                                                             \
+            return;                                                                                \
+    } while (false)
 struct Release {
     void operator()(FTNativeRoute *p) const {
         if (!p)
@@ -101,13 +112,12 @@ struct Signal {
     }
 };
 void latestCommitState() {
-    invocations = 2;
+    inputs = 2;
     for (const auto gains : {std::array{0.25F, 0.75F}, std::array{0.75F, 0.25F}}) {
         CHECK(hal.resources() == 0);
         hal = FakeHAL{};
         auto p = prepare(request(state(1, gains[0])));
-        if (!p || hal.ios.empty())
-            return;
+        REQUIRE(p && !hal.ios.empty());
         const auto io = hal.ios.back();
         auto latest = state(2, gains[1]);
         FTNativeError error{};
@@ -135,7 +145,7 @@ void commit(const Route &p, FTNativeOutputState s) {
     CHECK(error.kind == FT_NATIVE_NO_FAILURE);
 }
 void acquisitionGuards() {
-    invocations = 3;
+    inputs = 3;
     for (unsigned mode = 0; mode < 3; ++mode) {
         resetFixture();
         auto r = request(state());
@@ -155,7 +165,7 @@ void acquisitionGuards() {
     }
 }
 void capabilityAndCertificate() {
-    invocations = 11;
+    inputs = 11;
     resetFixture();
     FTNativeOutputDescription description{};
     FTNativeError descriptionError{};
@@ -199,7 +209,7 @@ void capabilityAndCertificate() {
     }
 }
 void resolveOutputRejections() {
-    invocations = 6;
+    inputs = 6;
     // Each condition reports its own local code: a field failure that only exists while the
     // device settles must stay attributable after the state has changed.
     const std::int32_t expected[] = {
@@ -239,17 +249,19 @@ void resolveOutputRejections() {
     CHECK(r != nullptr);
 }
 void switchWithOffsetTapInput() {
-    invocations = 3;
+    inputs = 3;
     for (const UInt32 origin : {3U, 5U, 7U}) {
         resetFixture();
         auto initial = state();
         auto old = prepare(request(initial));
+        CHECK(old);
         if (!old)
             continue;
         commit(old, initial);
         const auto oldIO = hal.ios.back();
         hal.inputFirstChannel = origin;
         auto candidate = prepare(request(initial, "fixture-b"));
+        CHECK(candidate);
         if (!candidate)
             continue;
         const auto candidateIO = hal.ios.back();
@@ -278,12 +290,10 @@ void idleTransportCanHandoffWithoutSourceSamples() {
     resetFixture();
     auto initial = state();
     auto old = prepare(request(initial));
-    if (!old)
-        return;
+    REQUIRE(old);
     commit(old, initial);
     auto candidate = prepare(request(initial, "fixture-b"));
-    if (!candidate)
-        return;
+    REQUIRE(candidate);
     const auto io = hal.ios.back();
     FTNativeError error{};
     CHECK(ft_native_route_start_muted(candidate.get(), &initial, &error) == FT_NATIVE_OK);
@@ -324,11 +334,12 @@ void idleTransportCanHandoffWithoutSourceSamples() {
     CHECK(hal.resources() == 0);
 }
 void idleTransportRejectsInvalidReadiness() {
-    invocations = 6;
+    inputs = 6;
     for (unsigned mode = 0; mode < 6; ++mode) {
         resetFixture();
         auto initial = state();
         auto candidate = prepare(request(initial));
+        CHECK(candidate);
         if (!candidate)
             continue;
         const auto io = hal.ios.back();
@@ -370,7 +381,7 @@ void idleTransportRejectsInvalidReadiness() {
 }
 void streamLayoutChannelOrigins() {
     resetFixture();
-    invocations = 0;
+    inputs = 0;
     const UInt32 interleaved[]{2}, planar[]{1, 1}, extra[]{1, 1, 1};
     auto stereo = FakeHAL::asbd();
     auto mono = stereo;
@@ -379,7 +390,7 @@ void streamLayoutChannelOrigins() {
     const auto verify = [&](std::span<const UInt32> channels,
                             std::span<const StreamFormatObservation> streams, bool device,
                             bool ownedTap) {
-        ++invocations;
+        ++inputs;
         CHECK(decodeStereoLayout(channels, streams).nativePackedFloat32 == device);
         CHECK(decodeStereoLayout(channels, streams, StreamChannelOrigin::ownedTapInput)
                   .nativePackedFloat32 == ownedTap);
@@ -422,7 +433,7 @@ void streamLayoutChannelOrigins() {
     verify({}, interleavedStream, false, false);
     for (const bool foreignTap : {false, true}) {
         resetFixture();
-        ++invocations;
+        ++inputs;
         hal.inputFirstChannel = 5;
         hal.wrongCertificate = foreignTap;
         hal.wrongPhysicalOutput = !foreignTap;
@@ -436,7 +447,7 @@ void streamLayoutChannelOrigins() {
     }
 }
 void partialAcquisition() {
-    invocations = 9;
+    inputs = 9;
     const std::array faults{Fault::tap, Fault::aggregate, Fault::io, Fault::certify,
                             Fault::listener};
     for (auto fault : faults)
@@ -455,8 +466,7 @@ void partialAcquisition() {
         }
     resetFixture();
     auto p = prepare(request(state()));
-    if (!p)
-        return;
+    REQUIRE(p);
     hal.fault = Fault::start;
     auto s = state();
     FTNativeError error{};
@@ -467,7 +477,7 @@ void partialAcquisition() {
 }
 void aggregateTapPolicyDecoding() {
     resetFixture();
-    invocations = 0;
+    inputs = 0;
     const auto uidKey = CFSTR(kAudioSubTapUIDKey);
     const auto driftKey = CFSTR(kAudioSubTapDriftCompensationKey);
     const auto qualityKey = CFSTR(kAudioSubTapDriftCompensationQualityKey);
@@ -491,7 +501,7 @@ void aggregateTapPolicyDecoding() {
     const auto verify = [&](const char *label, CFTypeRef object, CFStringRef uid, bool valid,
                             UInt32 drift = 1,
                             UInt32 quality = kAudioAggregateDriftCompensationHighQuality) {
-        ++invocations;
+        ++inputs;
         AggregateTapPolicy policy{17, 19};
         check(decodeAggregateTapPolicy(object, uid, policy) == valid, label);
         CHECK(policy.driftCompensation == (valid ? drift : 17));
@@ -559,8 +569,7 @@ void privateSubTapUsesAggregatePolicy() {
     resetFixture();
     hal.rejectPrivateSubTapListeners = true;
     auto p = prepare(request(state()));
-    if (!p || hal.ios.empty())
-        return;
+    REQUIRE(p && !hal.ios.empty());
     const auto io = hal.ios.back();
     commit(p, state());
     Signal signal;
@@ -573,8 +582,7 @@ void privateSubTapUsesAggregatePolicy() {
 void aggregateCompositionInvalidates() {
     resetFixture();
     auto p = prepare(request(state()));
-    if (!p || hal.ios.empty())
-        return;
+    REQUIRE(p && !hal.ios.empty());
     const auto io = hal.ios.back();
     commit(p, state());
     Signal warm;
@@ -603,7 +611,7 @@ void aggregateCompositionInvalidates() {
     CHECK(hal.resources() == 0);
 }
 void compositionListenerFailureIsPrimary() {
-    invocations = 2;
+    inputs = 2;
     for (const bool cleanupDebt : {false, true}) {
         resetFixture();
         hal.rejectCompositionListener = true;
@@ -633,7 +641,7 @@ void compositionListenerFailureIsPrimary() {
     }
 }
 void boundedCleanupDebt() {
-    invocations = 3;
+    inputs = 3;
     resetFixture();
     hal.fault = Fault::tap;
     hal.cleanupFault = Fault::destroyTap;
@@ -643,8 +651,7 @@ void boundedCleanupDebt() {
     CHECK(ft_native_route_prepare(&r, &raw, &error) == FT_NATIVE_FAILED);
     Route debt(raw);
     CHECK(debt != nullptr && hal.taps.size() == 1);
-    if (!debt)
-        return;
+    REQUIRE(debt);
     auto s = snapshot(debt);
     CHECK(s.failure.code == acquisitionError && s.cleanup_failure.code == cleanupError);
     CHECK(ft_native_route_release(debt.get()) == FT_NATIVE_PENDING);
@@ -653,8 +660,7 @@ void boundedCleanupDebt() {
 
     resetFixture();
     auto active = prepare(request(state()));
-    if (!active)
-        return;
+    REQUIRE(active);
     hal.holdAggregate = true;
     CHECK(ft_native_route_retire(active.get(), &error) == FT_NATIVE_PENDING);
     CHECK(hal.aggregates.size() == 1 && hal.taps.size() == 1 && hal.ios.empty());
@@ -683,12 +689,11 @@ void boundedCleanupDebt() {
     CHECK(hal.resources() == 0);
 }
 void disappearedAggregateCleanup() {
-    invocations = 2;
+    inputs = 2;
     for (const bool started : {true, false}) {
         resetFixture();
         auto p = prepare(request(state()));
-        if (!p || hal.ios.empty() || hal.listeners.empty())
-            return;
+        REQUIRE(p && !hal.ios.empty() && !hal.listeners.empty());
         const auto io = hal.ios.back();
         const auto listeners = hal.listeners; // Queued OS callbacks can outlive registrations.
         if (started) {
@@ -731,7 +736,7 @@ void disappearedAggregateCleanup() {
     }
 }
 void aggregateBadDeviceCounterexamples() {
-    invocations = 18;
+    inputs = 18;
     for (const auto operation :
          {FT_NATIVE_STOP, FT_NATIVE_DESTROY_IOPROC, FT_NATIVE_DESTROY_AGGREGATE}) {
         // Present aggregate; failed probes with false out-param (including raw !obj/!dev);
@@ -739,8 +744,7 @@ void aggregateBadDeviceCounterexamples() {
         for (unsigned mode = 0; mode < 6; ++mode) {
             resetFixture();
             auto p = prepare(request(state()));
-            if (!p || hal.ios.empty())
-                return;
+            REQUIRE(p && !hal.ios.empty());
             const auto aggregate = hal.ios.back().device;
             if (operation == FT_NATIVE_STOP)
                 commit(p, state());
@@ -790,12 +794,11 @@ void aggregateBadDeviceCounterexamples() {
     }
 }
 void disappearedAggregateSurvivingDebt() {
-    invocations = 6;
+    inputs = 6;
     for (unsigned mode = 0; mode < 6; ++mode) {
         resetFixture();
         auto p = prepare(request(state()));
-        if (!p || hal.ios.empty())
-            return;
+        REQUIRE(p && !hal.ios.empty());
         commit(p, state());
         const auto aggregate = hal.ios.back().device;
         const auto tap = hal.taps.back().id;
@@ -834,16 +837,14 @@ void disappearedAggregateSurvivingDebt() {
     }
 }
 void savedTargetsAndPermit() {
-    invocations = 3;
+    inputs = 3;
     resetFixture();
     auto a = prepare(request(state(1, 0.25F)));
-    if (!a || hal.ios.empty())
-        return;
+    REQUIRE(a && !hal.ios.empty());
     const auto ioA = hal.ios.back();
     commit(a, state(1, 0.25F));
     auto b = prepare(request(state(1, 0.75F), "fixture-b"));
-    if (!b || hal.ios.empty())
-        return;
+    REQUIRE(b && !hal.ios.empty());
     const auto ioB = hal.ios.back();
     auto sb = state(1, 0.75F);
     FTNativeError error{};
@@ -870,8 +871,7 @@ void savedTargetsAndPermit() {
     auto muted = state();
     muted.muted = true;
     auto p = prepare(request(muted));
-    if (!p || hal.ios.empty())
-        return;
+    REQUIRE(p && !hal.ios.empty());
     const auto io = hal.ios.back();
     commit(p, muted);
     Signal signal;
@@ -882,8 +882,7 @@ void savedTargetsAndPermit() {
     resetFixture();
     hal.planar = true;
     p = prepare(request(state(1, 0.5F)));
-    if (!p || hal.ios.empty())
-        return;
+    REQUIRE(p && !hal.ios.empty());
     const auto planarIO = hal.ios.back();
     commit(p, state(1, 0.5F));
     struct List {
@@ -910,12 +909,11 @@ void savedTargetsAndPermit() {
     CHECK(left[0] == 0.125F && right[0] == -0.0625F);
 }
 void callbackSilenceAndInput() {
-    invocations = 3;
+    inputs = 3;
     for (unsigned mode = 0; mode < 3; ++mode) {
         resetFixture();
         auto p = prepare(request(state()));
-        if (!p || hal.ios.empty())
-            return;
+        REQUIRE(p && !hal.ios.empty());
         const auto io = hal.ios.back();
         commit(p, state());
         Signal signal;
@@ -948,15 +946,14 @@ bool sameInvalidation(const FTNativeInvalidationSnapshot &a,
            a.has_property_address == b.has_property_address;
 }
 void invalidationInitialAndNoninvalidatingErrors() {
-    invocations = 3;
+    inputs = 3;
     resetFixture();
     FTNativeInvalidationSnapshot result{};
     CHECK(ft_native_route_invalidation(nullptr, &result) == FT_NATIVE_FAILED);
     CHECK(ft_native_route_invalidation(nullptr, nullptr) == FT_NATIVE_FAILED);
     for (unsigned mode = 0; mode < 3; ++mode) {
         auto p = prepare(request(state()));
-        if (!p || hal.ios.empty())
-            return;
+        REQUIRE(p && !hal.ios.empty());
         CHECK(ft_native_route_invalidation(p.get(), nullptr) == FT_NATIVE_FAILED);
         CHECK(sameInvalidation(invalidation(p), {}));
         commit(p, state());
@@ -976,12 +973,11 @@ void invalidationInitialAndNoninvalidatingErrors() {
     }
 }
 void invalidationPropertyMetadataAndArchive() {
-    invocations = 5;
+    inputs = 5;
     for (unsigned mode = 0; mode < 5; ++mode) {
         resetFixture();
         auto p = prepare(request(state()));
-        if (!p || hal.ios.empty() || hal.listeners.empty())
-            return;
+        REQUIRE(p && !hal.ios.empty() && !hal.listeners.empty());
         const auto io = hal.ios.back();
         const auto listener = hal.listeners.front();
         commit(p, state());
@@ -1045,7 +1041,7 @@ void invalidationPropertyMetadataAndArchive() {
     }
 }
 void invalidationIOReasonsAndPrecedence() {
-    invocations = 7;
+    inputs = 7;
     constexpr std::array reasons{
         FT_NATIVE_INVALIDATION_IO_WRONG_DEVICE,   FT_NATIVE_INVALIDATION_IO_INPUT_SHAPE,
         FT_NATIVE_INVALIDATION_IO_OUTPUT_SHAPE,   FT_NATIVE_INVALIDATION_IO_ABSENT_OUTPUT,
@@ -1054,8 +1050,7 @@ void invalidationIOReasonsAndPrecedence() {
     for (unsigned mode = 0; mode < reasons.size(); ++mode) {
         resetFixture();
         auto p = prepare(request(state()));
-        if (!p || hal.ios.empty() || hal.listeners.empty())
-            return;
+        REQUIRE(p && !hal.ios.empty() && !hal.listeners.empty());
         auto io = hal.ios.back();
         const auto aggregate = io.device;
         const auto listener = hal.listeners.back();
@@ -1118,12 +1113,11 @@ void invalidationIOReasonsAndPrecedence() {
     }
 }
 void invalidationConcurrentPropertyClaims() {
-    invocations = 32;
-    for (unsigned iteration = 0; iteration < invocations; ++iteration) {
+    inputs = 32;
+    for (unsigned iteration = 0; iteration < inputs; ++iteration) {
         resetFixture();
         auto p = prepare(request(state()));
-        if (!p || hal.listeners.empty())
-            return;
+        REQUIRE(p && !hal.listeners.empty());
         const auto listener = hal.listeners.back();
         const AudioObjectPropertyAddress addresses[]{
             {kAudioDevicePropertyDeviceIsAlive, kAudioObjectPropertyScopeInput, 3},
@@ -1177,7 +1171,7 @@ void invalidationConcurrentPropertyClaims() {
     }
 }
 void ioCapacityDoesNotRequireRangeListener() {
-    invocations = 2;
+    inputs = 2;
     for (bool variable : {false, true}) {
         resetFixture();
         // The fake supplies a valid IO certificate, not execution of SystemHal's SDK getter.
@@ -1185,6 +1179,7 @@ void ioCapacityDoesNotRequireRangeListener() {
         hal.variableFrames = variable;
         hal.rejectBufferRangeListener = true;
         auto p = prepare(request(state()));
+        CHECK(p && !hal.ios.empty());
         if (!p || hal.ios.empty())
             continue;
         const auto io = hal.ios.back();
@@ -1201,11 +1196,12 @@ void ioCapacityDoesNotRequireRangeListener() {
     }
 }
 void bufferFrameSizeChangeInvalidates() {
-    invocations = 2;
+    inputs = 2;
     for (bool variable : {false, true}) {
         resetFixture();
         hal.variableFrames = variable;
         auto p = prepare(request(state()));
+        CHECK(p && !hal.ios.empty());
         if (!p || hal.ios.empty())
             continue;
         const auto io = hal.ios.back();
@@ -1240,7 +1236,7 @@ void bufferFrameSizeChangeInvalidates() {
     }
 }
 void bufferFrameSizeListenerFailureRetainsDebt() {
-    invocations = 2;
+    inputs = 2;
     for (bool debt : {false, true}) {
         resetFixture();
         hal.rejectBufferSizeListener = true;
@@ -1271,11 +1267,10 @@ void bufferFrameSizeListenerFailureRetainsDebt() {
     }
 }
 void lateCloseAndReuse() {
-    invocations = 10;
+    inputs = 10;
     resetFixture();
     auto a = prepare(request(state()));
-    if (!a || hal.ios.empty() || hal.listeners.empty())
-        return;
+    REQUIRE(a && !hal.ios.empty() && !hal.listeners.empty());
     const auto oldIO = hal.ios.back();
     const auto oldListener = hal.listeners.front();
     commit(a, state());
@@ -1288,8 +1283,7 @@ void lateCloseAndReuse() {
     a.reset();
     CHECK(hal.resources() == 0);
     auto b = prepare(request(state(1, 0.75F), "fixture-b"));
-    if (!b || hal.ios.empty())
-        return;
+    REQUIRE(b && !hal.ios.empty());
     const auto io = hal.ios.back();
     commit(b, state(1, 0.75F));
     Signal late;
@@ -1335,8 +1329,7 @@ void lateCloseAndReuse() {
         resetFixture();
         hal.variableFrames = n == 7;
         auto p = prepare(request(state()));
-        if (!p || hal.ios.empty())
-            return;
+        REQUIRE(p && !hal.ios.empty());
         const auto activeIO = hal.ios.back();
         commit(p, state());
         Signal warm;
@@ -1381,8 +1374,7 @@ void lateCloseAndReuse() {
 
     resetFixture();
     auto bindingRoute = prepare(request(state()));
-    if (!bindingRoute || hal.ios.empty())
-        return;
+    REQUIRE(bindingRoute && !hal.ios.empty());
     const auto bindingIO = hal.ios.back();
     commit(bindingRoute, state());
     Signal warm;
@@ -1435,8 +1427,7 @@ void copiedConfiguration() {
     r.output_uid = uid;
     r.process_objects = &process;
     auto p = prepare(r);
-    if (!p || hal.ios.empty())
-        return;
+    REQUIRE(p && !hal.ios.empty());
     const auto io = hal.ios.back();
     gains.fill(-12);
     filter.frequency = std::numeric_limits<double>::quiet_NaN();
@@ -1444,8 +1435,7 @@ void copiedConfiguration() {
     std::memcpy(uid, "other-xxx", 9);
     commit(p, original);
     auto reference = prepare(request(original, "fixture-b"));
-    if (!reference || hal.ios.empty())
-        return;
+    REQUIRE(reference && !hal.ios.empty());
     const auto referenceIO = hal.ios.back();
     commit(reference, original);
     Signal actual, expected;
@@ -1455,14 +1445,13 @@ void copiedConfiguration() {
     CHECK(snapshot(p).phase == FT_NATIVE_FIRST_APPLIED);
 }
 void coalescedCoverage() {
-    invocations = 3;
+    inputs = 3;
     resetFixture();
     auto initial = state(1, 0.5F);
     initial.processing.loudness_compensation_enabled = true;
     initial.processing.loudness_volume = 0.25F;
     auto p = prepare(request(initial));
-    if (!p || hal.ios.empty())
-        return;
+    REQUIRE(p && !hal.ios.empty());
     const auto io = hal.ios.back();
     commit(p, initial);
     Signal warm;
@@ -1487,8 +1476,7 @@ void coalescedCoverage() {
     three.processing.loudness_volume = 0.5F;
     CHECK(ft_native_route_update(p.get(), &three, &error) == FT_NATIVE_OK);
     auto reference = prepare(request(three, "fixture-b"));
-    if (!reference || hal.ios.empty())
-        return;
+    REQUIRE(reference && !hal.ios.empty());
     const auto referenceIO = hal.ios.back();
     commit(reference, three);
     // Only EQ and LC are present, both newly prepared by this update. Initial gain is0.5
@@ -1507,8 +1495,7 @@ void coalescedCoverage() {
     resetFixture();
     initial = state(1, 0.5F);
     p = prepare(request(initial));
-    if (!p || hal.ios.empty())
-        return;
+    REQUIRE(p && !hal.ios.empty());
     const auto hotIO = hal.ios.back();
     commit(p, initial);
     CHECK(ft_native_route_request_levels(p.get(), {3, 0.5F, false, 0.5F}) == FT_NATIVE_OK);
@@ -1527,8 +1514,7 @@ void coalescedCoverage() {
     // revision tie hot3 wins its different gain/mute values over full3.
     resetFixture();
     p = prepare(request(initial));
-    if (!p || hal.ios.empty())
-        return;
+    REQUIRE(p && !hal.ios.empty());
     const auto zeroMaskIO = hal.ios.back();
     commit(p, initial);
     CHECK(ft_native_route_request_levels(p.get(), {3, 0.5F, false, 0.5F}) == FT_NATIVE_OK);
@@ -1542,8 +1528,7 @@ void coalescedCoverage() {
     referenceState.target_gain = 0.5F;
     referenceState.muted = false;
     reference = prepare(request(referenceState, "fixture-b"));
-    if (!reference || hal.ios.empty())
-        return;
+    REQUIRE(reference && !hal.ios.empty());
     const auto zeroMaskReferenceIO = hal.ios.back();
     commit(reference, referenceState);
     Signal inherited, direct;
@@ -1614,8 +1599,7 @@ bool sameTiming(const FTNativeTimingSnapshot &a, const FTNativeTimingSnapshot &b
 void timingDisabledByDefault() {
     resetFixture();
     auto p = prepare(request(state()));
-    if (!p || hal.ios.empty())
-        return;
+    REQUIRE(p && !hal.ios.empty());
     const auto io = hal.ios.back();
     const auto before = timingSnapshot(p);
     CHECK(!before.enabled && before.observed_callbacks == 0 && before.last_valid_mask == 0);
@@ -1627,7 +1611,7 @@ void timingDisabledByDefault() {
     CHECK(sameTiming(before, timingSnapshot(p)));
 }
 void timingEnableLifecycleAndNullSafety() {
-    invocations = 4;
+    inputs = 4;
     FTNativeError error{};
     FTNativeTimingSnapshot unused{};
     CHECK(ft_native_route_enable_timing(nullptr, &error) == FT_NATIVE_FAILED);
@@ -1637,6 +1621,7 @@ void timingEnableLifecycleAndNullSafety() {
     for (unsigned mode = 0; mode < 4; ++mode) {
         resetFixture();
         auto p = prepare(request(state()));
+        CHECK(p && !hal.ios.empty());
         if (!p || hal.ios.empty())
             continue;
         CHECK(ft_native_route_timing_snapshot(p.get(), nullptr) == FT_NATIVE_FAILED);
@@ -1664,8 +1649,7 @@ void timingNormalTimestamps() {
     resetFixture();
     TimingClock clock;
     auto p = prepare(request(state()));
-    if (!p || hal.ios.empty())
-        return;
+    REQUIRE(p && !hal.ios.empty());
     enableTiming(p);
     const auto io = hal.ios.back();
     commit(p, state());
@@ -1692,12 +1676,13 @@ void timingNormalTimestamps() {
     CHECK(snapshot(p).callback_error_count == 0);
 }
 void timingSampleDiscontinuitiesAndTolerance() {
-    invocations = 10;
+    inputs = 10;
     TimingClock clock;
     for (bool inputLane : {false, true})
         for (double delta : {48.0, -16.0, 0.0, 15.0, 17.0}) {
             resetFixture();
             auto p = prepare(request(state()));
+            CHECK(p && !hal.ios.empty());
             if (!p || hal.ios.empty())
                 continue;
             enableTiming(p);
@@ -1727,8 +1712,7 @@ void timingHostGapsAndNonincreasingHost() {
     resetFixture();
     TimingClock clock;
     auto p = prepare(request(state()));
-    if (!p || hal.ios.empty())
-        return;
+    REQUIRE(p && !hal.ios.empty());
     enableTiming(p);
     const auto io = hal.ios.back();
     commit(p, state());
@@ -1749,7 +1733,7 @@ void timingHostGapsAndNonincreasingHost() {
           snapshot(p).failure.kind == FT_NATIVE_NO_FAILURE);
 }
 void timingMissingTimestampsResetOnlyTheirBaseline() {
-    invocations = 11;
+    inputs = 11;
     TimingClock clock;
     for (unsigned lane = 0; lane < 3; ++lane)
         for (unsigned mode = 0; mode < 4; ++mode) {
@@ -1757,6 +1741,7 @@ void timingMissingTimestampsResetOnlyTheirBaseline() {
                 continue; // HAL host time is integral, so only null/missing flag apply.
             resetFixture();
             auto p = prepare(request(state()));
+            CHECK(p && !hal.ios.empty());
             if (!p || hal.ios.empty())
                 continue;
             enableTiming(p);
@@ -1797,8 +1782,7 @@ void timingMissingTimestampsResetOnlyTheirBaseline() {
     // Entirely absent timestamps are also a valid audio callback, never invented zero times.
     resetFixture();
     auto p = prepare(request(state()));
-    if (!p || hal.ios.empty())
-        return;
+    REQUIRE(p && !hal.ios.empty());
     enableTiming(p);
     commit(p, state());
     Signal absent;
@@ -1812,8 +1796,7 @@ void timingValidIdleAndZeroFrames() {
     resetFixture();
     TimingClock clock;
     auto p = prepare(request(state()));
-    if (!p || hal.ios.empty())
-        return;
+    REQUIRE(p && !hal.ios.empty());
     enableTiming(p);
     const auto io = hal.ios.back();
     commit(p, state());
@@ -1845,12 +1828,10 @@ void timingDoesNotChangeRenderedOutput() {
     initial.processing.eq_gains_db = gains.data();
     initial.processing.eq_gain_count = gains.size();
     auto disabled = prepare(request(initial));
-    if (!disabled || hal.ios.empty())
-        return;
+    REQUIRE(disabled && !hal.ios.empty());
     const auto disabledIO = hal.ios.back();
     auto enabled = prepare(request(initial, "fixture-b"));
-    if (!enabled || hal.ios.empty())
-        return;
+    REQUIRE(enabled && !hal.ios.empty());
     const auto enabledIO = hal.ios.back();
     enableTiming(enabled);
     commit(disabled, initial);
@@ -1876,8 +1857,7 @@ void timingDoesNotChangeRenderedOutput() {
 void timingRetirementArchivesAndLateCallbacksAreInert() {
     resetFixture();
     auto p = prepare(request(state()));
-    if (!p || hal.ios.empty())
-        return;
+    REQUIRE(p && !hal.ios.empty());
     enableTiming(p);
     const auto io = hal.ios.back();
     commit(p, state());
@@ -1900,7 +1880,6 @@ void timingRetirementArchivesAndLateCallbacksAreInert() {
 struct Result {
     const char *id;
     void (*run)();
-    std::size_t count = 0, checks = 0, failed = 0;
 };
 std::array<Result, 38> results{{
     {"Tests/NativeHALContractTests/main.cpp::timingDisabledByDefault", timingDisabledByDefault},
@@ -1966,53 +1945,45 @@ std::array<Result, 38> results{{
     {"Tests/NativeHALContractTests/main.cpp::bufferFrameSizeListenerFailureRetainsDebt",
      bufferFrameSizeListenerFailureRetainsDebt},
 }};
-bool report(const char *path, bool complete) {
-    auto *f = std::fopen(path, "w");
-    if (!f)
-        return false;
-    bool ok = std::fprintf(f, "{\"schema_version\":1,\"complete\":%s,\"cases\":[",
-                           complete ? "true" : "false") >= 0;
-    if (complete)
-        for (std::size_t i = 0; i < results.size(); ++i) {
-            const auto &r = results[i];
-            ok &= std::fprintf(f,
-                               "%s{\"id\":\"%s\",\"status\":\"%s\",\"invocations\":%zu,\"checks\":%"
-                               "zu,\"failures\":%zu}",
-                               i ? "," : "", r.id, r.failed ? "failed" : "passed", r.count,
-                               r.checks, r.failed) >= 0;
-        }
-    ok &= std::fprintf(f,
-                       "],\"real_system_hal_linked\":false,\"callback_allocations\":%zu,\"callback_"
-                       "deletions\":%zu,\"owned_resources_at_end\":%zu}\n",
-                       callback_observation::allocations.load(),
-                       callback_observation::deletions.load(), hal.resources()) >= 0;
-    const bool wrote = std::ferror(f) == 0, closed = std::fclose(f) == 0;
-    return ok && wrote && closed;
-}
 } // namespace
 int main(int argc, char **argv) {
     const bool inject = argc == 4 && std::strcmp(argv[3], "--inject-check-failure") == 0;
     if ((argc != 3 && !inject) || std::strcmp(argv[1], "--report") != 0)
         return 2;
-    if (!report(argv[2], false))
+    finetune::test::NativeTestReport report;
+    if (!report.begin(argv[2]))
         return 2;
-    for (auto &r : results) {
+    std::array<finetune::test::NativeTestResult, results.size()> reported{};
+    for (std::size_t i = 0; i < results.size(); ++i) {
+        const auto &r = results[i];
         currentID = r.id;
-        const auto before = failures, beforeChecks = checks;
-        invocations = 1;
-        if (inject && &r == &results.front())
+        firstFailure = nullptr;
+        const auto beforeFailures = failures, beforeAssertions = assertions;
+        inputs = 1;
+        if (inject && i == 0)
             CHECK(false);
+        const auto beforeCaseAssertions = assertions;
         r.run();
-        CHECK(checks > beforeChecks);
+        CHECK(assertions > beforeCaseAssertions);
+        CHECK(inputs > 0);
         CHECK(hal.resources() == 0);
         CHECK(callback_observation::allocations == 0 && callback_observation::deletions == 0);
-        r.count = invocations;
-        r.checks = checks - beforeChecks;
-        r.failed = failures - before;
-        std::printf("%s: %s (%zu invocations/%zu always-on checks)\n", r.id,
-                    r.failed ? "FAIL" : "PASS", r.count, r.checks);
+        reported[i] = {r.id,
+                       1,
+                       inputs,
+                       assertions - beforeAssertions,
+                       static_cast<std::size_t>(failures - beforeFailures),
+                       firstFailure};
+        std::printf("%s: %s (%zu inputs/%zu always-on assertions)\n", r.id,
+                    reported[i].failures ? "FAIL" : "PASS", reported[i].inputs,
+                    reported[i].assertions);
     }
-    if (!report(argv[2], true))
-        return 2;
-    return failures ? 1 : 0;
+    char extra[256];
+    std::snprintf(extra, sizeof extra,
+                  "\"real_system_hal_linked\":false,\"callback_allocations\":%zu,"
+                  "\"callback_deletions\":%zu,\"owned_resources_at_end\":%zu",
+                  callback_observation::allocations.load(), callback_observation::deletions.load(),
+                  hal.resources());
+    const bool reportedAll = report.finish(reported, extra);
+    return failures == 0 && reportedAll ? 0 : 1;
 }

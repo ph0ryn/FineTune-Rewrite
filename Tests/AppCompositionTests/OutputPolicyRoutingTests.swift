@@ -1,4 +1,5 @@
 import AppKit
+import AppTestSupport
 import AudioToolbox
 import FineTuneControl
 import FineTuneDomain

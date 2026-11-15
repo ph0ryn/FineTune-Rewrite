@@ -1,10 +1,11 @@
 import FineTuneDomain
-import FineTunePlatform
 import Foundation
 import Testing
 
+@testable import FineTunePlatform
+
 // Independently authored tests of the new storage/service boundary (MIT).
-@Suite("Persistence boundary")
+@Suite("Persistence boundary", .timeLimit(.minutes(1)))
 @MainActor
 struct PersistenceTests {
   @MainActor
@@ -18,6 +19,16 @@ struct PersistenceTests {
       requests.append(enabled)
       if fails { throw Failure.unavailable }
       isEnabled = enabled
+    }
+  }
+
+  /// Records the debounce interval SettingsManager asks the injected sleeper to wait for, so the
+  /// test can verify the scheduled delay itself rather than assuming it inside the closure.
+  private actor DebounceRequestRecorder {
+    private(set) var lastRequestedInterval: Duration?
+
+    func record(_ interval: Duration) {
+      lastRequestedInterval = interval
     }
   }
 
@@ -119,17 +130,80 @@ struct PersistenceTests {
     #expect(cleared.alertVolumeBeforeMuteSilencing == nil)
   }
 
+  /// Injects the manual clock as the debounce wait and records the interval the manager requests,
+  /// so a sleeper that ignores the requested delay cannot make the assertion pass.
+  private func debouncedManager(
+    directory: URL, clock: DeviceBackendTestClock, recorder: DebounceRequestRecorder
+  ) -> SettingsManager {
+    SettingsManager(
+      directory: directory, launchAtLoginService: LoginSpy(),
+      debounceSleep: { interval in
+        await recorder.record(interval)
+        try await clock.sleep(for: interval)
+      })
+  }
+
+  private func cleanUpDebouncedSave(
+    manager: SettingsManager,
+    clock: DeviceBackendTestClock,
+    additionalTasks: [Task<Void, Never>] = []
+  ) async {
+    var tasks = additionalTasks
+    if let currentSave = manager.saveTask { tasks.append(currentSave) }
+    for task in tasks { task.cancel() }
+    await clock.cancelAllSleeps()
+    await drainOwnedTasks(tasks, waitedFor: "settings failure cleanup")
+  }
+
   @Test("Debounced changes persist the latest snapshot rather than the first scheduled value")
   func debounceReadback() async throws {
     let directory = try temporaryDirectory()
     defer { try? FileManager.default.removeItem(at: directory) }
-    let manager = SettingsManager(directory: directory, launchAtLoginService: LoginSpy())
-    manager.setVolume(for: "app", to: 0.1)
-    manager.setVolume(for: "app", to: 0.7)
-    try await Task.sleep(for: .milliseconds(750))
-    let loaded = SettingsManager(directory: directory, launchAtLoginService: LoginSpy())
-    #expect(loaded.getVolume(for: "app") == 0.7)
-    #expect(manager.lastSaveError == nil)
+    let clock = DeviceBackendTestClock()
+    let recorder = DebounceRequestRecorder()
+    let manager = debouncedManager(directory: directory, clock: clock, recorder: recorder)
+    var supersededSaveForCleanup: Task<Void, Never>?
+    var replacementSaveForCleanup: Task<Void, Never>?
+    try await withFailureCleanup(
+      operation: {
+        manager.setVolume(for: "app", to: 0.1)
+        // Park the initial debounce before superseding it, so the next cumulative count observation
+        // cannot be satisfied by the initial sleeper's registration.
+        try await clock.waitForSleepCount(1)
+        let supersededSave = manager.saveTask
+        supersededSaveForCleanup = supersededSave
+        manager.setVolume(for: "app", to: 0.7)
+        let replacementSave = manager.saveTask
+        replacementSaveForCleanup = replacementSave
+        // Registrations are counted cumulatively; count 2 is the surviving replacement sleeper.
+        try await clock.waitForSleepCount(2)
+        let requestedInterval = await recorder.lastRequestedInterval
+        #expect(requestedInterval == .milliseconds(500))
+        let file = directory.appendingPathComponent("settings.json")
+        // The superseded change is parked in the injected wait; no earlier write reached disk.
+        #expect(!FileManager.default.fileExists(atPath: file.path))
+        let pendingWrite = try #require(manager.saveTask)
+        replacementSaveForCleanup = pendingWrite
+        await clock.advance(by: .milliseconds(500))
+        // Awaiting the exact scheduled task proves the resumed debounce's write finished, bounded
+        // so a missed shortfall fails with a release instead of parking the suite.
+        try await waitForOwnedTask(
+          pendingWrite, waitedFor: "the replacement settings write",
+          releasing: { await clock.cancelAllSleeps() })
+        if let supersededSave {
+          try await waitForOwnedTask(
+            supersededSave, waitedFor: "the superseded settings write",
+            releasing: { await clock.cancelAllSleeps() })
+        }
+        #expect(manager.lastSaveError == nil)
+        let loaded = SettingsManager(directory: directory, launchAtLoginService: LoginSpy())
+        #expect(loaded.getVolume(for: "app") == 0.7)
+      },
+      cleanup: {
+        await cleanUpDebouncedSave(
+          manager: manager, clock: clock,
+          additionalTasks: [supersededSaveForCleanup, replacementSaveForCleanup].compactMap { $0 })
+      })
   }
 
   @Test("Malformed input is backed up byte-for-byte and its load error remains observable")
@@ -205,16 +279,48 @@ struct PersistenceTests {
     try FileManager.default.createDirectory(
       at: directory.appendingPathComponent("settings.backup.json"),
       withIntermediateDirectories: true)
-    let manager = SettingsManager(directory: directory, launchAtLoginService: LoginSpy())
-    #expect(manager.lastLoadError != nil)
-    manager.setVolume(for: "app", to: 0.5)
-    manager.flushSync()
-    #expect(try Data(contentsOf: file) == original)
-    #expect(manager.lastSaveError != nil)
-    manager.setVolume(for: "app", to: 0.7)
-    try await Task.sleep(for: .milliseconds(750))
-    #expect(try Data(contentsOf: file) == original)
-    #expect(manager.lastSaveError != nil)
+
+    let explicit = SettingsManager(directory: directory, launchAtLoginService: LoginSpy())
+    let clock = DeviceBackendTestClock()
+    let recorder = DebounceRequestRecorder()
+    let debounced = debouncedManager(directory: directory, clock: clock, recorder: recorder)
+    var explicitSaveForCleanup: Task<Void, Never>?
+    var pendingSaveForCleanup: Task<Void, Never>?
+    try await withFailureCleanup(
+      operation: {
+        #expect(explicit.lastLoadError != nil)
+        explicit.setVolume(for: "app", to: 0.5)
+        explicitSaveForCleanup = explicit.saveTask
+        explicit.flushSync()
+        if let explicitSave = explicitSaveForCleanup { await explicitSave.value }
+        #expect(try Data(contentsOf: file) == original)
+        #expect(explicit.lastSaveError != nil)
+
+        // A fresh manager starts with no save error, so observing one proves that the
+        // debounced writer itself ran and was rejected by the load-failure write guard.
+        #expect(debounced.lastSaveError == nil)
+        debounced.setVolume(for: "app", to: 0.7)
+        pendingSaveForCleanup = debounced.saveTask
+        try await clock.waitForSleepCount(1)
+        let requestedInterval = await recorder.lastRequestedInterval
+        #expect(requestedInterval == .milliseconds(500))
+        #expect(debounced.lastSaveError == nil)
+        let pendingSave = try #require(debounced.saveTask)
+        pendingSaveForCleanup = pendingSave
+        await clock.advance(by: .milliseconds(500))
+        // Awaiting the exact scheduled task proves the load-failure guard and error report finished,
+        // bounded so a missed shortfall fails with a release instead of parking the suite.
+        try await waitForOwnedTask(
+          pendingSave, waitedFor: "the debounced settings write",
+          releasing: { await clock.cancelAllSleeps() })
+        #expect(debounced.lastSaveError != nil)
+        #expect(try Data(contentsOf: file) == original)
+      },
+      cleanup: {
+        await cleanUpDebouncedSave(
+          manager: debounced, clock: clock,
+          additionalTasks: [explicitSaveForCleanup, pendingSaveForCleanup].compactMap { $0 })
+      })
   }
 
   @Test("Missing-file initialization does not create files or call the login service")

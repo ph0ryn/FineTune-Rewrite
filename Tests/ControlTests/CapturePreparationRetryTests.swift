@@ -28,6 +28,7 @@ struct CapturePreparationRetryTests {
       await controller.waitForCurrentWork()
     }
     #expect(runtime.requests.count == 1)
+    #expect(runtime.cleanupRetryRequests == 0)
     #expect(controller.routeFailure == failure)
     #expect(!controller.knownPermissionDenied)
     #expect(controller.captureIntent != .none)
@@ -36,7 +37,7 @@ struct CapturePreparationRetryTests {
   }
 
   @Test("Passive binding churn cannot stack acquisitions or erase the pending native failure")
-  func pendingPassiveChurnDoesNotAccumulateAcquisitions() async {
+  func pendingPassiveChurnDoesNotAccumulateAcquisitions() async throws {
     let failure = AudioRouteFailure(
       kind: .nativeFailure, stage: "createTap", code: -7211,
       message: "The held native preparation returned E1.")
@@ -46,14 +47,13 @@ struct CapturePreparationRetryTests {
     let controller = self.controller(settings: settings, runtime: runtime)
     controller.observeOutputs([output()], defaultUID: "A")
     controller.observeApplications([application()])
-    await runtime.waitForFirstPreparation()
+    try await self.waitForPreparationStarted(count: 1, runtime: runtime, controller: controller)
     #expect(runtime.requests.count == 1)
 
+    // Passive observations reconcile synchronously and may only replace the pending plan.
     for revision in UInt64(2)...4 {
       controller.observeApplications([application(revision: revision)])
       controller.observeOutputs([output(revision: revision)], defaultUID: "A")
-      // Let scheduled MainActor routing work run without a real clock or OS operation.
-      await Task.yield()
     }
     #expect(runtime.requests.count == 1)
     #expect(runtime.maximumOutstandingPreparations == 1)
@@ -61,8 +61,22 @@ struct CapturePreparationRetryTests {
     runtime.releaseFirst()
     await controller.waitForCurrentWork()
     #expect(runtime.requests.count == 1)
+    #expect(runtime.cleanupRetryRequests == 0)
     #expect(controller.routeFailure == failure)
     #expect(!runtime.cancelledFirstResult)
+    #expect(!controller.knownPermissionDenied)
+    #expect(controller.captureIntent != .none)
+    #expect(settings.appSettings.explicitUserCaptureEnabled)
+
+    // The retained preparation failure survives later passive binding churn as well.
+    for revision in UInt64(5)...6 {
+      controller.observeApplications([application(revision: revision)])
+      controller.observeOutputs([output(revision: revision)], defaultUID: "A")
+      // Any work these passive observations attempted must settle before the no-retry check.
+      await controller.waitForCurrentWork()
+    }
+    #expect(controller.routeFailure == failure)
+    #expect(runtime.requests.count == 1)
     #expect(!controller.knownPermissionDenied)
     #expect(controller.captureIntent != .none)
     #expect(settings.appSettings.explicitUserCaptureEnabled)
@@ -72,7 +86,7 @@ struct CapturePreparationRetryTests {
   @Test(
     "An explicit same-target retry starts a fresh attempt before the old one settles",
     arguments: [false, true])
-  func explicitSameTargetRetrySupersedesPendingAttempt(retryStart: Bool) async {
+  func explicitSameTargetRetrySupersedesPendingAttempt(retryStart: Bool) async throws {
     let failure = AudioRouteFailure(
       kind: .nativeFailure, stage: "createTap", code: -7211,
       message: "The held native preparation returned E1.")
@@ -82,19 +96,21 @@ struct CapturePreparationRetryTests {
     let controller = self.controller(settings: settings, runtime: runtime)
     controller.observeOutputs([output()], defaultUID: "A")
     controller.observeApplications([application()])
-    await runtime.waitForFirstPreparation()
+    try await self.waitForPreparationStarted(count: 1, runtime: runtime, controller: controller)
     if retryStart {
       controller.perform(.requestCaptureStart)
     } else {
       controller.perform(.setRoute(identifier: "unit.player", mode: .single, uids: ["A"]))
     }
-    // Give the newly scheduled explicit work actor turns while P1 remains unresolved.
-    for _ in 0..<3 { await Task.yield() }
+    // The gate proves the explicit retry acquires while the old preparation is still unresolved.
+    try await self.waitForPreparationStarted(count: 2, runtime: runtime, controller: controller)
     #expect(runtime.requests.count == 2)
+    // The second attempt's failure is authoritative even while the superseded first attempt waits.
     let retriedFailure = controller.captureRetryFailure
     #expect(retriedFailure?.kind == .nativeFailure)
     #expect(retriedFailure?.stage == "createTap")
     #expect(retriedFailure?.code == -7212)
+    #expect(controller.routeFailure == retriedFailure)
 
     runtime.releaseFirst()
     await controller.waitForCurrentWork()
@@ -121,14 +137,14 @@ struct CapturePreparationRetryTests {
     let controller = self.controller(settings: settings, runtime: runtime)
     controller.observeOutputs([output()], defaultUID: "A")
     controller.observeApplications([application()])
-    await runtime.waitForFirstPreparation()
+    try await self.waitForPreparationStarted(count: 1, runtime: runtime, controller: controller)
     for revision in UInt64(2)...3 {
       controller.observeApplications([application(revision: revision)])
       controller.observeOutputs([output(revision: revision)], defaultUID: "A")
-      await Task.yield()
     }
     #expect(runtime.requests.count == 1)
     runtime.releaseFirst()
+    try await self.waitForPreparationStarted(count: 2, runtime: runtime, controller: controller)
     await controller.waitForCurrentWork()
 
     #expect(runtime.requests.count == 2)
@@ -144,6 +160,20 @@ struct CapturePreparationRetryTests {
     #expect(!controller.knownPermissionDenied)
     await controller.shutdown()
     #expect(current.retired)
+  }
+
+  /// A bounded wait failure releases the held preparation and settles the controller before the
+  /// original timeout or cancellation reaches the test.
+  private func waitForPreparationStarted(
+    count: Int, runtime: CaptureRetryRuntime, controller: AudioController
+  ) async throws {
+    do {
+      try await runtime.waitForPreparationStarted(count: count)
+    } catch {
+      runtime.releaseFirst()
+      await controller.shutdown()
+      throw error
+    }
   }
 
   private func controller(
@@ -172,7 +202,6 @@ struct CapturePreparationRetryTests {
 @MainActor
 private final class CaptureRetryRuntime: AudioRoutingRuntime {
   private(set) var cleanupRetryRequests = 0
-  func requestCleanupRetry() { cleanupRetryRequests += 1 }
   private(set) var requests: [AudioRouteRequest] = []
   private(set) var maximumOutstandingPreparations = 0
   private(set) var cancelledFirstResult = false
@@ -182,7 +211,12 @@ private final class CaptureRetryRuntime: AudioRoutingRuntime {
   private let returnsOwners: Bool
   private var outstandingPreparations = 0
   private var firstGate: CheckedContinuation<Void, Never>?
-  private var firstEntered: CheckedContinuation<Void, Never>?
+  private var firstReleased = false
+  private var startWaiters: [Int: CapturePreparationGateWaiter] = [:]
+  private var nextStartWaiterID = 0
+
+  /// One explicit deadline bounds every wait; the gate neither polls nor retries.
+  private static let preparationStartFailureDeadline: Duration = .seconds(5)
 
   init(failure: AudioRouteFailure, holdFirst: Bool = false, returnsOwners: Bool = false) {
     self.failure = failure
@@ -190,18 +224,21 @@ private final class CaptureRetryRuntime: AudioRoutingRuntime {
     self.returnsOwners = returnsOwners
   }
 
+  func requestCleanupRetry() { cleanupRetryRequests += 1 }
+
   func prepare(_ request: AudioRouteRequest) async throws -> any PreparedAudioRoute {
     let isFirst = requests.isEmpty
     requests.append(request)
     outstandingPreparations += 1
     maximumOutstandingPreparations = max(
       maximumOutstandingPreparations, outstandingPreparations)
+    resumeStartWaiters()
     defer { outstandingPreparations -= 1 }
     if isFirst && holdFirst {
-      await withCheckedContinuation { continuation in
-        firstGate = continuation
-        firstEntered?.resume()
-        firstEntered = nil
+      if !firstReleased {
+        await withCheckedContinuation { continuation in
+          firstGate = continuation
+        }
       }
       // NativeAudioRoutingRuntime gives cancellation precedence over packet.failure.
       if Task.isCancelled {
@@ -221,14 +258,89 @@ private final class CaptureRetryRuntime: AudioRoutingRuntime {
     throw failure
   }
 
-  func waitForFirstPreparation() async {
-    if !requests.isEmpty { return }
-    await withCheckedContinuation { firstEntered = $0 }
+  /// Cumulative event gate: waits until `count` preparations have started in total.
+  ///
+  /// A canceled wait resumes with `CancellationError`; a wait that reaches its one 5-second
+  /// deadline throws `CapturePreparationGateTimeout`, so a missing start fails the test instead
+  /// of leaving its continuation suspended forever.
+  func waitForPreparationStarted(count: Int) async throws {
+    guard requests.count < count else { return }
+    let waiterID = nextStartWaiterID
+    nextStartWaiterID += 1
+    let failureDeadline = Self.preparationStartFailureDeadline
+    // Pin the continuation's result type and keep it out of the operation's return position:
+    // Swift 6.4.2 otherwise fails to type-check this cancellation-handler call and reports only
+    // "failed to produce diagnostic for expression". The gate itself is unchanged.
+    try await withTaskCancellationHandler {
+      _ = try await withCheckedThrowingContinuation {
+        (continuation: CheckedContinuation<Void, any Error>) in
+        guard !Task.isCancelled else {
+          continuation.resume(throwing: CancellationError())
+          return
+        }
+        // One explicit deadline per wait keeps the cumulative gate bounded without polling.
+        let timeout = Task { @MainActor [weak self] in
+          try? await Task.sleep(for: failureDeadline)
+          guard !Task.isCancelled else { return }
+          self?.expireStartWaiter(waiterID, failureDeadline: failureDeadline)
+        }
+        startWaiters[waiterID] = CapturePreparationGateWaiter(
+          expectedCount: count, continuation: continuation, timeout: timeout)
+      }
+    } onCancel: {
+      Task { @MainActor [weak self] in
+        self?.cancelStartWaiter(waiterID)
+      }
+    }
   }
 
+  private func resumeStartWaiters() {
+    for waiterID in startWaiters.filter({ requests.count >= $0.value.expectedCount }).keys {
+      guard let waiter = startWaiters.removeValue(forKey: waiterID) else { continue }
+      waiter.timeout.cancel()
+      waiter.continuation.resume()
+    }
+  }
+
+  /// Fails the one gate wait whose target start count was never reached within the deadline.
+  private func expireStartWaiter(_ waiterID: Int, failureDeadline: Duration) {
+    guard let waiter = startWaiters.removeValue(forKey: waiterID) else { return }
+    waiter.continuation.resume(
+      throwing: CapturePreparationGateTimeout(
+        failureDeadline: failureDeadline, expectedCount: waiter.expectedCount,
+        observedCount: requests.count))
+  }
+
+  private func cancelStartWaiter(_ waiterID: Int) {
+    guard let waiter = startWaiters.removeValue(forKey: waiterID) else { return }
+    waiter.timeout.cancel()
+    waiter.continuation.resume(throwing: CancellationError())
+  }
+
+  /// Sticky release: cleanup may run before the delayed first preparation installs its gate.
   func releaseFirst() {
+    firstReleased = true
     firstGate?.resume()
     firstGate = nil
+  }
+}
+
+/// One pending cumulative start wait and its single bounded failure task.
+private struct CapturePreparationGateWaiter {
+  let expectedCount: Int
+  let continuation: CheckedContinuation<Void, any Error>
+  let timeout: Task<Void, Never>
+}
+
+/// The preparation-start gate missed its single failure deadline.
+private struct CapturePreparationGateTimeout: Error, CustomStringConvertible, Sendable {
+  let failureDeadline: Duration
+  let expectedCount: Int
+  let observedCount: Int
+
+  var description: String {
+    "Timed out after \(failureDeadline.components.seconds) seconds waiting for preparation "
+      + "attempt \(expectedCount) to start; observed \(observedCount) request(s)."
   }
 }
 

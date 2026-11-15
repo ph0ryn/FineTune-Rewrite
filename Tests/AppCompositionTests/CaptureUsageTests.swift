@@ -1,7 +1,7 @@
+import AppTestSupport
 import FineTuneControl
 import FineTuneDomain
 import Testing
-
 @testable import FineTune
 
 @Suite("Main-executable capture metadata admission")

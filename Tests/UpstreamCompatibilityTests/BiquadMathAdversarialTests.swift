@@ -1,3 +1,6 @@
+// Copyright (C) 2026 Ronit Singh
+// Derived from ronitsingh10/FineTune, FineTuneTests/BiquadMathAdversarialTests.swift
+// Upstream revision: 2285279d36d3f8115c1c2d4aecd904f1bdf96a51
 // FineTuneTests/BiquadMathAdversarialTests.swift
 // Adversarial tests for BiquadMath coefficient calculations.
 // Targets: pole stability across extreme parameters, frequency response

@@ -15,7 +15,7 @@ struct URLAutomationValidationTests {
   @Test("Reset without an app key retains the intended all-active action")
   func targetlessResetIsAllActive() throws {
     let plan = URLAutomationParser.parse(try #require(URL(string: "finetune://reset")))
-    #expect(plan.commands.count == 1)
+    #expect(plan.commands == [.resetGainAndMute(identifier: nil)])
     #expect(plan.diagnostics.isEmpty)
   }
 

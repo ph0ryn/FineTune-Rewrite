@@ -1,4 +1,5 @@
 import AppKit
+import AppTestSupport
 import FineTuneDomain
 import FineTunePlatform
 import Testing
@@ -30,52 +31,64 @@ struct RootLiveStateTests {
   }
 
   @Test("The device flash restores the latest baseline rather than the one captured at its start")
-  func flashRestoresTheLatestBaseline() async {
+  func flashRestoresTheLatestBaseline() async throws {
     let clock = RootIconClock()
     var baseline = MenuBarIconState.speakerVolume(.low)
     var applied: [MenuBarIconImage] = []
     let coordinator = RootMenuBarIconCoordinator(
       readBaseline: { baseline }, readDeviceSymbol: { "headphones" },
       apply: { applied.append($0) }, clock: DeviceBackendClock { try await clock.sleep($0) })
+    // Stop ownership first so a drained sleep cannot apply a late image, then release any sleep
+    // a failed wait or cancellation would otherwise leave parked for the rest of the suite.
+    defer {
+      coordinator.stop()
+      clock.drainPendingSleeps()
+    }
     coordinator.refresh()
     coordinator.flashDevice()
     #expect(applied.isEmpty)
     coordinator.start()
     coordinator.flashDevice()
-    await clock.waitForSleeps(1)
+    try await clock.waitForSleeps(1)
     #expect(applied.last == .systemSymbol("headphones"))
     baseline = .speakerMuted
     coordinator.refresh()
     #expect(applied.last == .systemSymbol("headphones"))
-    await clock.resume(0)
-    await drainImageTasks()
+    clock.resume(0)
+    #expect(try await clock.waitForCompletion() == 0)
     #expect(applied.last == .systemSymbol("speaker.slash.fill"))
-    #expect(await clock.durations == [.seconds(1.1)])
+    #expect(clock.durations == [.seconds(1.1)])
     coordinator.stop()
   }
 
   @Test("Repeated flashes cancel old restores and stop prevents every late image application")
-  func oldFlashAndStoppedCallbacksCannotApply() async {
+  func oldFlashAndStoppedCallbacksCannotApply() async throws {
     let clock = RootIconClock()
     var symbol = "headphones"
     var applied: [MenuBarIconImage] = []
     let coordinator = RootMenuBarIconCoordinator(
       readBaseline: { .speakerVolume(.high) }, readDeviceSymbol: { symbol },
       apply: { applied.append($0) }, clock: DeviceBackendClock { try await clock.sleep($0) })
+    // Stop ownership first so a drained sleep cannot apply a late image, then release any sleep
+    // a failed wait or cancellation would otherwise leave parked for the rest of the suite.
+    defer {
+      coordinator.stop()
+      clock.drainPendingSleeps()
+    }
     coordinator.start()
     coordinator.flashDevice()
-    await clock.waitForSleeps(1)
+    try await clock.waitForSleeps(1)
     symbol = "hifispeaker.fill"
     coordinator.flashDevice()
-    await clock.waitForSleeps(2)
+    try await clock.waitForSleeps(2)
     let latestFlash = applied.count
-    await clock.resume(0)
-    await drainImageTasks()
+    clock.resume(0)
+    #expect(try await clock.waitForCompletion() == 0)
     #expect(applied.count == latestFlash)
     #expect(applied.last == .systemSymbol("hifispeaker.fill"))
     coordinator.stop()
-    await clock.resume(1)
-    await drainImageTasks()
+    clock.resume(1)
+    #expect(try await clock.waitForCompletion() == 1)
     coordinator.refresh()
     coordinator.flashDevice()
     #expect(applied.count == latestFlash)
@@ -145,32 +158,125 @@ struct RootLiveStateTests {
       reportFailure: { failure = $0 })
     #expect(activated == 1 && failure == "The application could not be activated.")
   }
-
-  private func drainImageTasks() async {
-    for _ in 0..<8 { await Task.yield() }
-  }
 }
 
-private actor RootIconClock {
+@MainActor
+private final class RootIconClock {
   private(set) var durations: [Duration] = []
+  /// Yielded once the awaiting sleep returns, giving restore tests a completion boundary.
+  let completions = AsyncStream<Int>.makeStream()
   private var pending: [Int: CheckedContinuation<Void, any Error>] = [:]
-  private var waiters: [(Int, CheckedContinuation<Void, Never>)] = []
+  private var gateWaiters: [Int: RootIconGateWaiter] = [:]
+  private var nextGateWaiterID = 0
+  /// Sticky cleanup latch: once set, no sleep may register a fresh continuation.
+  private var isDraining = false
 
   func sleep(_ duration: Duration) async throws {
+    try Task.checkCancellation()
+    guard !isDraining else { throw CancellationError() }
     let index = durations.count
     durations.append(duration)
     try await withCheckedThrowingContinuation { continuation in
       pending[index] = continuation
-      let ready = waiters.filter { durations.count >= $0.0 }
-      waiters.removeAll { durations.count >= $0.0 }
-      for (_, waiter) in ready { waiter.resume() }
+      resumeSatisfiedGateWaiters()
+    }
+    completions.continuation.yield(index)
+  }
+
+  /// Cumulative event gate: waits until `count` sleeps have been requested in total.
+  ///
+  /// A canceled wait resumes with `CancellationError`; a wait that reaches its one 5-second
+  /// deadline throws `RootIconGateTimeout`, so a missing registration fails the test.
+  func waitForSleeps(_ count: Int) async throws {
+    guard durations.count < count else { return }
+    let waiterID = nextGateWaiterID
+    nextGateWaiterID += 1
+    let failureDeadline: Duration = .seconds(5)
+    try await withTaskCancellationHandler {
+      _ = try await withCheckedThrowingContinuation {
+        (continuation: CheckedContinuation<Void, any Error>) in
+        guard !Task.isCancelled else {
+          continuation.resume(throwing: CancellationError())
+          return
+        }
+        // One explicit deadline per wait keeps the cumulative gate bounded without polling.
+        let timeout = Task { @MainActor [weak self] in
+          try? await Task.sleep(for: failureDeadline)
+          guard !Task.isCancelled else { return }
+          self?.expireGateWaiter(waiterID, failureDeadline: failureDeadline)
+        }
+        gateWaiters[waiterID] = RootIconGateWaiter(
+          target: count, continuation: continuation, timeout: timeout)
+      }
+    } onCancel: {
+      Task { @MainActor [weak self] in
+        self?.cancelGateWaiter(waiterID)
+      }
     }
   }
 
-  func waitForSleeps(_ count: Int) async {
-    guard durations.count < count else { return }
-    await withCheckedContinuation { waiters.append((count, $0)) }
+  func resume(_ index: Int) {
+    pending.removeValue(forKey: index)?.resume()
   }
 
-  func resume(_ index: Int) { pending.removeValue(forKey: index)?.resume() }
+  func waitForCompletion() async throws -> Int {
+    try await waitForTestStreamElement(
+      of: completions.stream, finishing: completions.continuation,
+      waitedFor: "root icon sleep completion")
+  }
+
+  /// Cleanup-only release of every parked sleep so no flash task outlives a failed or canceled wait.
+  ///
+  /// Successful paths still release each sleep explicitly with `resume(_:)`. A drained sleep throws
+  /// instead of yielding to `completions`, so cleanup cannot fabricate a completion or late image.
+  /// The latch is set before releasing so a restore task that only reaches `sleep` after this drain
+  /// fails immediately instead of parking a continuation the cleanup already left behind.
+  func drainPendingSleeps() {
+    isDraining = true
+    let parked = Array(pending.values)
+    pending.removeAll()
+    for continuation in parked { continuation.resume(throwing: CancellationError()) }
+  }
+
+  private func resumeSatisfiedGateWaiters() {
+    for waiterID in gateWaiters.filter({ durations.count >= $0.value.target }).keys {
+      guard let waiter = gateWaiters.removeValue(forKey: waiterID) else { continue }
+      waiter.timeout.cancel()
+      waiter.continuation.resume()
+    }
+  }
+
+  /// Fails the one gate wait whose cumulative target was never reached within the deadline.
+  private func expireGateWaiter(_ waiterID: Int, failureDeadline: Duration) {
+    guard let waiter = gateWaiters.removeValue(forKey: waiterID) else { return }
+    waiter.continuation.resume(
+      throwing: RootIconGateTimeout(
+        failureDeadline: failureDeadline, expectedCount: waiter.target,
+        observedDurations: durations))
+  }
+
+  private func cancelGateWaiter(_ waiterID: Int) {
+    guard let waiter = gateWaiters.removeValue(forKey: waiterID) else { return }
+    waiter.timeout.cancel()
+    waiter.continuation.resume(throwing: CancellationError())
+  }
+}
+
+/// One pending cumulative registration wait and its single bounded failure task.
+private struct RootIconGateWaiter {
+  let target: Int
+  let continuation: CheckedContinuation<Void, any Error>
+  let timeout: Task<Void, Never>
+}
+
+/// The clock's cumulative sleep-registration gate missed its single failure deadline.
+private struct RootIconGateTimeout: Error, CustomStringConvertible, Sendable {
+  let failureDeadline: Duration
+  let expectedCount: Int
+  let observedDurations: [Duration]
+
+  var description: String {
+    "Timed out after \(failureDeadline) waiting for sleep registration total "
+      + "\(expectedCount); observed \(observedDurations.count) request(s): \(observedDurations)."
+  }
 }

@@ -9,7 +9,7 @@ clang_format := env("CLANG_FORMAT", "clang-format")
 clang_format_version := "21.1.8"
 
 # Check formatting, non-launching app packaging, and unit/component/DSP/native tests.
-check: lint test-build-app (build "debug") (test "debug") (test-dsp "debug") (test-native "debug") (build "release") (test "release") (test-dsp "release") (test-native "release")
+check: _clear-reports lint test-build-app (build "debug") (test "debug") (test-dsp "debug") (test-native "debug") (build "release") (test "release") (test-dsp "release") (test-native "release")
 
 # Show the selected Xcode, Swift, Clang, macOS SDK, and native formatter.
 toolchain:
@@ -48,15 +48,19 @@ build configuration="debug":
 # Clear stale events, then record unit/component test results.
 test configuration="debug":
   mkdir -p {{ quote(swift_scratch_path) }}
+  : > {{ quote(swift_scratch_path + "/test-results-" + configuration + ".xml") }}
+  : > {{ quote(swift_scratch_path + "/test-results-" + configuration + "-swift-testing.xml") }}
   : > {{ quote(swift_scratch_path + "/test-events-" + configuration + ".jsonl") }}
   xcrun swift test --scratch-path {{ quote(swift_scratch_path) }} --jobs {{ quote(build_jobs) }} --configuration {{ quote(configuration) }} --xunit-output {{ quote(swift_scratch_path + "/test-results-" + configuration + ".xml") }} --event-stream-output-path {{ quote(swift_scratch_path + "/test-events-" + configuration + ".jsonl") }} --event-stream-version 0
 
 # Run native DSP and public C ABI scenarios without audio devices.
 test-dsp configuration="debug":
+  mkdir -p {{ quote(swift_scratch_path) }}
+  printf '{"schema_version":2,"complete":false,"cases":[]}\n' > {{ quote(swift_scratch_path + "/test-dsp-results-" + configuration + ".json") }}
   xcrun swift run --scratch-path {{ quote(swift_scratch_path) }} --jobs {{ quote(build_jobs) }} --configuration {{ quote(configuration) }} DSPTests --report {{ quote(swift_scratch_path + "/test-dsp-results-" + configuration + ".json") }}
 
 # Run named native ownership/levels and fake-HAL C boundary units, without physical audio.
-test-native configuration="debug": (test-native-hal configuration)
+test-native configuration="debug": (_clear-native-reports configuration) (test-native-hal configuration)
   xcrun swift run --scratch-path {{ quote(swift_scratch_path) }} --jobs {{ quote(build_jobs) }} --configuration {{ quote(configuration) }} NativeStageTests --report {{ quote(swift_scratch_path + "/test-native-stage-results-" + configuration + ".json") }}
   xcrun swift run --scratch-path {{ quote(swift_scratch_path) }} --jobs {{ quote(build_jobs) }} --configuration {{ quote(configuration) }} NativeSlotTests --report {{ quote(swift_scratch_path + "/test-native-slot-results-" + configuration + ".json") }}
   xcrun swift run --scratch-path {{ quote(swift_scratch_path) }} --jobs {{ quote(build_jobs) }} --configuration {{ quote(configuration) }} NativeLevelsTests --report {{ quote(swift_scratch_path + "/test-native-levels-results-" + configuration + ".json") }}
@@ -76,7 +80,7 @@ test-native-hal configuration="debug":
   directory="$scratch/native-hal-$configuration"
   report="$scratch/test-native-hal-results-$configuration.json"
   mkdir -p "$directory"
-  printf '{"schema_version":1,"complete":false,"cases":[]}\n' > "$report"
+  printf '{"schema_version":2,"complete":false,"cases":[]}\n' > "$report"
   executable="$directory/NativeHALContractTests"
   # Do not link NativeAudio: its real SystemHal provider must be unreachable here.
   xcrun clang++ -std=c++20 -Wall -Wextra -Werror -fno-exceptions -fno-rtti \
@@ -101,6 +105,32 @@ test-native-hal configuration="debug":
     exit 1
   fi
   "$executable" --report "$report" 2>&1 | tee "$directory/run.log"
+
+# Replace every configuration report with a complete:false skeleton before any build/run.
+_clear-reports:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  scratch={{ quote(swift_scratch_path) }}
+  mkdir -p "$scratch"
+  for configuration in debug release; do
+    : > "$scratch/test-results-$configuration.xml"
+    : > "$scratch/test-results-$configuration-swift-testing.xml"
+    : > "$scratch/test-events-$configuration.jsonl"
+    for target in dsp native-stage native-slot native-levels native-runtime native-hal; do
+      printf '{"schema_version":2,"complete":false,"cases":[]}\n' > "$scratch/test-$target-results-$configuration.json"
+    done
+  done
+
+# Replace the native reports with complete:false skeletons before the native runners start.
+_clear-native-reports configuration="debug":
+  #!/usr/bin/env bash
+  set -euo pipefail
+  scratch={{ quote(swift_scratch_path) }}
+  configuration={{ quote(configuration) }}
+  mkdir -p "$scratch"
+  for target in native-stage native-slot native-levels native-runtime native-hal; do
+    printf '{"schema_version":2,"complete":false,"cases":[]}\n' > "$scratch/test-$target-results-$configuration.json"
+  done
 
 # Verify the public app-build artifact contract without building or launching the product app.
 test-build-app:

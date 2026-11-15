@@ -1,12 +1,12 @@
+import AppTestSupport
 import FineTuneControl
 import FineTuneDomain
 import FineTunePlatform
 import Foundation
 import Testing
-
 @testable import FineTune
 
-@Suite("Production Root command bindings", .timeLimit(.minutes(1)))
+@Suite("Production Root command bindings", .serialized, .timeLimit(.minutes(1)))
 @MainActor
 struct BootstrapTests {
   @Test(
@@ -185,7 +185,7 @@ struct BootstrapTests {
         displayName: "Active", bundleID: "unit.active")
     ])
     controller.perform(.requestCaptureStart)
-    await runtime.wait("prepare:A")
+    try await runtime.wait("prepare:A")
     #expect(runtime.requests.first?.initialState.processing.autoEQProfile == initialProfile)
 
     var first = settings.appSettings

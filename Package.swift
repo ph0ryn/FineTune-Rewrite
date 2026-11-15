@@ -99,13 +99,46 @@ let package = Package(
       // Match the fixed upstream Xcode test target without changing test bodies.
       swiftSettings: [.unsafeFlags(["-default-isolation", "MainActor"])]
     ),
+    // Independently authored MIT coverage split out of the mixed upstream suite.
+    .testTarget(
+      name: "IndependentCompatibilityTests",
+      dependencies: ["FineTune", "FineTunePlatform"],
+      swiftSettings: [.unsafeFlags(["-default-isolation", "MainActor"])]
+    ),
     .testTarget(
       name: "NativeContractTests",
       dependencies: ["FineTunePlatform", "NativeAudio"]
     ),
     .testTarget(
       name: "AppCompositionTests",
-      dependencies: ["FineTune", "FineTuneDomain", "FineTuneControl", "FineTunePlatform"]
+      dependencies: [
+        "FineTune", "FineTuneDomain", "FineTuneControl", "FineTunePlatform", "AppTestSupport",
+      ]
+    ),
+    // Rendered UI/OCR/SCK suites moved out of AppCompositionTests; separate test bundle.
+    .testTarget(
+      name: "AppRenderedTests",
+      dependencies: [
+        "FineTune", "FineTuneControl", "FineTuneDomain", "FineTunePlatform",
+        "AppTestSupport",
+      ],
+      path: "Tests/AppRenderedTests"
+    ),
+    // Shared test-only helpers; not a product and not importable by non-test code.
+    .target(
+      name: "AppTestSupport", dependencies: ["FineTuneControl", "FineTuneDomain"],
+      path: "Tests/AppTestSupport"
+    ),
+    // Non-render policy contracts, isolated from the render/OCR suites' process.
+    .testTarget(
+      name: "AppPolicyContractTests",
+      dependencies: ["FineTuneControl", "FineTuneDomain", "FineTunePlatform", "AppTestSupport"],
+      path: "Tests/AppPolicyContractTests"
+    ),
+    // No-render copy/format/semantic contracts split out of the rendered UI suites.
+    .testTarget(
+      name: "AppPresentationContractTests",
+      dependencies: ["FineTune", "FineTuneDomain"]
     ),
     .testTarget(
       name: "ControlTests",

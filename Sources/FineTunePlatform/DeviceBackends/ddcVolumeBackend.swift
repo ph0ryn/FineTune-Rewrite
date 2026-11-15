@@ -84,6 +84,22 @@ public final class DDCVolumeBackend: DDCVolumeControlling {
     // The live transport's own destructor also serializes final CF/image cleanup.
   }
 
+  /// The backend-owned initial or delayed probe task, captured by tests before cancellation.
+  var scheduledProbe: Task<Void, Never>? { probeTask }
+
+  /// Includes coalesced replacements: a write scheduled while one is in flight is awaited too.
+  func waitForCurrentWrites() async {
+    while !writes.isEmpty {
+      for write in Array(writes.values) { await write.task.value }
+    }
+  }
+
+  /// Internal test seam: snapshots the write tasks currently owned. A test captures this before
+  /// `stop()` clears ownership so it can await the exact task instead of a transport event.
+  func currentWriteTasks() -> [String: Task<Void, Never>] {
+    writes.mapValues(\.task)
+  }
+
   public func probe() async {
     guard isRunning else { return }
     probeTask?.cancel()

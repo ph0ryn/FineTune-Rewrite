@@ -112,22 +112,6 @@ struct DeviceDetailSheetToggleTests {
 
 }
 
-// Independent rewrite coverage exercises the actual Binding used by Toggle, not the
-// upstream simulation helper that only invokes the callback directly.
-extension DeviceDetailSheetToggleTests {
-  @Test("Rewrite: the rendered toggle binding emits and clears the software override")
-  func actualToggleBinding() {
-    var writes: [VolumeControlTier?] = []
-    let sheet = makeSheet(autoDetectedTier: .hardware, currentOverride: nil) { writes.append($0) }
-    #expect(sheet.useSoftwareBinding.wrappedValue == false)
-    sheet.useSoftwareBinding.wrappedValue = true
-    sheet.useSoftwareBinding.wrappedValue = false
-    #expect(writes == [.software, nil])
-    #expect(
-      makeSheet(autoDetectedTier: .ddc, currentOverride: .software).useSoftwareBinding.wrappedValue)
-  }
-}
-
 // MARK: - Test-only simulation helpers
 
 extension DeviceDetailSheet {

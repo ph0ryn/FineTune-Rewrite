@@ -1,3 +1,6 @@
+// Copyright (C) 2026 Ronit Singh
+// Derived from ronitsingh10/FineTune, FineTuneTests/BiquadProcessorSignalAdversarialTests.swift
+// Upstream revision: 2285279d36d3f8115c1c2d4aecd904f1bdf96a51
 // FineTuneTests/BiquadProcessorSignalAdversarialTests.swift
 // Adversarial signal-domain tests for BiquadProcessor.
 //

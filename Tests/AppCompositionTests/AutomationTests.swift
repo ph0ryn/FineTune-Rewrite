@@ -49,29 +49,120 @@ private final class ProfilePreferenceReadStub: AutoEQPreferencesReading {
   func getAutoEQSelection(for deviceUID: String) -> AutoEQSelection? { selections[deviceUID] }
 }
 
-private actor AppProfileHTTPGate: ProfileHTTPTransport {
-  private(set) var requestedURLs: [URL] = []
-  private var replies: [CheckedContinuation<ProfileHTTPResponse, any Error>] = []
-  private var requestWaiters: [(count: Int, continuation: CheckedContinuation<Void, Never>)] = []
+/// A bounded gate failure: the expected profile HTTP request never reached the gate.
+private struct ProfileRequestTimeout: Error, CustomStringConvertible {
+  let target: Int
+  let timeout: Duration
+  var description: String {
+    "Timed out after \(timeout) waiting for \(target) profile HTTP request(s)"
+  }
+}
 
+private actor AppProfileHTTPGate: ProfileHTTPTransport {
+  private struct Waiter {
+    let count: Int
+    let continuation: CheckedContinuation<Void, any Error>
+    let timeout: Task<Void, Never>
+  }
+
+  /// One admitted HTTP request in arrival order.
+  ///
+  /// A settled slot keeps its place so `respond(at:)` addresses the same request index for the
+  /// whole test; only the continuation is removed once the request has been resumed.
+  private struct Reply {
+    let id: UUID
+    var continuation: CheckedContinuation<ProfileHTTPResponse, any Error>?
+  }
+
+  private static let requestTimeout = Duration.seconds(5)
+
+  private(set) var requestedURLs: [URL] = []
+  private var replies: [Reply] = []
+  private var requestWaiters: [UUID: Waiter] = [:]
+
+  /// Parks until `respond` or cancellation claims this reply, so a cancelled task never leaks.
   func get(_ url: URL) async throws -> ProfileHTTPResponse {
     requestedURLs.append(url)
-    return try await withCheckedThrowingContinuation { continuation in
-      replies.append(continuation)
-      let ready = requestWaiters.filter { $0.count <= requestedURLs.count }
-      requestWaiters.removeAll { $0.count <= requestedURLs.count }
-      for waiter in ready { waiter.continuation.resume() }
+    let id = UUID()
+    return try await withTaskCancellationHandler {
+      try await withCheckedThrowingContinuation { continuation in
+        replies.append(Reply(id: id, continuation: continuation))
+        resumeSatisfiedWaiters()
+      }
+    } onCancel: {
+      Task { await self.cancelReply(id) }
     }
   }
 
-  func waitForRequest(count: Int = 1) async {
+  /// Waits until `count` requests have reached the gate.
+  ///
+  /// The wait ends in success, one explicit timeout, or task cancellation. It never polls, and a
+  /// waiter that times out is removed before throwing, so `respond` can only resume a reply that
+  /// a caller is still awaiting.
+  func waitForRequest(count: Int = 1) async throws {
     if requestedURLs.count >= count { return }
-    await withCheckedContinuation { requestWaiters.append((count, $0)) }
+    let id = UUID()
+    try await withTaskCancellationHandler {
+      try await withCheckedThrowingContinuation {
+        (continuation: CheckedContinuation<Void, any Error>) in
+        guard requestedURLs.count < count else {
+          continuation.resume()
+          return
+        }
+        guard !Task.isCancelled else {
+          continuation.resume(throwing: CancellationError())
+          return
+        }
+        // One explicit timeout per waiter keeps the gate bounded without polling.
+        let timeout = Task<Void, Never> { [weak self] in
+          try? await Task.sleep(for: Self.requestTimeout)
+          guard !Task.isCancelled else { return }
+          await self?.timeoutWaiter(id)
+        }
+        requestWaiters[id] = Waiter(count: count, continuation: continuation, timeout: timeout)
+      }
+    } onCancel: {
+      Task { await self.cancelWaiter(id) }
+    }
   }
 
+  /// Answers the request admitted at `index`, or drops the response if cancellation already
+  /// settled that request. The precondition still rejects an index that was never admitted.
   func respond(_ response: ProfileHTTPResponse, at index: Int = 0) {
     precondition(replies.indices.contains(index))
-    replies.remove(at: index).resume(returning: response)
+    guard let continuation = replies[index].continuation else { return }
+    replies[index].continuation = nil
+    continuation.resume(returning: response)
+  }
+
+  private func resumeSatisfiedWaiters() {
+    for id in requestWaiters.filter({ $0.value.count <= requestedURLs.count }).keys {
+      guard let waiter = requestWaiters.removeValue(forKey: id) else { continue }
+      waiter.timeout.cancel()
+      waiter.continuation.resume()
+    }
+  }
+
+  private func timeoutWaiter(_ id: UUID) {
+    guard let waiter = requestWaiters.removeValue(forKey: id) else { return }
+    waiter.continuation.resume(
+      throwing: ProfileRequestTimeout(target: waiter.count, timeout: Self.requestTimeout))
+  }
+
+  private func cancelWaiter(_ id: UUID) {
+    guard let waiter = requestWaiters.removeValue(forKey: id) else { return }
+    waiter.timeout.cancel()
+    waiter.continuation.resume(throwing: CancellationError())
+  }
+
+  /// Settles the reply cancellation claimed before `respond` did. A reply that already resumed is
+  /// left untouched, so each continuation resumes exactly once.
+  private func cancelReply(_ id: UUID) {
+    guard let index = replies.firstIndex(where: { $0.id == id }),
+      let continuation = replies[index].continuation
+    else { return }
+    replies[index].continuation = nil
+    continuation.resume(throwing: CancellationError())
   }
 }
 
@@ -94,7 +185,7 @@ private struct ProfileAutomationFixture {
   }
 }
 
-@Suite("App AutoEQ acquisition consumer", .timeLimit(.minutes(1)))
+@Suite("App AutoEQ acquisition consumer", .serialized, .timeLimit(.minutes(1)))
 @MainActor
 struct AutoEQAutomationTests {
   private let text = "Preamp: -3 dB\nFilter 1: ON PK Fc 500 Hz Gain 2 dB Q 1"
@@ -292,7 +383,7 @@ struct AutoEQAutomationTests {
     let selectedA = AutoEQSelection(profileID: "A", isEnabled: true)
     fixture.preferences.selections["origin"] = selectedA
     let first = try #require(fixture.automation.select(selectedA, forDeviceUID: "origin"))
-    await fixture.http.waitForRequest()
+    try await fixture.http.waitForRequest()
     let selectedB = AutoEQSelection(profileID: "B", isEnabled: true)
     fixture.preferences.selections["origin"] = selectedB
     fixture.automation.select(selectedB, forDeviceUID: "origin")
@@ -314,7 +405,7 @@ struct AutoEQAutomationTests {
     let enabled = AutoEQSelection(profileID: "A", isEnabled: true)
     fixture.preferences.selections["origin"] = enabled
     let first = try #require(fixture.automation.select(enabled, forDeviceUID: "origin"))
-    await fixture.http.waitForRequest()
+    try await fixture.http.waitForRequest()
     let disabled = AutoEQSelection(profileID: "A", isEnabled: false)
     fixture.preferences.selections["origin"] = disabled
     fixture.automation.select(disabled, forDeviceUID: "origin")
@@ -335,7 +426,7 @@ struct AutoEQAutomationTests {
     fixture.preferences.selections["origin"] = selected
     let interface = fixture.automation.makeMixerInterface()
     let first = try #require(fixture.automation.select(selected, forDeviceUID: "origin"))
-    await fixture.http.waitForRequest()
+    try await fixture.http.waitForRequest()
     fixture.automation.stop()
     interface.select("origin", nil)
     await fixture.http.respond(ProfileHTTPResponse(data: Data(text.utf8), statusCode: 200))
@@ -353,7 +444,7 @@ struct AutoEQAutomationTests {
     let selected = AutoEQSelection(profileID: "A", isEnabled: true)
     fixture.preferences.selections["origin"] = selected
     let task = try #require(fixture.automation.select(selected, forDeviceUID: "origin"))
-    await fixture.http.waitForRequest()
+    try await fixture.http.waitForRequest()
     await fixture.http.respond(ProfileHTTPResponse(data: Data(), statusCode: 503))
     await task.value
     let presentation = fixture.automation.presentation(for: "origin")
@@ -370,7 +461,7 @@ struct AutoEQAutomationTests {
     let fixture = try await fixture(prepareCatalog: false)
     defer { fixture.cleanUp() }
     let task = fixture.automation.start()
-    await fixture.http.waitForRequest()
+    try await fixture.http.waitForRequest()
     await fixture.http.respond(ProfileHTTPResponse(data: Data(), statusCode: 503))
     await task?.value
     guard case .failed(let message) = fixture.automation.presentation(for: "origin").catalogState
@@ -389,10 +480,10 @@ struct AutoEQAutomationTests {
     let fixture = try await fixture(prepareCatalog: false)
     defer { fixture.cleanUp() }
     let first = fixture.automation.start()
-    await fixture.http.waitForRequest()
+    try await fixture.http.waitForRequest()
     fixture.automation.stop()
     let restarted = fixture.automation.start()
-    await fixture.http.waitForRequest(count: 2)
+    try await fixture.http.waitForRequest(count: 2)
     let freshIndex = "- [Newest B](./oratory1990/over-ear/Newest%20B) by oratory1990"
     await fixture.http.respond(
       ProfileHTTPResponse(data: Data(freshIndex.utf8), statusCode: 200), at: 1)

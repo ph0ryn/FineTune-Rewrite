@@ -4,7 +4,7 @@ import FineTunePlatform
 import Foundation
 import Testing
 
-@Suite("Device backend boundary")
+@Suite("Device backend boundary", .timeLimit(.minutes(1)))
 @MainActor
 struct DeviceBackendTests {
   @Test("Input controls use input-scope scalar units and publish quantized readback")
@@ -40,7 +40,7 @@ struct DeviceBackendTests {
     let state = try #require(backend.states["volume-only"])
     #expect(state.canSetVolume && !state.canSetMute)
     #expect(state.volume == 0.6 && state.isMuted == nil)
-    #expect(throws: (any Error).self) {
+    #expect(throws: DeviceBackendError.unsupported("Input mute")) {
       try backend.setMute(forUID: "volume-only", to: true)
     }
     #expect(hal.writes.isEmpty)
@@ -55,11 +55,15 @@ struct DeviceBackendTests {
     let backend = InputDeviceBackend(
       deviceProvider: provider, reader: hal, writer: hal, observer: hal)
     backend.refresh()
-    #expect(throws: (any Error).self) { try backend.setVolume(forUID: "mic", to: .nan) }
-    #expect(throws: (any Error).self) { try backend.setVolume(forUID: "missing", to: 0.8) }
+    #expect(throws: DeviceBackendError.self) { try backend.setVolume(forUID: "mic", to: .nan) }
+    #expect(throws: DeviceBackendError.unavailableDevice("missing")) {
+      try backend.setVolume(forUID: "missing", to: 0.8)
+    }
     #expect(hal.writes.isEmpty)
     hal.writeFailure = DeviceBackendError.osStatus(-50)
-    #expect(throws: (any Error).self) { try backend.setVolume(forUID: "mic", to: 0.8) }
+    #expect(throws: DeviceBackendError.osStatus(-50)) {
+      try backend.setVolume(forUID: "mic", to: 0.8)
+    }
     #expect(backend.states["mic"]?.volume == 0.2)
     #expect(backend.lastError != nil)
   }
@@ -113,11 +117,13 @@ struct DeviceBackendTests {
       deviceProvider: provider, reader: hal, writer: hal, observer: hal)
     backend.refresh()
     #expect(!backend.canSetOutput)
-    #expect(throws: (any Error).self) { try backend.setOutput(forUID: "other") }
+    #expect(throws: DeviceBackendError.unsupported("System sound output")) {
+      try backend.setOutput(forUID: "other")
+    }
     #expect(backend.outputUID == "main" && hal.writes.isEmpty)
     hal.set(.system, kAudioHardwarePropertyDefaultSystemOutputDevice, .global, AudioDeviceID(203))
     hal.writeFailure = DeviceBackendError.osStatus(-50)
-    #expect(throws: (any Error).self) { try backend.setOutput(forUID: "other") }
+    #expect(throws: DeviceBackendError.osStatus(-50)) { try backend.setOutput(forUID: "other") }
     #expect(backend.outputUID == "main" && backend.lastError != nil)
   }
 
@@ -127,55 +133,80 @@ struct DeviceBackendTests {
     let scripts = BackendScriptSpy(percent: 20)
     let backend = AlertVolumeBackend(
       scriptRunner: scripts, clock: DeviceBackendClock { try await clock.sleep(for: $0) })
-    #expect(await scripts.calls.isEmpty)
-    await backend.refresh()
-    #expect(backend.observedVolume == 0.2)
-    let first = Task { try await backend.setVolume(0.376) }
-    await clock.waitForSleepCount(1)
-    let second = Task { try await backend.setVolume(0.444) }
-    await clock.waitForSleepCount(2)
-    await clock.advance(by: .milliseconds(100))
-    try await second.value
-    await #expect(throws: CancellationError.self) { try await first.value }
-    #expect(backend.observedVolume == 0.44 && !backend.isApplying)
-    #expect(
-      await scripts.calls == [
-        "get alert volume of (get volume settings)", "set volume alert volume 44",
-        "get alert volume of (get volume settings)",
-      ])
-    try await backend.setVolume(0.44)
-    #expect(await scripts.calls.count == 3)
+    var requests: [Task<Void, any Error>] = []
+    try await withFailureCleanup(
+      operation: {
+        #expect(await scripts.calls.isEmpty)
+        await backend.refresh()
+        #expect(backend.observedVolume == 0.2)
+        let first = Task { try await backend.setVolume(0.376) }
+        requests.append(first)
+        try await clock.waitForSleepCount(1)
+        let second = Task { try await backend.setVolume(0.444) }
+        requests.append(second)
+        try await clock.waitForSleepCount(2)
+        await clock.advance(by: .milliseconds(100))
+        try await second.value
+        await #expect(throws: CancellationError.self) { try await first.value }
+        #expect(backend.observedVolume == 0.44 && !backend.isApplying)
+        #expect(
+          await scripts.calls == [
+            "get alert volume of (get volume settings)", "set volume alert volume 44",
+            "get alert volume of (get volume settings)",
+          ])
+        try await backend.setVolume(0.44)
+        #expect(await scripts.calls.count == 3)
+        backend.stop()
+      },
+      cleanup: { await cleanUpAlertRequests(backend: backend, clock: clock, requests: requests) })
   }
 
   @Test("Alert command success without matching readback is not reported as applied")
-  func alertUnconfirmedWrite() async {
+  func alertUnconfirmedWrite() async throws {
     let clock = DeviceBackendTestClock()
     let scripts = BackendScriptSpy(percent: 20, ignoreWrites: true)
     let backend = AlertVolumeBackend(
       scriptRunner: scripts, clock: DeviceBackendClock { try await clock.sleep(for: $0) })
-    await backend.refresh()
-    let request = Task { try await backend.setVolume(0.7) }
-    await clock.waitForSleepCount(1)
-    await clock.advance(by: .milliseconds(100))
-    await #expect(throws: (any Error).self) { try await request.value }
-    #expect(backend.observedVolume == 0.2)
-    #expect(backend.requestedVolume == 0.7 && backend.lastError != nil)
-    #expect(!backend.isApplying)
+    var requests: [Task<Void, any Error>] = []
+    try await withFailureCleanup(
+      operation: {
+        await backend.refresh()
+        let request = Task { try await backend.setVolume(0.7) }
+        requests.append(request)
+        try await clock.waitForSleepCount(1)
+        await clock.advance(by: .milliseconds(100))
+        await #expect(
+          throws: DeviceBackendError.operationFailed(
+            "The system did not confirm the requested alert volume."
+          )
+        ) { try await request.value }
+        #expect(backend.observedVolume == 0.2)
+        #expect(backend.requestedVolume == 0.7 && backend.lastError != nil)
+        #expect(!backend.isApplying)
+        backend.stop()
+      },
+      cleanup: { await cleanUpAlertRequests(backend: backend, clock: clock, requests: requests) })
   }
 
   @Test("Stopping an alert request cancels its pending write without executing a script")
-  func alertStopAndValidation() async {
+  func alertStopAndValidation() async throws {
     let clock = DeviceBackendTestClock()
     let scripts = BackendScriptSpy(percent: 20)
     let backend = AlertVolumeBackend(
       scriptRunner: scripts, clock: DeviceBackendClock { try await clock.sleep(for: $0) })
-    await #expect(throws: (any Error).self) { try await backend.setVolume(.nan) }
-    let request = Task { try await backend.setVolume(0.7) }
-    await clock.waitForSleepCount(1)
-    backend.stop()
-    await #expect(throws: CancellationError.self) { try await request.value }
-    #expect(await scripts.calls.isEmpty)
-    #expect(backend.observedVolume == nil && !backend.isApplying)
+    var requests: [Task<Void, any Error>] = []
+    try await withFailureCleanup(
+      operation: {
+        await #expect(throws: DeviceBackendError.self) { try await backend.setVolume(.nan) }
+        let request = Task { try await backend.setVolume(0.7) }
+        requests.append(request)
+        try await clock.waitForSleepCount(1)
+        backend.stop()
+        await #expect(throws: CancellationError.self) { try await request.value }
+        #expect(await scripts.calls.isEmpty)
+        #expect(backend.observedVolume == nil && !backend.isApplying)
+      },
+      cleanup: { await cleanUpAlertRequests(backend: backend, clock: clock, requests: requests) })
   }
 
   @Test("Input listener cancellation is idempotent and old callbacks cannot publish")
@@ -200,6 +231,17 @@ struct DeviceBackendTests {
     backend.start()
     #expect(backend.states.isEmpty)
     backend.stop()
+  }
+
+  private func cleanUpAlertRequests(
+    backend: AlertVolumeBackend,
+    clock: DeviceBackendTestClock,
+    requests: [Task<Void, any Error>]
+  ) async {
+    backend.stop()
+    for request in requests { request.cancel() }
+    await clock.cancelAllSleeps()
+    for request in requests { _ = await request.result }
   }
 }
 
@@ -330,12 +372,23 @@ private actor BackendScriptSpy: DeviceScriptRunning {
   }
 }
 
-// Test-only monotonic clock shared by the device backend suites.
+// Test-only monotonic clock shared by the device backend suites. Sleepers that become ready
+// together resume in registration order so coalescing outcomes are deterministic.
 actor DeviceBackendTestClock {
+  private struct Sleeper {
+    let deadline: Duration
+    let sequence: Int
+    let continuation: CheckedContinuation<Void, any Error>
+  }
+  private struct SleepCountWaiter {
+    let target: Int
+    let continuation: CheckedContinuation<Void, any Error>
+    let timeout: Task<Void, Never>
+  }
   private var now = Duration.zero
-  private var sleepers:
-    [UUID: (deadline: Duration, continuation: CheckedContinuation<Void, any Error>)] = [:]
-  private var barriers: [(count: Int, continuation: CheckedContinuation<Void, Never>)] = []
+  private var sleepers: [UUID: Sleeper] = [:]
+  private var sleepCountWaiters: [UUID: SleepCountWaiter] = [:]
+  private var nextSequence = 0
   private var sleepCount = 0
 
   func sleep(for duration: Duration) async throws {
@@ -348,29 +401,81 @@ actor DeviceBackendTestClock {
           continuation.resume(throwing: CancellationError())
           return
         }
-        sleepers[id] = (now + duration, continuation)
+        sleepers[id] = Sleeper(
+          deadline: now + duration, sequence: nextSequence, continuation: continuation)
+        nextSequence += 1
         sleepCount += 1
-        let ready = barriers.filter { $0.count <= sleepCount }
-        barriers.removeAll { $0.count <= sleepCount }
-        for barrier in ready { barrier.continuation.resume() }
+        resumeSatisfiedSleepCountWaiters()
       }
     } onCancel: {
       Task { await self.cancel(id) }
     }
   }
 
-  func waitForSleepCount(_ count: Int) async {
+  func waitForSleepCount(_ count: Int) async throws {
+    try Task.checkCancellation()
     guard sleepCount < count else { return }
-    await withCheckedContinuation { barriers.append((count, $0)) }
+    let id = UUID()
+    try await withTaskCancellationHandler {
+      try await withCheckedThrowingContinuation {
+        (continuation: CheckedContinuation<Void, any Error>) in
+        guard sleepCount < count else {
+          continuation.resume()
+          return
+        }
+        guard !Task.isCancelled else {
+          continuation.resume(throwing: CancellationError())
+          return
+        }
+        // One explicit timeout per waiter keeps the gate bounded without polling.
+        let timeout = Task<Void, Never> { [weak self] in
+          try? await Task.sleep(for: .seconds(5))
+          guard !Task.isCancelled else { return }
+          await self?.timeoutSleepCountWaiter(id)
+        }
+        sleepCountWaiters[id] = SleepCountWaiter(
+          target: count, continuation: continuation, timeout: timeout)
+      }
+    } onCancel: {
+      Task { await self.cancelSleepCountWaiter(id) }
+    }
+  }
+
+  func cancelAllSleeps() {
+    let pending = Array(sleepers.values)
+    sleepers.removeAll()
+    for sleeper in pending { sleeper.continuation.resume(throwing: CancellationError()) }
   }
 
   func advance(by duration: Duration) {
     now += duration
-    let ready = sleepers.filter { $0.value.deadline <= now }
+    let ready = sleepers.filter { $0.value.deadline <= now }.sorted {
+      ($0.value.deadline, $0.value.sequence) < ($1.value.deadline, $1.value.sequence)
+    }
     for (id, sleeper) in ready {
       sleepers.removeValue(forKey: id)
       sleeper.continuation.resume()
     }
+  }
+
+  private func resumeSatisfiedSleepCountWaiters() {
+    for id in sleepCountWaiters.filter({ sleepCount >= $0.value.target }).keys {
+      guard let waiter = sleepCountWaiters.removeValue(forKey: id) else { continue }
+      waiter.timeout.cancel()
+      waiter.continuation.resume()
+    }
+  }
+
+  private func timeoutSleepCountWaiter(_ id: UUID) {
+    guard let waiter = sleepCountWaiters.removeValue(forKey: id) else { return }
+    waiter.continuation.resume(
+      throwing: TestWaitTimeout(waitedFor: "\(waiter.target) injected clock sleeps"))
+  }
+
+  private func cancelSleepCountWaiter(_ id: UUID) {
+    guard let waiter = sleepCountWaiters.removeValue(forKey: id) else { return }
+    waiter.timeout.cancel()
+    waiter.continuation.resume(throwing: CancellationError())
   }
 
   private func cancel(_ id: UUID) {

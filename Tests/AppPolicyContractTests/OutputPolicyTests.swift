@@ -1,3 +1,4 @@
+import AppTestSupport
 import FineTuneControl
 import FineTuneDomain
 import FineTunePlatform
@@ -144,19 +145,16 @@ struct OutputPolicyTests {
     }
     policy.observe(availableUIDs: ["A"], defaultUID: "A", bluetoothUIDs: [])
     policy.observe(availableUIDs: ["A", "B"], defaultUID: "A", bluetoothUIDs: [])
-    var requests = clock.requests.stream.makeAsyncIterator()
     // Start the old grace delay before explicit selection cancels it; drain that cancelled wait too.
-    #expect(await requests.next() == .seconds(2))
+    #expect(try await clock.waitForNextRequest() == .seconds(2))
     try policy.selectDefaultOutput(uid: "B")
-    #expect(await requests.next() == .seconds(2))
+    #expect(try await clock.waitForNextRequest() == .seconds(2))
     policy.observe(
       availableUIDs: [], defaultUID: nil, bluetoothUIDs: [], failure: "Default read failed")
     #expect(throws: AudioRouteFailure.self) { try policy.selectDefaultOutput(uid: "A") }
     clock.advance()
-    var completions = clock.completions.stream.makeAsyncIterator()
-    _ = await completions.next()
-    _ = await completions.next()
-    await Task.yield()
+    try await clock.waitForNextCompletion()
+    try await clock.waitForNextCompletion()
     #expect(writes == ["B"] && policy.lastFailure?.message == "Default read failed")
     #expect(policy.availableUIDs == ["A", "B"] && policy.observedDefaultUID == "A")
     #expect(policy.intendedDefaultUID == "B" && store.getDeviceRouting(for: "unit.pinned") == "B")
@@ -354,13 +352,12 @@ struct OutputPolicyTests {
     }
     policy.observe(availableUIDs: ["A", "B", "C"], defaultUID: "B", bluetoothUIDs: ["B"])
     try policy.selectDefaultOutput(uid: "A")
-    var requests = clock.requests.stream.makeAsyncIterator()
-    #expect(await requests.next() == .seconds(2))
+    #expect(try await clock.waitForNextRequest() == .seconds(2))
     clock.now = 0.4
     policy.observe(availableUIDs: ["A", "B", "C"], defaultUID: "B", bluetoothUIDs: ["B"])
     #expect(writes == ["A", "A"])
     let corrected = writes.count == 2
-    if corrected { #expect(await requests.next() == .seconds(2)) }
+    if corrected { #expect(try await clock.waitForNextRequest() == .seconds(2)) }
     clock.now = 2.1
     // This changed healthy UID is new external intent, unlike replaying the same failed B.
     // The corrective A acknowledgement is still outstanding until its lease would expire at 2.4.
@@ -370,10 +367,8 @@ struct OutputPolicyTests {
     #expect(policy.routingDecision() == .routeToApprovedUID("C"))
     clock.now = 2.401
     clock.advance()
-    var completions = clock.completions.stream.makeAsyncIterator()
-    _ = await completions.next()
-    if corrected { _ = await completions.next() }
-    await Task.yield()
+    try await clock.waitForNextCompletion()
+    if corrected { try await clock.waitForNextCompletion() }
     #expect(writes == ["A", "A"])
     #expect(policy.observedDefaultUID == "C" && policy.intendedDefaultUID == "C")
     #expect(policy.lastFailure == nil)

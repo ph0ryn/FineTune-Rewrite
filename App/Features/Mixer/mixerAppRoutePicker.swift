@@ -8,6 +8,24 @@ import AppKit
 import FineTuneDomain
 import SwiftUI
 
+/// Copy rendered by the route menu; `MixerAppRouteMenu` reads these values directly so the mode
+/// buttons and System Audio row use the same strings the parity tests assert.
+struct MixerAppRouteCopy: Equatable {
+  var singleMode = "Single"
+  var multiMode = "Multi"
+  var systemAudio = "System Audio"
+  var followsDefault = "Follows macOS default"
+  var unavailableInMulti = "Not available in multi mode"
+
+  func modeLabel(_ mode: DeviceSelectionMode) -> String {
+    mode == .single ? singleMode : multiMode
+  }
+
+  func systemAudioDetail(isMulti: Bool) -> String {
+    isMulti ? unavailableInMulti : followsDefault
+  }
+}
+
 @MainActor
 struct MixerAppRoutePicker: View {
   let app: MixerAppPresentation
@@ -96,6 +114,7 @@ struct MixerAppRouteMenu: View {
   let app: MixerAppPresentation
   let bindings: MixerBindings
   let dismiss: () -> Void
+  var copy = MixerAppRouteCopy()
   @State private var hoveredMode: DeviceSelectionMode?
 
   private var current: MixerAppPresentation { bindings.current(app) }
@@ -106,8 +125,8 @@ struct MixerAppRouteMenu: View {
   var body: some View {
     VStack(spacing: 0) {
       HStack(spacing: 0) {
-        modeButton(.single, label: "Single")
-        modeButton(.multi, label: "Multi")
+        modeButton(.single, label: copy.modeLabel(.single))
+        modeButton(.multi, label: copy.modeLabel(.multi))
       }
       .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 6))
       .overlay(
@@ -119,7 +138,8 @@ struct MixerAppRouteMenu: View {
       ScrollView(.vertical) {
         VStack(spacing: 2) {
           MixerAppRouteOption(
-            name: "System Audio", icon: nil, isSystemAudio: true,
+            name: copy.systemAudio, icon: nil, isSystemAudio: true,
+            detail: copy.systemAudioDetail(isMulti: current.selectionMode == .multi),
             isSelected: current.isFollowingDefault, isMulti: current.selectionMode == .multi,
             isDefault: false
           ) {
@@ -129,7 +149,7 @@ struct MixerAppRouteMenu: View {
           ForEach(devices) { device in
             MixerAppRouteOption(
               name: device.device.name, icon: bindings.deviceIcon(device, scope: .output),
-              isSystemAudio: false,
+              isSystemAudio: false, detail: nil,
               isSelected: !current.isFollowingDefault
                 && current.selectedDeviceUIDs.contains(device.id),
               isMulti: current.selectionMode == .multi, isDefault: device.isDefault
@@ -198,6 +218,7 @@ private struct MixerAppRouteOption: View {
   let name: String
   let icon: NSImage?
   let isSystemAudio: Bool
+  let detail: String?
   let isSelected: Bool
   let isMulti: Bool
   let isDefault: Bool
@@ -223,8 +244,8 @@ private struct MixerAppRouteOption: View {
         }
         VStack(alignment: .leading, spacing: 1) {
           Text(name).lineLimit(1)
-          if isSystemAudio {
-            Text(isDisabled ? "Not available in multi mode" : "Follows macOS default")
+          if let detail {
+            Text(detail)
               .font(DesignTokens.Typography.caption).foregroundStyle(
                 DesignTokens.Colors.textTertiary)
           }

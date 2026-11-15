@@ -31,15 +31,43 @@ AppKit/SwiftUIを使う単体テストはこの互換性テストに含まれま
 - **D: 独自テスト** — C ABI、所有・寿命、処理履歴、保存など新しい公開境界の必要な試験を追加する。
 
 移植状況・必要なimport/API/環境適応・非移植理由は監査台帳で追跡します。
+台帳は原作由来テストの対応付けと、互換性保証として明示したD試験のprovenanceを記録します。
+リポジトリ内の`Tests/**/*.swift`すべてを列挙するtest inventoryではありません。他のfirst-party test targetも
+`just check`で実行しますが、manifestへ記録するのは移植対応またはDとして監査対象にした項目です。
 分割・統合・新しいseamによるunitへの置換は可能ですが、保証を弱める期待値変更や無言の欠落でpassを作りません。
 原作のissue/PR由来の改良は、この移植の完了条件に含めません。
 
 ## 実行と隔離
 
-[Package.swift](<../../Package.swift>)の単一`UpstreamCompatibilityTests` targetは、
+[Package.swift](<../../Package.swift>)の`UpstreamCompatibilityTests` targetは、
 製品と同じ`App/`ソースから作る`FineTune` moduleと実ライブラリを検証します。
 `@testable import`で製品のentryやservice組立は実行されず、このimport自体をE2Eとは扱いません。
 旧実装を丸ごと埋めた互換専用moduleやfake外部依存は使いません。
+
+同じ`FineTune` moduleを検証する`IndependentCompatibilityTests` targetを別に持ちます。
+台帳で**D**と分類され、GPL由来の本文・helperに依存しないと確認できた試験だけを
+MITのsourceとしてこのtargetへ置きます。`UpstreamCompatibilityTests`側の
+A/B/C分類・IDとAの振る舞いの保証は維持し、決定的なsetupの変更はmanifestの
+個別適応で記述します。Bのno-oracle試験は契約が明確な範囲で
+観測可能なoracleを追加しました。移動していないDはGPLのままです。Dの移動先は台帳の
+`additional_tests[].destinations`で追跡します。元の`tests[]`に記録した分類・ID・入力と
+fingerprintは移植時の基準として保持します。一方、現在の`additional_tests`は選定したD cohortであり、
+リポジトリ内のD試験すべてを列挙するものではありません。
+
+`additional_tests`は選定したD cohortで、各rowのID・適応理由・review状態は
+[manifest](<migrationManifest.json>)を正本として追跡します。現在のsourceに該当methodがない旧task-47 destination 3行は、
+IDを変更せずpendingに保ちます。live methodが存在するとは主張しません。method rowのapprovalは記録済みfingerprintに
+対するreviewであり、file-level reviewが終わるまでsource変更を承認済みとは扱いません。
+
+現時点でMITへ分離したDは、appearance bridge、icon catalog/picker/renderer、
+menu-bar snapshot/owned action、actual toggle binding、HUD lifecycleです。
+次のDは、GPL由来file内の共有helper（fixture、spy、recording double）への依存を
+独立と証明できないため、移動せずGPL fileに残しています。Leadの判断対象です。
+
+- `AudioEngineTapInitialStateTests.swift`: `AudioEngineRouteBoundaryTests` 5件
+- `BiquadProcessorSignalAdversarialTests.swift`: NaN/Inf境界 3件
+- `MediaKeyMonitorHandlerTests.swift`: media-key composition/retained-request 7件
+- `ShortcutsRegistryTests.swift`: `ShortcutRegistrationBoundaryTests` 3件
 
 Swiftの**言語モード6**とコンパイラの機能要件は別です。
 [原作のtest target設定](https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune.xcodeproj/project.pbxproj#L506-L545)にある
@@ -59,13 +87,17 @@ just test-dsp release
 just test-native release
 ```
 
-実行結果は指定scratch内の`test-results-<configuration>-swift-testing.xml`と
-`test-events-<configuration>.jsonl`へ保存します。XMLのtestcase数は宣言数であり、
-parameterized入力ごとの呼出しはJSONの`testCaseStarted` / `testCaseEnded`で確認します。
+実行結果は指定scratch内へ保存します。[Justfile](<../../Justfile>)は
+`test-results-<configuration>.xml`を`--xunit-output`へ渡します。
+`test-results-<configuration>-swift-testing.xml`は別のSwift Testing report sidecarで、旧名ではありません。
+JSONLの`test-events-<configuration>.jsonl`にはevent streamを記録します。
+Swift Testing XMLのtestcase数は宣言数であり、parameterized入力ごとの呼出しはJSONLの
+`testCaseStarted` / `testCaseEnded`で確認します。
 `just test-dsp`は実C++unitを実行し、`test-dsp-results-<configuration>.json`へnamed caseごとの
 結果を保存します。C++に対応付けた保証はSwiftの宣言数へ加算せず、このreportで独立に検証します。
-`just test`は実行前にSwift eventsを空にし、native executableは実行時にreportを書き直します。
-専用の自動監査は削除したため、台帳・fingerprint・source hashと実行結果の照合は行いません。
+`just test`は起動前に両XMLとJSONLを0バイトへ切り詰めます。`just test-dsp`と`just test-native`は
+DSP/native reportをschema 2の`complete:false` skeletonへ戻します。0バイトまたはskeletonを成功証拠にしません。
+台帳・fingerprint・source hashと実行結果は自動同期されません。保証対応や入力・期待値の変更をreviewし、ソース変更後は該当するテストを再実行します。
 保証対応や入力・期待値の変更はreviewし、ソース変更後は該当するテストを再実行します。
 [対応台帳](<migrationManifest.json>)と[確認手順](<../../docs/test-migration.md>)も参照してください。
 

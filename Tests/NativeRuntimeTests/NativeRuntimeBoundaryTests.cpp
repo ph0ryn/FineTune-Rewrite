@@ -4,11 +4,19 @@
 #include "NativeTestReport.hpp"
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 
 int main(int argc, char **argv) {
-    finetune::test::NativeTestReport report(
-        argc, argv, "Tests/NativeRuntimeTests/NativeRuntimeBoundaryTests.cpp");
-    if (!report.ready()) {
+    const char *reportPath = nullptr;
+    if (argc != 1) {
+        if (argc != 3 || std::strcmp(argv[1], "--report") != 0 || argv[2][0] == '\0') {
+            std::fputs("Usage: NativeRuntimeTests [--report path.json]\n", stderr);
+            return EXIT_FAILURE;
+        }
+        reportPath = argv[2];
+    }
+    finetune::test::NativeTestReport report;
+    if (reportPath && !report.begin(reportPath)) {
         return EXIT_FAILURE;
     }
     FTNativeRouteRequest request{};
@@ -31,7 +39,10 @@ int main(int argc, char **argv) {
     } else {
         std::fputs("FAIL NativeRuntime.noExplicitCaptureHasNoAcquisition\n", stderr);
     }
-    const finetune::test::NativeTestResult results[]{{"noExplicitCaptureHasNoAcquisition", passed}};
+    const finetune::test::NativeTestResult results[]{
+        {"Tests/NativeRuntimeTests/"
+         "NativeRuntimeBoundaryTests.cpp::noExplicitCaptureHasNoAcquisition",
+         1, 1, 1, passed ? 0U : 1U, passed ? nullptr : "explicit capture intent was not required"}};
     const bool reported = report.finish(results);
     return passed && reported ? EXIT_SUCCESS : EXIT_FAILURE;
 }

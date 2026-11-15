@@ -1,3 +1,6 @@
+// Copyright (C) 2026 Ronit Singh
+// Derived from ronitsingh10/FineTune, FineTuneTests/AudioDeviceInspectorPropertiesTests.swift
+// Upstream revision: 2285279d36d3f8115c1c2d4aecd904f1bdf96a51
 // Derived from FineTuneTests/AudioDeviceInspectorPropertiesTests.swift.
 // The five hardware-dependent smoke tests now verify the same adapter contract
 // through injected property reads. No default output device, guard-return, or HAL write.

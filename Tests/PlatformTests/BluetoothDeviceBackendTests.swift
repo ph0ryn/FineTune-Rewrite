@@ -1,9 +1,9 @@
-import FineTunePlatform
 import Foundation
-import Observation
 import Testing
 
-@Suite("Bluetooth device backend")
+@testable import FineTunePlatform
+
+@Suite("Bluetooth device backend", .timeLimit(.minutes(1)))
 @MainActor
 struct BluetoothDeviceBackendTests {
   @Test("Construction is inert; observed paired audio devices are filtered and sorted")
@@ -26,7 +26,7 @@ struct BluetoothDeviceBackendTests {
     await transport.setPowered(false)
     await backend.refresh()
     #expect(backend.isPoweredOn == false && backend.pairedDevices.isEmpty)
-    backend.stop()
+    await stopAndDrain(backend: backend, transport: transport, clock: clock)
   }
 
   @Test(
@@ -57,48 +57,66 @@ struct BluetoothDeviceBackendTests {
   }
 
   @Test("Startup and power notifications refresh without an explicit caller refresh")
-  func automaticPowerRefresh() async {
+  func automaticPowerRefresh() async throws {
     let notifications = BluetoothNotificationFixture()
     let transport = BluetoothFixtureTransport(peers: [], notifications: notifications)
     let backend = BluetoothDeviceBackend(transport: transport, clock: .continuous)
     backend.start()
-    await waitForPower(backend, powered: true)
+    try await waitForScheduledRefresh(backend)
+    #expect(backend.isPoweredOn == true)
     #expect(await transport.snapshotCalls == 1)
 
     await transport.setPowered(false)
     notifications.callbacks.last?()
-    await waitForPower(backend, powered: false)
+    try await waitForScheduledRefresh(backend)
+    #expect(backend.isPoweredOn == false)
     await transport.setPowered(nil)
     notifications.callbacks.last?()
-    await waitForPower(backend, powered: nil)
+    try await waitForScheduledRefresh(backend)
+    #expect(backend.isPoweredOn == nil)
     #expect(backend.lastError == nil)
     backend.stop()
   }
 
   @Test("A failed power observation ends an in-flight request without publishing late SDK success")
-  func failedPowerReadDuringConnection() async {
+  func failedPowerReadDuringConnection() async throws {
     let notifications = BluetoothNotificationFixture()
     let transport = BluetoothFixtureTransport(
       peers: [peer("a", "Headphones")], notifications: notifications)
     let clock = DeviceBackendTestClock()
     let backend = BluetoothDeviceBackend(
       transport: transport, clock: DeviceBackendClock { try await clock.sleep(for: $0) })
-    backend.start()
-    await backend.refresh()
-    let request = Task { try await backend.connect(id: "a") }
-    await transport.waitForConnectCount(1)
-    await clock.waitForSleepCount(1)
+    var callerTasks: [Task<Void, any Error>] = []
+    var connectionTasksForCleanup: [Task<Void, Never>] = []
+    try await withFailureCleanup(
+      operation: {
+        backend.start()
+        await backend.refresh()
+        let request = Task { try await backend.connect(id: "a") }
+        callerTasks.append(request)
+        try await transport.waitForConnectEntry(1)
+        let operation = try #require(backend.connectionOperation(for: "a"))
+        try await clock.waitForSleepCount(1)
+        connectionTasksForCleanup.append(contentsOf: backend.currentConnectionTasks())
 
-    await transport.setSnapshotFailure(DeviceBackendError.osStatus(-5))
-    await backend.refresh()
-    #expect(backend.isPoweredOn == nil)
-    #expect(backend.connectionPhases["a"] == .failed)
-    await transport.complete(id: "a")
-    await transport.waitForReturnCount(1)
-    await #expect(throws: DeviceBackendError.osStatus(-5)) { try await request.value }
-    #expect(backend.connectionPhases["a"] == .failed)
-    #expect(backend.isPoweredOn == nil)
-    backend.stop()
+        await transport.setSnapshotFailure(DeviceBackendError.osStatus(-5))
+        await backend.refresh()
+        #expect(backend.isPoweredOn == nil)
+        #expect(backend.connectionPhases["a"] == .failed)
+        await transport.complete(id: "a")
+        await operation.value
+        await #expect(throws: DeviceBackendError.osStatus(-5)) { try await request.value }
+        #expect(backend.connectionPhases["a"] == .failed)
+        #expect(backend.isPoweredOn == nil)
+        await stopAndDrain(
+          backend: backend, transport: transport, clock: clock, callerTasks: callerTasks,
+          additionalConnectionTasks: connectionTasksForCleanup)
+      },
+      cleanup: {
+        await stopAndDrain(
+          backend: backend, transport: transport, clock: clock, callerTasks: callerTasks,
+          additionalConnectionTasks: connectionTasksForCleanup)
+      })
   }
 
   @Test("Duplicate requests share one baseband operation and never claim an audio route")
@@ -109,50 +127,99 @@ struct BluetoothDeviceBackendTests {
     let clock = DeviceBackendTestClock()
     let backend = BluetoothDeviceBackend(
       transport: transport, clock: DeviceBackendClock { try await clock.sleep(for: $0) })
-    backend.start()
-    await backend.refresh()
-    let first = Task { try await backend.connect(id: "a") }
-    await transport.waitForConnectCount(1)
-    let second = Task { try await backend.connect(id: "a") }
-    await clock.waitForSleepCount(1)
-    await transport.complete(id: "a")
-    try await first.value
-    try await second.value
-    #expect(await transport.connectIDs == ["a"])
-    #expect(backend.connectionPhases["a"] == .basebandConnected)
-    backend.stop()
+    var callerTasks: [Task<Void, any Error>] = []
+    var connectionTasksForCleanup: [Task<Void, Never>] = []
+    try await withFailureCleanup(
+      operation: {
+        backend.start()
+        await backend.refresh()
+        let first = Task { try await backend.connect(id: "a") }
+        callerTasks.append(first)
+        try await transport.waitForConnectEntry(1)
+        let operation = try #require(backend.connectionOperation(for: "a"))
+        let second = Task { try await backend.connect(id: "a") }
+        callerTasks.append(second)
+        try await clock.waitForSleepCount(1)
+        connectionTasksForCleanup.append(contentsOf: backend.currentConnectionTasks())
+        await transport.complete(id: "a")
+        await operation.value
+        try await first.value
+        try await second.value
+        #expect(await transport.connectIDs == ["a"])
+        #expect(backend.connectionPhases["a"] == .basebandConnected)
+        await stopAndDrain(
+          backend: backend, transport: transport, clock: clock, callerTasks: callerTasks,
+          additionalConnectionTasks: connectionTasksForCleanup)
+      },
+      cleanup: {
+        await stopAndDrain(
+          backend: backend, transport: transport, clock: clock, callerTasks: callerTasks,
+          additionalConnectionTasks: connectionTasksForCleanup)
+      })
   }
 
   @Test("A timeout is bounded independently of blocking SDK completion and clears its inline error")
-  func timeoutAndLateCompletion() async {
+  func timeoutAndLateCompletion() async throws {
     let notifications = BluetoothNotificationFixture()
     let transport = BluetoothFixtureTransport(
       peers: [peer("a", "Headphones")], notifications: notifications)
     let clock = DeviceBackendTestClock()
     let backend = BluetoothDeviceBackend(
       transport: transport, clock: DeviceBackendClock { try await clock.sleep(for: $0) })
-    backend.start()
-    await backend.refresh()
-    let request = Task { try await backend.connect(id: "a") }
-    await transport.waitForConnectCount(1)
-    await clock.waitForSleepCount(1)
-    await clock.advance(by: .seconds(12))
-    await #expect(throws: (any Error).self) { try await request.value }
-    #expect(backend.connectionPhases["a"] == .failed)
-    #expect(backend.connectionErrors["a"] != nil)
-    await clock.waitForSleepCount(2)
-    await clock.advance(by: .seconds(4))
-    await waitForErrorClear(backend, id: "a")
-    #expect(backend.connectionPhases["a"] == .idle)
-    backend.stop()
-    await transport.complete(id: "a")
-    await transport.waitForReturnCount(1)
-    await Task.yield()
-    #expect(backend.connectionPhases.isEmpty)
+    var callerTasks: [Task<Void, any Error>] = []
+    var connectionTasksForCleanup: [Task<Void, Never>] = []
+    var refreshTasksForCleanup: [Task<Void, Never>] = []
+    var errorClearTasksForCleanup: [Task<Void, Never>] = []
+    try await withFailureCleanup(
+      operation: {
+        backend.start()
+        if let refresh = backend.scheduledRefresh { refreshTasksForCleanup.append(refresh) }
+        await backend.refresh()
+        let request = Task { try await backend.connect(id: "a") }
+        callerTasks.append(request)
+        try await transport.waitForConnectEntry(1)
+        try await clock.waitForSleepCount(1)
+        let operation = try #require(backend.connectionOperation(for: "a"))
+        connectionTasksForCleanup = backend.currentConnectionTasks()
+        await clock.advance(by: .seconds(12))
+        await #expect(
+          throws: DeviceBackendError.operationFailed(
+            "The Bluetooth connection timed out. It may still complete."
+          )
+        ) { try await request.value }
+        #expect(backend.connectionPhases["a"] == .failed)
+        #expect(backend.connectionErrors["a"] != nil)
+        try await clock.waitForSleepCount(2)
+        let errorClearTask = try #require(backend.currentErrorClearTasks()["a"])
+        errorClearTasksForCleanup.append(errorClearTask)
+        let cleared = TestCompletionEvent()
+        backend.errorClearDidComplete = { id in
+          if id == "a" { cleared.signal() }
+        }
+        await clock.advance(by: .seconds(4))
+        await cleared.wait()
+        await errorClearTask.value
+        #expect(backend.connectionPhases["a"] == .idle)
+        if let refresh = backend.scheduledRefresh { refreshTasksForCleanup.append(refresh) }
+        backend.stop()
+        await transport.complete(id: "a")
+        await clock.cancelAllSleeps()
+        await operation.value
+        for task in connectionTasksForCleanup { await task.value }
+        for task in refreshTasksForCleanup { await task.value }
+        #expect(backend.connectionPhases.isEmpty)
+      },
+      cleanup: {
+        await stopAndDrain(
+          backend: backend, transport: transport, clock: clock, callerTasks: callerTasks,
+          additionalConnectionTasks: connectionTasksForCleanup,
+          additionalRefreshTasks: refreshTasksForCleanup,
+          additionalErrorClearTasks: errorClearTasksForCleanup)
+      })
   }
 
   @Test("Power-off and unpaired identities cannot open a Bluetooth connection")
-  func requestValidation() async {
+  func requestValidation() async throws {
     let notifications = BluetoothNotificationFixture()
     let transport = BluetoothFixtureTransport(
       peers: [peer("a", "Headphones")], notifications: notifications)
@@ -161,12 +228,18 @@ struct BluetoothDeviceBackendTests {
       transport: transport, clock: DeviceBackendClock { try await clock.sleep(for: $0) })
     backend.start()
     await backend.refresh()
-    await #expect(throws: (any Error).self) { try await backend.connect(id: "not-paired") }
+    await #expect(throws: DeviceBackendError.unavailableDevice("not-paired")) {
+      try await backend.connect(id: "not-paired")
+    }
     await transport.setPowered(false)
     await backend.refresh()
-    await #expect(throws: (any Error).self) { try await backend.connect(id: "a") }
+    await #expect(
+      throws: DeviceBackendError.operationFailed(
+        "Turn on Bluetooth before connecting a device."
+      )
+    ) { try await backend.connect(id: "a") }
     #expect(await transport.connectIDs.isEmpty)
-    backend.stop()
+    await stopAndDrain(backend: backend, transport: transport, clock: clock)
   }
 
   @Test("An SDK failure stays visible when another device connects successfully")
@@ -177,27 +250,47 @@ struct BluetoothDeviceBackendTests {
     let clock = DeviceBackendTestClock()
     let backend = BluetoothDeviceBackend(
       transport: transport, clock: DeviceBackendClock { try await clock.sleep(for: $0) })
-    backend.start()
-    await backend.refresh()
-    let failed = Task { try await backend.connect(id: "a") }
-    await transport.waitForConnectCount(1)
-    await clock.waitForSleepCount(1)
-    await transport.complete(id: "a", error: DeviceBackendError.osStatus(-5))
-    await #expect(throws: (any Error).self) { try await failed.value }
-    #expect(backend.connectionPhases["a"] == .failed)
-    await clock.waitForSleepCount(2)
-    let succeeded = Task { try await backend.connect(id: "z") }
-    await transport.waitForConnectCount(2)
-    await clock.waitForSleepCount(3)
-    await transport.complete(id: "z")
-    try await succeeded.value
-    #expect(backend.connectionErrors["a"] != nil && backend.lastError != nil)
-    #expect(backend.connectionPhases["z"] == .basebandConnected)
-    backend.stop()
+    var callerTasks: [Task<Void, any Error>] = []
+    var connectionTasksForCleanup: [Task<Void, Never>] = []
+    try await withFailureCleanup(
+      operation: {
+        backend.start()
+        await backend.refresh()
+        let failed = Task { try await backend.connect(id: "a") }
+        callerTasks.append(failed)
+        try await transport.waitForConnectEntry(1)
+        try await clock.waitForSleepCount(1)
+        let failedOperation = try #require(backend.connectionOperation(for: "a"))
+        connectionTasksForCleanup.append(contentsOf: backend.currentConnectionTasks())
+        await transport.complete(id: "a", error: DeviceBackendError.osStatus(-5))
+        await failedOperation.value
+        await #expect(throws: DeviceBackendError.osStatus(-5)) { try await failed.value }
+        #expect(backend.connectionPhases["a"] == .failed)
+        try await clock.waitForSleepCount(2)
+        let succeeded = Task { try await backend.connect(id: "z") }
+        callerTasks.append(succeeded)
+        try await transport.waitForConnectEntry(2)
+        try await clock.waitForSleepCount(3)
+        let succeededOperation = try #require(backend.connectionOperation(for: "z"))
+        connectionTasksForCleanup.append(contentsOf: backend.currentConnectionTasks())
+        await transport.complete(id: "z")
+        await succeededOperation.value
+        try await succeeded.value
+        #expect(backend.connectionErrors["a"] != nil && backend.lastError != nil)
+        #expect(backend.connectionPhases["z"] == .basebandConnected)
+        await stopAndDrain(
+          backend: backend, transport: transport, clock: clock, callerTasks: callerTasks,
+          additionalConnectionTasks: connectionTasksForCleanup)
+      },
+      cleanup: {
+        await stopAndDrain(
+          backend: backend, transport: transport, clock: clock, callerTasks: callerTasks,
+          additionalConnectionTasks: connectionTasksForCleanup)
+      })
   }
 
   @Test("Stop removes power observers and rejects their late callbacks")
-  func notificationLifetime() async {
+  func notificationLifetime() async throws {
     let notifications = BluetoothNotificationFixture()
     let transport = BluetoothFixtureTransport(peers: [], notifications: notifications)
     let clock = DeviceBackendTestClock()
@@ -207,12 +300,17 @@ struct BluetoothDeviceBackendTests {
     await backend.refresh()
     #expect(notifications.active == 1)
     let callback = notifications.callbacks.first
+    let refreshTask = backend.scheduledRefresh
+    let errorClearTasks = Array(backend.currentErrorClearTasks().values)
     backend.stop()
     backend.stop()
+    await transport.cancelPending()
+    await clock.cancelAllSleeps()
+    if let refreshTask { await refreshTask.value }
+    for task in errorClearTasks { await task.value }
     #expect(notifications.active == 0)
     let calls = await transport.snapshotCalls
     callback?()
-    await Task.yield()
     #expect(await transport.snapshotCalls == calls)
   }
 
@@ -222,28 +320,32 @@ struct BluetoothDeviceBackendTests {
     BluetoothPeer(id: id, name: name, isAudioDevice: audio, isConnected: connected)
   }
 
-  private func waitForPower(_ backend: BluetoothDeviceBackend, powered: Bool?) async {
-    while backend.isPoweredOn != powered {
-      await withCheckedContinuation { continuation in
-        withObservationTracking {
-          _ = backend.isPoweredOn
-        } onChange: {
-          continuation.resume()
-        }
-      }
-    }
+  /// Waits for the exact refresh task the backend scheduled, not an observed power value.
+  private func waitForScheduledRefresh(_ backend: BluetoothDeviceBackend) async throws {
+    let refresh = try #require(backend.scheduledRefresh, "No automatic refresh was scheduled")
+    await refresh.value
   }
 
-  private func waitForErrorClear(_ backend: BluetoothDeviceBackend, id: String) async {
-    while backend.connectionErrors[id] != nil {
-      await withCheckedContinuation { continuation in
-        withObservationTracking {
-          _ = backend.connectionErrors[id]
-        } onChange: {
-          continuation.resume()
-        }
-      }
-    }
+  private func stopAndDrain(
+    backend: BluetoothDeviceBackend,
+    transport: BluetoothFixtureTransport,
+    clock: DeviceBackendTestClock,
+    callerTasks: [Task<Void, any Error>] = [],
+    additionalConnectionTasks: [Task<Void, Never>] = [],
+    additionalRefreshTasks: [Task<Void, Never>] = [],
+    additionalErrorClearTasks: [Task<Void, Never>] = []
+  ) async {
+    let connectionTasks = backend.currentConnectionTasks() + additionalConnectionTasks
+    let refreshTasks = [backend.scheduledRefresh].compactMap { $0 } + additionalRefreshTasks
+    let errorClearTasks =
+      Array(backend.currentErrorClearTasks().values) + additionalErrorClearTasks
+    backend.stop()
+    await transport.cancelPending()
+    await clock.cancelAllSleeps()
+    for task in callerTasks { _ = await task.result }
+    for task in connectionTasks { await task.value }
+    for task in refreshTasks { await task.value }
+    for task in errorClearTasks { await task.value }
   }
 }
 
@@ -259,21 +361,67 @@ private final class BluetoothNotificationFixture {
   }
 }
 
+/// A test-owned, buffered event emitted by production only after its scheduled work has settled.
+///
+/// The buffer retains a signal that arrives before `wait()`. One deadline task bounds a missing
+/// signal: it records a failure and finishes the stream so a missed completion fails the test
+/// instead of suspending it.
+@MainActor
+private final class TestCompletionEvent {
+  private let signals: AsyncStream<Void>
+  private let sink: AsyncStream<Void>.Continuation
+
+  init() {
+    let stream = AsyncStream<Void>.makeStream(bufferingPolicy: .unbounded)
+    signals = stream.stream
+    sink = stream.continuation
+  }
+
+  func signal() { sink.yield() }
+
+  func wait() async {
+    let signalSink = sink
+    let deadline = Task {
+      do {
+        try await Task.sleep(for: .seconds(5))
+      } catch {
+        return
+      }
+      Issue.record("Timed out after 5 seconds waiting for the error-clear completion")
+      signalSink.finish()
+    }
+    // Cancelling the wait finishes the stream, waking next() with nil; the deadline is cancelled
+    // and awaited either way, so no task outlives the wait.
+    await withTaskCancellationHandler {
+      var iterator = signals.makeAsyncIterator()
+      await iterator.next()
+    } onCancel: {
+      deadline.cancel()
+      signalSink.finish()
+    }
+    deadline.cancel()
+    await deadline.value
+  }
+}
+
 private actor BluetoothFixtureTransport: BluetoothDeviceTransport {
   private let notifications: BluetoothNotificationFixture
   private var peers: [BluetoothPeer]
   private var powered: Bool? = true
   private var snapshotError: (any Error)?
   private var pending: [String: [CheckedContinuation<Void, any Error>]] = [:]
-  private var connectBarriers: [(Int, CheckedContinuation<Void, Never>)] = []
-  private var returnBarriers: [(Int, CheckedContinuation<Void, Never>)] = []
-  private var returned = 0
+  private let connectEntries: AsyncStream<Int>
+  private let connectEntryEvents: AsyncStream<Int>.Continuation
   var snapshotCalls = 0
   var connectIDs: [String] = []
 
+  /// Events carry the cumulative count so a wait can target a count reached before it began.
   init(peers: [BluetoothPeer], notifications: BluetoothNotificationFixture) {
     self.peers = peers
     self.notifications = notifications
+    let entries = AsyncStream<Int>.makeStream()
+    connectEntries = entries.stream
+    connectEntryEvents = entries.continuation
   }
 
   func snapshot() async throws -> BluetoothTransportSnapshot {
@@ -287,17 +435,11 @@ private actor BluetoothFixtureTransport: BluetoothDeviceTransport {
 
   func connect(id: String) async throws {
     connectIDs.append(id)
+    connectEntryEvents.yield(connectIDs.count)
     try await withCheckedThrowingContinuation {
       (continuation: CheckedContinuation<Void, any Error>) in
       pending[id, default: []].append(continuation)
-      let ready = connectBarriers.filter { $0.0 <= connectIDs.count }
-      connectBarriers.removeAll { $0.0 <= connectIDs.count }
-      for barrier in ready { barrier.1.resume() }
     }
-    returned += 1
-    let ready = returnBarriers.filter { $0.0 <= returned }
-    returnBarriers.removeAll { $0.0 <= returned }
-    for barrier in ready { barrier.1.resume() }
   }
 
   func complete(id: String, error: (any Error)? = nil) {
@@ -306,14 +448,22 @@ private actor BluetoothFixtureTransport: BluetoothDeviceTransport {
     }
   }
 
-  func waitForConnectCount(_ count: Int) async {
-    guard connectIDs.count < count else { return }
-    await withCheckedContinuation { connectBarriers.append((count, $0)) }
+  func cancelPending() {
+    connectEntryEvents.finish()
+    let continuations = pending.values.flatMap { $0 }
+    pending.removeAll()
+    for continuation in continuations { continuation.resume(throwing: CancellationError()) }
   }
 
-  func waitForReturnCount(_ count: Int) async {
-    guard returned < count else { return }
-    await withCheckedContinuation { returnBarriers.append((count, $0)) }
+  func waitForConnectEntry(_ count: Int) async throws {
+    do {
+      _ = try await waitForStreamValue(
+        in: connectEntries, finishing: connectEntryEvents,
+        waitedFor: "Bluetooth connect entry count \(count)", matches: { $0 >= count })
+    } catch {
+      cancelPending()
+      throw error
+    }
   }
 
   @MainActor

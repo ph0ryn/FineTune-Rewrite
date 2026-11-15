@@ -57,8 +57,8 @@ struct MenuBarPopupControllerTests {
     #expect(controller.findStatusItem() == nil)
   }
 
-  @Test("toggle constructs and dispatches the mouse event for the discovered status item")
-  func toggleBuildsAndDispatchesEvent() throws {
+  @Test("toggle on a discovered status item runs to completion without crashing")
+  func toggleEndToEndSmoke() throws {
     // Adapted to the delivery seam: exercise real discovery and event construction,
     // then assert the intended event without relying on the test process's AppKit pump.
     // The production default still activates the app and posts the event.
@@ -79,16 +79,4 @@ struct MenuBarPopupControllerTests {
     #expect(events.first?.locationInWindow == NSPoint(x: button.bounds.midX, y: button.bounds.midY))
   }
 
-  @Test("Rewrite: an app-owned status item toggles its real presentation action")
-  func ownedStatusItemAction() {
-    let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-    defer { NSStatusBar.system.removeStatusItem(item) }
-    let controller = MenuBarPopupController()
-    var toggles = 0
-    controller.attach(statusItem: item) { toggles += 1 }
-    #expect(controller.findStatusItem() === item)
-    controller.toggle()
-    controller.toggle()
-    #expect(toggles == 2)
-  }
 }
