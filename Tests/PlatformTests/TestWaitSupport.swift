@@ -95,9 +95,9 @@ func waitForOwnedTask(
 ) async throws {
   let (completions, completionEvents) = AsyncStream<Void>.makeStream()
   let (drains, drainEvents) = AsyncStream<Void>.makeStream()
-  // Intentionally unstructured: `Task.value` cannot be cancelled, so joining this watcher would
-  // reintroduce the unbounded wait the deadline exists to avoid.
-  _ = Task { @MainActor in
+  // Intentionally unstructured and nonisolated: `Task.value` cannot be cancelled, so joining it
+  // would reintroduce the unbounded wait; completion must not queue behind main-actor work.
+  _ = Task.detached(priority: Task.currentPriority) {
     await task.value
     completionEvents.yield()
     completionEvents.finish()

@@ -59,6 +59,7 @@ struct TestWaitSupportTests {
   func finishedTaskCompletes() async throws {
     let probe = CompletionProbe()
     let task = Task { await probe.markFinished() }
+    await task.value  // finished before the 1 s observation budget starts
     try await waitForOwnedTask(
       task, waitedFor: "the finished fixture task", timeout: .seconds(1))
     #expect(await probe.finished)
