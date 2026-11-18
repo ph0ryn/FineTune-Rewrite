@@ -95,6 +95,10 @@ struct UpstreamCrossfadeStateCompatibilityTests {
     _ = state.updateProgress(samples: CrossfadeState.minimumWarmupSamples)
     state.beginCrossfading()
 
+    // Exact crossfade start boundary: cos(0) and sin(0) are exact in Float32.
+    #expect(state.primaryMultiplier == 1)
+    #expect(state.secondaryMultiplier == 0)
+
     var prevPrimary: Float = 2
     var prevSecondary: Float = -1
 
@@ -124,6 +128,9 @@ struct UpstreamCrossfadeStateCompatibilityTests {
 
   @Test("Warmup requires minimumWarmupSamples before completion")
   func warmupRequiresMinimumSamples() {
+    // Warmup length is a compatibility contract: 2048 samples ≈ 42.7ms at 48kHz.
+    #expect(CrossfadeState.minimumWarmupSamples == 2048)
+
     var state = CrossfadeState()
     state.beginWarmup()
     #expect(state.phase == .warmingUp)
@@ -145,7 +152,10 @@ struct UpstreamCrossfadeStateCompatibilityTests {
     var state = CrossfadeState()
     state.beginWarmup()
     _ = state.updateProgress(samples: CrossfadeState.minimumWarmupSamples)
+    state.totalSamples = 24000
     state.beginCrossfading()
+    // The configured crossfade length survives the warmup-to-crossfade transition.
+    #expect(state.totalSamples == 24000)
     _ = state.updateProgress(samples: 48000)
     #expect(state.isCrossfadeComplete)
 
@@ -153,6 +163,7 @@ struct UpstreamCrossfadeStateCompatibilityTests {
     #expect(state.phase == .idle)
     #expect(state.progress == 0)
     #expect(!state.isActive)
+    #expect(state.totalSamples == 0)
     #expect(state.primaryMultiplier == 1)
     #expect(state.secondaryMultiplier == 1)
 
@@ -178,6 +189,67 @@ struct UpstreamCrossfadeStateCompatibilityTests {
     #expect(state.isCrossfadeComplete)
     #expect(state.primaryMultiplier.isFinite)
     #expect(state.secondaryMultiplier.isFinite)
+  }
+
+  @Test("totalSamples=0 usage error still clamps progress to 1 immediately")
+  func totalSamplesZeroDefense() {
+    var state = CrossfadeState()
+    state.beginWarmup()
+    // totalSamples is never set: a usage error, defended by max(1, totalSamples).
+    state.beginCrossfading()
+
+    let progress = state.updateProgress(samples: 1)
+    #expect(progress == 1)
+    #expect(state.isCrossfadeComplete)
+  }
+
+  @Test("Double complete() is an idempotent reset")
+  func doubleCompleteIsIdempotent() {
+    var state = CrossfadeState()
+    state.beginWarmup()
+    state.totalSamples = 48000
+    state.beginCrossfading()
+    state.progress = 0.7
+
+    state.complete()
+    state.complete()
+
+    #expect(state.phase == .idle)
+    #expect(state.progress == 0)
+    #expect(!state.isActive)
+  }
+
+  @Test("beginWarmup during crossfading performs a full reset to warmup multipliers")
+  func warmupDuringCrossfadeResets() {
+    var state = CrossfadeState()
+    state.beginWarmup()
+    state.totalSamples = 48000
+    state.beginCrossfading()
+    state.progress = 0.5
+
+    // Interrupt mid-crossfade with a new warmup (device switch during transition).
+    state.beginWarmup()
+
+    #expect(state.phase == .warmingUp)
+    #expect(state.progress == 0)
+    #expect(state.secondarySampleCount == 0)
+    #expect(state.secondarySamplesProcessed == 0)
+    #expect(state.primaryMultiplier == 1)
+    #expect(state.secondaryMultiplier == 0)
+  }
+
+  @Test("Idle multipliers reflect the post-crossfade promotion window")
+  func idlePostCrossfadeWindow() {
+    // Between the audio thread observing progress >= 1 and the owner calling
+    // complete(), an idle state with progress 1 must promote the secondary path.
+    var state = CrossfadeState()
+    state.progress = 1.0
+    #expect(state.primaryMultiplier == 0)
+    #expect(state.secondaryMultiplier == 1)
+
+    state.progress = 0.5
+    #expect(state.primaryMultiplier == 1)
+    #expect(state.secondaryMultiplier == 1)
   }
 }
 
