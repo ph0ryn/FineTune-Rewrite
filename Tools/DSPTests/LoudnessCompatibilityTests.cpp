@@ -5,6 +5,7 @@
 // Adaptation: invoke the real C++ kernels directly; no legacy Swift/C test facade.
 // License text: Tests/UpstreamCompatibilityTests/COPYING.
 #include "AudioDSP/Dynamics.hpp"
+#include "DSPCompatibilityTests.hpp"
 #include "DSPTestUnits.hpp"
 
 #include <array>
@@ -189,7 +190,7 @@ void gainSmootherAsymmetry() {
           recoveryDistance, reductionDistance);
 }
 
-constexpr std::array<NamedUnit, 15> units{{
+constexpr std::array<NamedUnit, 29> units{{
     {"Tools/DSPTests/LoudnessCompatibilityTests.cpp::dbLinearRoundTrip", dbLinearRoundTrip},
     {"Tools/DSPTests/LoudnessCompatibilityTests.cpp::smoothingCoefficientOrder",
      smoothingCoefficientOrder},
@@ -217,6 +218,34 @@ constexpr std::array<NamedUnit, 15> units{{
     {"Tools/DSPTests/LoudnessCompatibilityTests.cpp::gainComputerNoiseFloorProtection",
      gainComputerNoiseFloorProtection},
     {"Tools/DSPTests/LoudnessCompatibilityTests.cpp::gainSmootherAsymmetry", gainSmootherAsymmetry},
+    {"Tools/DSPTests/DSPCompatibilityTests.hpp::softLimiterConstantsAndPassthrough",
+     upstream_dsp::softLimiterConstantsAndPassthrough},
+    {"Tools/DSPTests/DSPCompatibilityTests.hpp::softLimiterCeilingAndAsymptotic",
+     upstream_dsp::softLimiterCeilingAndAsymptotic},
+    {"Tools/DSPTests/DSPCompatibilityTests.hpp::softLimiterMonotonicityAndSymmetry",
+     upstream_dsp::softLimiterMonotonicityAndSymmetry},
+    {"Tools/DSPTests/DSPCompatibilityTests.hpp::softLimiterContinuityAndConcavity",
+     upstream_dsp::softLimiterContinuityAndConcavity},
+    {"Tools/DSPTests/DSPCompatibilityTests.hpp::softLimiterSpecialFloatsAndBuffer",
+     upstream_dsp::softLimiterSpecialFloatsAndBuffer},
+    {"Tools/DSPTests/DSPCompatibilityTests.hpp::biquadCoefficientsAndFrequencyResponse",
+     upstream_dsp::biquadCoefficientsAndFrequencyResponse},
+    {"Tools/DSPTests/DSPCompatibilityTests.hpp::biquadExhaustiveJuryStability",
+     upstream_dsp::biquadExhaustiveJuryStability},
+    {"Tools/DSPTests/DSPCompatibilityTests.hpp::biquadGraphicAndBluetoothHFP",
+     upstream_dsp::biquadGraphicAndBluetoothHFP},
+    {"Tools/DSPTests/DSPCompatibilityTests.hpp::biquadAutoEQAndPreWarp",
+     upstream_dsp::biquadAutoEQAndPreWarp},
+    {"Tools/DSPTests/DSPCompatibilityTests.hpp::biquadSignalPeakingAndSelectivity",
+     upstream_dsp::biquadSignalPeakingAndSelectivity},
+    {"Tools/DSPTests/DSPCompatibilityTests.hpp::biquadSignalFlatAndShelves",
+     upstream_dsp::biquadSignalFlatAndShelves},
+    {"Tools/DSPTests/DSPCompatibilityTests.hpp::biquadSignalMultiBandRatesAndAdversarial",
+     upstream_dsp::biquadSignalMultiBandRatesAndAdversarial},
+    {"Tools/DSPTests/DSPCompatibilityTests.hpp::iso226ReferenceTableAndContours",
+     upstream_dsp::iso226ReferenceTableAndContours},
+    {"Tools/DSPTests/DSPCompatibilityTests.hpp::iso226FittingAccuracyAndCompensator",
+     upstream_dsp::iso226FittingAccuracyAndCompensator},
 }};
 } // namespace
 
