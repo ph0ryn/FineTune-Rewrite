@@ -48,17 +48,40 @@ build configuration="debug":
 # Run isolated Swift test suites in order (unit, contract, then serialized UI).
 test configuration="debug": (test-unit configuration) (test-contract configuration) (test-ui configuration)
 
+# Run a filtered Swift test process and reject an empty match set.
+_swift_test configuration filter serialized="false":
+  #!/usr/bin/env bash
+  set -euo pipefail
+  args=(
+    --scratch-path {{ quote(swift_scratch_path) }}
+    --jobs {{ quote(build_jobs) }}
+    --configuration {{ quote(configuration) }}
+    --filter {{ quote(filter) }}
+  )
+  if [[ {{ quote(serialized) }} == "true" ]]; then
+    args+=(--no-parallel)
+  fi
+  set +e
+  output="$(xcrun swift test "${args[@]}" 2>&1)"
+  status=$?
+  set -e
+  printf '%s\n' "$output"
+  if (( status != 0 )); then
+    exit "$status"
+  fi
+  if grep -q 'No matching test cases were run' <<<"$output"; then
+    printf 'No tests matched filter %s; refusing to treat this as success.\n' {{ quote(filter) }} >&2
+    exit 1
+  fi
+
 # Run fast, pure unit tests with zero AppKit, WindowServer, HAL, or disk-store dependencies.
-test-unit configuration="debug":
-  xcrun swift test --scratch-path {{ quote(swift_scratch_path) }} --jobs {{ quote(build_jobs) }} --configuration {{ quote(configuration) }} --filter "DomainTests|ControlTests|AppPresentationContractTests"
+test-unit configuration="debug": (_swift_test configuration "DomainTests|ControlTests|AppPresentationContractTests")
 
 # Run DI/I/O boundary, composition wiring, Swift-native ABI, and app-packaging contract tests.
-test-contract configuration="debug": test-build-app
-  xcrun swift test --scratch-path {{ quote(swift_scratch_path) }} --jobs {{ quote(build_jobs) }} --configuration {{ quote(configuration) }} --filter "PlatformTests|NativeContractTests|AppCompositionTests"
+test-contract configuration="debug": test-build-app (_swift_test configuration "PlatformTests|NativeContractTests|AppCompositionTests")
 
 # Run rendered AppKit/View tests in an isolated, serialized process.
-test-ui configuration="debug":
-  xcrun swift test --scratch-path {{ quote(swift_scratch_path) }} --jobs {{ quote(build_jobs) }} --configuration {{ quote(configuration) }} --no-parallel --filter "AppRenderedTests"
+test-ui configuration="debug": (_swift_test configuration "AppRenderedTests" "true")
 
 # Run offline DSP and public C ABI scenarios without audio devices.
 test-dsp configuration="debug":
