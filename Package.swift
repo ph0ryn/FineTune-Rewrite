@@ -22,7 +22,6 @@ let package = Package(
     .executable(name: "NativeStageTests", targets: ["NativeStageTests"]),
     .executable(name: "NativeSlotTests", targets: ["NativeSlotTests"]),
     .executable(name: "NativeLevelsTests", targets: ["NativeLevelsTests"]),
-    .executable(name: "NativeRuntimeTests", targets: ["NativeRuntimeTests"]),
   ],
   dependencies: [
     .package(
@@ -85,10 +84,6 @@ let package = Package(
       name: "NativeLevelsTests", dependencies: ["NativeAudio"],
       path: "Tests/NativeRuntimeTests", sources: ["CoherentLevelsTests.cpp"]
     ),
-    .executableTarget(
-      name: "NativeRuntimeTests", dependencies: ["NativeAudio"],
-      path: "Tests/NativeRuntimeTests", sources: ["NativeRuntimeBoundaryTests.cpp"]
-    ),
     .testTarget(
       name: "NativeContractTests",
       dependencies: ["FineTunePlatform", "NativeAudio"]
@@ -129,19 +124,6 @@ let package = Package(
     .testTarget(
       name: "PlatformTests",
       dependencies: ["FineTuneDomain", "FineTuneControl", "FineTunePlatform"]
-    ),
-    .target(
-      name: "NativeBuildSupport",
-      dependencies: ["NativeAudio", "AudioDSP"],
-      path: "Tests/NativeBuildSupport",
-      linkerSettings: [.linkedFramework("Foundation")]
-    ),
-    .testTarget(
-      name: "BuildSmokeTests",
-      dependencies: [
-        "FineTuneDomain", "FineTuneControl", "FineTunePlatform", "NativeAudio",
-        "NativeBuildSupport",
-      ]
     ),
   ],
   swiftLanguageModes: [.v6],

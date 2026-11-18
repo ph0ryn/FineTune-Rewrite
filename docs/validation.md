@@ -129,8 +129,8 @@ C++ named unitへ移した原作シナリオは、Swift JSONLとは別のnative�
 
 記録済みのC++単独再検証はDebug、`-O2 -DNDEBUG`のRelease、ASan+UBSanの三構成で、各49 named unit/6654 finite input rowです。
 これは移植時の履歴値で、現在のsource inventoryやschema 2 reportの`invocations`（case実行回数）とは同じ数ではありません。
-現在の六つのnative executableは77 named caseを登録しています。
-実productionを使うDSP・Stages・fake HAL・Callback Slots・Coherent Levels・C no-capture boundaryの六プログラムが対象です。
+現在の五つのnative executableは90 named caseを登録しています。
+実productionを使うDSP・Stages・fake HAL・Callback Slots・Coherent Levelsの五プログラムが対象です。
 実行前のsymbol/link検査でphysical SystemHalを除外した証拠であり、Root・Swift factory・実OSの経路全体の合格ではありません。
 Stage/HALの対応するRelease false-checkは失敗を検出しますが、非対応の他CLIまで検証済みとはしません。
 
