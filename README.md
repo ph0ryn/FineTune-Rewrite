@@ -182,7 +182,7 @@ log show --last 5m --style compact --predicate 'subsystem == "com.finetune-rewri
 これらは各ファイル全体を`GPL-3.0-only`とし、[製品側の正確な区分と固定元](<docs/compatibility.md#製品側の派生codeとdata>)を記録しています。
 これは新規行すべてを原作者のliteral copyと主張するものでも、他の独立MITファイルを再分類するものでもありません。
 
-[テストの由来](<Tests/UpstreamCompatibilityTests/README.md>)、[原作copyrightとGPL本文](<Tests/UpstreamCompatibilityTests/COPYING>)、
-[ファイル・シナリオ対応台帳](<Tests/UpstreamCompatibilityTests/migrationManifest.json>)を同梱します。
+原作のcopyright表示とGPL本文は、アプリにバンドルする[THIRD_PARTY_NOTICES.txt](<App/Resources/THIRD_PARTY_NOTICES.txt>)に一本化しています。
+テストの出典は各ファイルのSPDXヘッダと[互換方針](<docs/compatibility.md#ライセンス>)に記録します。
 GPL対象を含む製品binaryを配布する場合は、組合せ・対応するsource・通知やlicense提供等の条件も確認する必要があり、
 「GPLはテストだけなので製品には無関係」とは扱えません。現時点で配布適合性の法的保証や配布完了を主張しません。

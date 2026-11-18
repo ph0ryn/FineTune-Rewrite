@@ -54,7 +54,7 @@ let package = Package(
         .product(name: "KeyboardShortcuts", package: "KeyboardShortcuts"),
       ],
       path: "App",
-      resources: [.copy("Resources/ThirdPartyNotices.txt")]
+      resources: [.copy("Resources/THIRD_PARTY_NOTICES.txt")]
     ),
     .executableTarget(
       name: "AudioProbe",
@@ -94,7 +94,6 @@ let package = Package(
       dependencies: [
         "FineTune", .product(name: "KeyboardShortcuts", package: "KeyboardShortcuts"),
       ],
-      exclude: ["COPYING", "README.md", "migrationManifest.json"],
       resources: [.copy("Fixtures")],
       // Match the fixed upstream Xcode test target without changing test bodies.
       swiftSettings: [.unsafeFlags(["-default-isolation", "MainActor"])]

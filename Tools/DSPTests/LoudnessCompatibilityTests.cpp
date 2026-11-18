@@ -3,7 +3,7 @@
 // 2285279d36d3f8115c1c2d4aecd904f1bdf96a51.
 // Original: FineTuneTests/LoudnessEqualizerTests.swift, eleven pure numerical scenarios.
 // Adaptation: invoke the real C++ kernels directly; no legacy Swift/C test facade.
-// License text: Tests/UpstreamCompatibilityTests/COPYING.
+// License text: App/Resources/THIRD_PARTY_NOTICES.txt.
 #include "AudioDSP/Dynamics.hpp"
 #include "DSPCompatibilityTests.hpp"
 #include "DSPTestUnits.hpp"

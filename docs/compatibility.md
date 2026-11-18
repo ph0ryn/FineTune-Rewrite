@@ -8,7 +8,7 @@
 
 現在のテスト移植では、原作54ファイル・758宣言・静的966呼出しを元の保証の参照母数として扱います。
 最終test数・元本文の一致そのものではなく、保証シナリオから新しいunit/componentへの対応と独立reviewを出口にします。
-[対応台帳](<../Tests/UpstreamCompatibilityTests/migrationManifest.json>)と[確認手順](<test-migration.md>)で追跡します。
+[確認手順](<test-migration.md>)と各テストの出典ヘッダで追跡します。
 原作issue/PR由来の改良は、今回の移植へ追加しません。
 
 この固定版に対する移植時の独立review・実行監査は完了しました。以下は専用監査の削除前の記録で、現在の`just check`で監査を再実行するものではありません。
@@ -213,8 +213,8 @@ parserのunit、共通Control操作、App event/bundle登録は異なる保証�
 ## ライセンス
 
 原作由来のtest/fixtureと派生物はGNU GPL version 3です。
-[出自説明](<../Tests/UpstreamCompatibilityTests/README.md>)・[COPYING](<../Tests/UpstreamCompatibilityTests/COPYING>)・
-[元path/SHAと対応表](<../Tests/UpstreamCompatibilityTests/migrationManifest.json>)を保持します。
+原作のcopyright表示とGPL本文は、アプリにバンドルする[THIRD_PARTY_NOTICES.txt](<../App/Resources/THIRD_PARTY_NOTICES.txt>)に一本化しています。
+各テストの出典はファイル先頭のSPDXヘッダと[確認手順](<test-migration.md>)に記録します。
 独立した[MIT License](<../LICENSE>)部分を維持し、下記のwhole-file GPL区分と混同しません。
 GPL対象はテストやdataだけではなく派生codeも含むため、productionすべてをMIT-onlyとは表現しません。
 GPL対象を含む製品binaryの配布時は、組合せ・対応source・通知とlicense提供等の条件を別途確認します。

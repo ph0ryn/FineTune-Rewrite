@@ -4,7 +4,7 @@
 
 原作の意図された用途と、新設計の公開境界を検証します。
 元の保証を十分に確かめられるunitを優先し、テストの完全一致・件数維持・旧内部構造の復元は目的にしません。
-分割・統合・fixture置換は[対応台帳](<../Tests/UpstreamCompatibilityTests/migrationManifest.json>)と独立reviewで説明します。
+分割・統合・fixture置換は各テストの出典ヘッダと[互換方針](<compatibility.md>)に沿って、変更ごとのreviewで説明します。
 原作issue/PR由来の改良は今回の移植から分離します。
 
 **unitの成功、製品consumerの接続、実機動作、配布可能性は別の判定です。**
