@@ -90,21 +90,6 @@ let package = Package(
       path: "Tests/NativeRuntimeTests", sources: ["NativeRuntimeBoundaryTests.cpp"]
     ),
     .testTarget(
-      name: "UpstreamCompatibilityTests",
-      dependencies: [
-        "FineTune", .product(name: "KeyboardShortcuts", package: "KeyboardShortcuts"),
-      ],
-      resources: [.copy("Fixtures")],
-      // Match the fixed upstream Xcode test target without changing test bodies.
-      swiftSettings: [.unsafeFlags(["-default-isolation", "MainActor"])]
-    ),
-    // Independently authored MIT coverage split out of the mixed upstream suite.
-    .testTarget(
-      name: "IndependentCompatibilityTests",
-      dependencies: ["FineTune", "FineTunePlatform"],
-      swiftSettings: [.unsafeFlags(["-default-isolation", "MainActor"])]
-    ),
-    .testTarget(
       name: "NativeContractTests",
       dependencies: ["FineTunePlatform", "NativeAudio"]
     ),

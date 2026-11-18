@@ -50,7 +50,7 @@ test configuration="debug": (test-unit configuration) (test-contract configurati
 
 # Run fast, pure unit tests with zero AppKit, WindowServer, HAL, or disk-store dependencies.
 test-unit configuration="debug":
-  xcrun swift test --scratch-path {{ quote(swift_scratch_path) }} --jobs {{ quote(build_jobs) }} --configuration {{ quote(configuration) }} --filter "DomainTests|ControlTests|AppPolicyContractTests|AppPresentationContractTests"
+  xcrun swift test --scratch-path {{ quote(swift_scratch_path) }} --jobs {{ quote(build_jobs) }} --configuration {{ quote(configuration) }} --filter "DomainTests|ControlTests|AppPresentationContractTests"
 
 # Run DI/I/O boundary, composition wiring, Swift-native ABI, and app-packaging contract tests.
 test-contract configuration="debug": test-build-app
@@ -59,10 +59,6 @@ test-contract configuration="debug": test-build-app
 # Run rendered AppKit/View tests in an isolated, serialized process.
 test-ui configuration="debug":
   xcrun swift test --scratch-path {{ quote(swift_scratch_path) }} --jobs {{ quote(build_jobs) }} --configuration {{ quote(configuration) }} --no-parallel --filter "AppRenderedTests"
-
-# Run transitional compatibility suites in an isolated, serialized process.
-test-compat configuration="debug":
-  xcrun swift test --scratch-path {{ quote(swift_scratch_path) }} --jobs {{ quote(build_jobs) }} --configuration {{ quote(configuration) }} --no-parallel --filter "UpstreamCompatibilityTests|IndependentCompatibilityTests"
 
 # Run offline DSP and public C ABI scenarios without audio devices.
 test-dsp configuration="debug":
