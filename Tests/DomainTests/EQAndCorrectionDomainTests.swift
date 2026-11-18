@@ -33,9 +33,22 @@ struct EQAndCorrectionDomainTests {
 
   @Test("All EQPreset cases cover categories cleanly and produce valid 10-band settings")
   func presetCatalogIntegrity() {
+    // Catalog size is a compatibility contract: 20 presets across all categories.
+    #expect(EQPreset.allCases.count == 20)
+
     let grouped = EQPreset.Category.allCases.flatMap { EQPreset.presets(for: $0) }
     #expect(Set(grouped.map(\.id)) == Set(EQPreset.allCases.map(\.id)))
     #expect(grouped.count == EQPreset.allCases.count)
+
+    for category in EQPreset.Category.allCases {
+      let presets = EQPreset.presets(for: category)
+      #expect(!presets.isEmpty, "Category \(category.rawValue) has no presets")
+      for preset in presets {
+        #expect(
+          preset.category == category,
+          "Preset \(preset.rawValue) returned under category \(category.rawValue)")
+      }
+    }
 
     for preset in EQPreset.allCases {
       #expect(!preset.name.isEmpty)
