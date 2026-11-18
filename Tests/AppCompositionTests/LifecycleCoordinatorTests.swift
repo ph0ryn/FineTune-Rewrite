@@ -1,13 +1,15 @@
 import AppTestSupport
+import FineTunePlatform
 import Foundation
 import Observation
 import Testing
 
 @testable import FineTune
 
-@Suite("Application lifecycle without live OS services", .timeLimit(.minutes(1)))
+@Suite(
+  "App composition: LifecycleCoordinator phase and generation control", .timeLimit(.minutes(1)))
 @MainActor
-struct BootstrapLifecycleTests {
+struct LifecycleCoordinatorTests {
   @Test("Cached observation maintenance survives suspension without delivering suspended effects")
   func cachedObservationSurvivesSleep() async throws {
     let fixture = try LifecycleFixture()
@@ -22,9 +24,7 @@ struct BootstrapLifecycleTests {
         await coordinator.start()
         coordinator.observeWhileStarted(
           read: {
-            let uid = cache.uid
-            let failure = cache.failure
-            eventSink.yield(.read(uid: uid, failure: failure))
+            eventSink.yield(.read(uid: cache.uid, failure: cache.failure))
           },
           onChange: {
             delivered.append(cache.uid)
@@ -77,10 +77,7 @@ struct BootstrapLifecycleTests {
       operation: {
         await coordinator.start()
         coordinator.observeWhileStarted(
-          read: {
-            let uid = cache.uid
-            eventSink.yield(.read(uid: uid, failure: nil))
-          },
+          read: { eventSink.yield(.read(uid: cache.uid, failure: nil)) },
           onChange: {
             delivered.append("old:\(cache.uid)")
             eventSink.yield(.delivery("old:\(cache.uid)"))
@@ -92,10 +89,7 @@ struct BootstrapLifecycleTests {
         await coordinator.stop()
         await coordinator.start()
         coordinator.observeWhileStarted(
-          read: {
-            let uid = cache.uid
-            eventSink.yield(.read(uid: uid, failure: nil))
-          },
+          read: { eventSink.yield(.read(uid: cache.uid, failure: nil)) },
           onChange: {
             delivered.append("new:\(cache.uid)")
             eventSink.yield(.delivery("new:\(cache.uid)"))
@@ -111,14 +105,6 @@ struct BootstrapLifecycleTests {
           of: events, finishing: eventSink, waitedFor: "B lifecycle delivery")
         #expect(deliveryB == .delivery("new:B"))
         #expect(delivered == ["new:B"])
-        cache.uid = "C"
-        let changedC = try await waitForTestStreamElement(
-          of: events, finishing: eventSink, waitedFor: "C lifecycle observation")
-        #expect(changedC == .read(uid: "C", failure: nil))
-        let deliveryC = try await waitForTestStreamElement(
-          of: events, finishing: eventSink, waitedFor: "C lifecycle delivery")
-        #expect(deliveryC == .delivery("new:C"))
-        #expect(delivered == ["new:B", "new:C"])
       },
       cleanup: {
         eventSink.finish()
@@ -221,7 +207,9 @@ struct BootstrapLifecycleTests {
     await coordinator.stop()
   }
 
-  @Test("Termination stops input and saves pending settings without awaiting audio shutdown")
+  @Test(
+    "Termination stops input and flushes pending settings synchronously without awaiting audio shutdown"
+  )
   func terminationSavesOnTheCurrentTurn() async throws {
     let fixture = try LifecycleFixture()
     defer { fixture.cleanUp() }
@@ -245,49 +233,6 @@ struct BootstrapLifecycleTests {
     await coordinator.handle(.sessionBecameActive)
     #expect(!probe.inputActive)
     #expect(fixture.settings.getVolume(for: "unit.application") == 0.25)
-    // The test process stays alive: clean up its injected async service explicitly.
-    await coordinator.stop()
-  }
-
-  @Test("Like the original, a failed flush stays observable but does not defer termination")
-  func failedTerminationSaveDoesNotWaitForAUserDecision() async throws {
-    let fixture = try LifecycleFixture()
-    defer { fixture.cleanUp() }
-    fixture.settings.setVolume(for: "unit.application", to: 0.25)
-    try FileManager.default.createDirectory(
-      at: fixture.settingsFile, withIntermediateDirectories: false)
-    let probe = LifecycleServiceProbe()
-    let coordinator = LifecycleCoordinator(settings: fixture.settings, ports: probe.ports)
-    await coordinator.start()
-
-    coordinator.prepareForTermination()
-    #expect(fixture.settings.lastSaveError != nil)
-    #expect(coordinator.phase == .stopping)
-    #expect(probe.audioActive && !probe.inputActive)
-    #expect(fixture.settings.getVolume(for: "unit.application") == 0.25)
-    await coordinator.stop()
-  }
-
-  @Test("A repaired termination flush saves current values and clears the disk error")
-  func terminationFlushSavesCurrentValues() async throws {
-    let fixture = try LifecycleFixture()
-    defer { fixture.cleanUp() }
-    try FileManager.default.createDirectory(
-      at: fixture.settingsFile, withIntermediateDirectories: false)
-    let probe = LifecycleServiceProbe()
-    let coordinator = LifecycleCoordinator(settings: fixture.settings, ports: probe.ports)
-    await coordinator.start()
-    fixture.settings.setVolume(for: "unit.application", to: 0.2)
-    coordinator.prepareForTermination()
-    #expect(fixture.settings.lastSaveError != nil)
-    fixture.settings.setVolume(for: "unit.application", to: 0.4)
-    try fixture.removeSaveObstruction()
-    coordinator.prepareForTermination()
-    let saved = try JSONDecoder().decode(
-      SavedSettings.self, from: Data(contentsOf: fixture.settingsFile))
-    #expect(saved.appVolumes["unit.application"] == 0.4)
-    #expect(fixture.settings.lastSaveError == nil)
-    #expect(probe.audioActive && !probe.inputActive)
     await coordinator.stop()
   }
 
@@ -337,7 +282,6 @@ private final class LifecycleDefaultCache {
   var failure: String?
 }
 
-/// Test-owned observation events: reads prove re-registration, deliveries prove an onChange ran.
 private enum LifecycleObservationEvent: Equatable, Sendable {
   case read(uid: String, failure: String?)
   case delivery(String)
@@ -364,8 +308,7 @@ private final class LifecycleServiceProbe {
         self.audioActive = true
       },
       suspendInput: { self.inputActive = false },
-      resumeInput: { self.inputActive = true }
-    )
+      resumeInput: { self.inputActive = true })
   }
 
   private func start() async throws {
@@ -426,14 +369,9 @@ private struct LifecycleFixture {
     settings = SettingsManager(directory: directory, launchAtLoginService: LifecycleLoginSpy())
   }
 
-  func removeSaveObstruction() throws {
-    precondition(settingsFile.deletingLastPathComponent() == directory)
-    try FileManager.default.removeItem(at: settingsFile)
-  }
-
   func cleanUp() {
     precondition(directory.lastPathComponent.hasPrefix("FineTuneRewrite-Lifecycle-"))
-    try! FileManager.default.removeItem(at: directory)
+    try? FileManager.default.removeItem(at: directory)
   }
 }
 

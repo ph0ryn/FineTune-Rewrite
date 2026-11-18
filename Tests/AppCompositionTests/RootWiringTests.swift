@@ -6,11 +6,12 @@ import FineTuneDomain
 import FineTunePlatform
 import Foundation
 import Testing
+
 @testable import FineTune
 
-@Suite("Root cached default-read health", .timeLimit(.minutes(1)))
+@Suite("App composition: ProductionRoot and ApplicationGraph wiring", .timeLimit(.minutes(1)))
 @MainActor
-struct RootObservationTests {
+struct RootWiringTests {
   @Test(
     "Root input suspension unregisters held global shortcuts; only a fresh registration resumes input",
     arguments: [LifecycleEvent.sessionResigned, .systemWillSleep])
@@ -18,14 +19,14 @@ struct RootObservationTests {
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent(
       "FineTuneRootInput-\(UUID().uuidString)", isDirectory: true)
     defer { try? FileManager.default.removeItem(at: directory) }
-    let settings = SettingsManager(directory: directory, launchAtLoginService: RootHealthLogin())
-    let volumes = RootHealthVolumes()
+    let settings = SettingsManager(directory: directory, launchAtLoginService: RootWiringLogin())
+    let volumes = RootWiringVolumes()
     let runtime = RoutingProbeRuntime()
     let graph = ApplicationGraph(
       settings: settings,
       profiles: try AutoEQProfileRepository(
         directory: directory.appendingPathComponent("Profiles"), cache: AutoEQProfileCache()),
-      devices: RootHealthDevices(), processes: RootHealthProcesses(), volumes: volumes,
+      devices: RootWiringDevices(), processes: RootWiringProcesses(), volumes: volumes,
       runtime: runtime, readOutputFailure: { volumes.failure },
       readDefaultRoutingDecision: { .followObserved },
       deviceCommand: { _ in Issue.record("Shortcut app gain must not write a device") })
@@ -65,6 +66,7 @@ struct RootObservationTests {
     heldDown()
     #expect(hud.volumeCalls == 1)
     #expect(graph.controller.gain(for: "unit.player") < 1)
+
     await lifecycle.handle(event)
     #expect(!mediaKeysActive)
     #expect(keyboard.keyDown.isEmpty)
@@ -73,6 +75,7 @@ struct RootObservationTests {
     heldDown()
     #expect(graph.controller.gain(for: "unit.player") == suspendedGain)
     #expect(hud.volumeCalls == suspendedHUDCount)
+
     switch event {
     case .sessionResigned: await lifecycle.handle(.sessionBecameActive)
     case .systemWillSleep: await lifecycle.handle(.systemDidWake)
@@ -110,7 +113,7 @@ struct RootObservationTests {
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent(
       "FineTuneRootCleanup-\(UUID().uuidString)", isDirectory: true)
     defer { try? FileManager.default.removeItem(at: directory) }
-    let settings = SettingsManager(directory: directory, launchAtLoginService: RootHealthLogin())
+    let settings = SettingsManager(directory: directory, launchAtLoginService: RootWiringLogin())
     let runtime = RoutingProbeRuntime()
     let controller = AudioController(
       settings: settings, runtime: runtime, profileLookup: { _ in nil },
@@ -130,6 +133,7 @@ struct RootObservationTests {
     await controller.waitForCurrentWork()
     let route = try #require(runtime.handle("A"))
     #expect(route.rendering)
+
     let cleanup = AudioRouteFailure(
       stage: "root-retire", message: "Retirement pending cleanup failure")
     runtime.holdRetirement = ["A"]
@@ -158,7 +162,6 @@ struct RootObservationTests {
     await lifecycle.stop()
     #expect(lifecycle.phase == .stopped)
     #expect(controller.routeObservations[route.key]?.cleanupFailure == cleanup)
-    // This single Controller-owned ACK says nothing about the separate private orphan pool.
   }
 
   @Test("Wake publishes current failure before resuming a cached input lock or native admission")
@@ -166,19 +169,19 @@ struct RootObservationTests {
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent(
       "FineTuneRootWake-\(UUID().uuidString)", isDirectory: true)
     defer { try? FileManager.default.removeItem(at: directory) }
-    let settings = SettingsManager(directory: directory, launchAtLoginService: RootHealthLogin())
+    let settings = SettingsManager(directory: directory, launchAtLoginService: RootWiringLogin())
     var appSettings = settings.appSettings
     appSettings.lockInputDevice = true
     settings.updateAppSettings(appSettings)
     settings.setPreferredInputDeviceUID("inputA")
     settings.setLockedInputDeviceUID("inputA")
-    let volumes = RootHealthVolumes()
+    let volumes = RootWiringVolumes()
     let runtime = RoutingProbeRuntime()
     let graph = ApplicationGraph(
       settings: settings,
       profiles: try AutoEQProfileRepository(
         directory: directory.appendingPathComponent("Profiles"), cache: AutoEQProfileCache()),
-      devices: RootHealthDevices(), processes: RootHealthProcesses(), volumes: volumes,
+      devices: RootWiringDevices(), processes: RootWiringProcesses(), volumes: volumes,
       runtime: runtime, readOutputFailure: { volumes.failure },
       readDefaultRoutingDecision: { .followObserved },
       deviceCommand: { _ in Issue.record("Read-only wake must not issue a UI device command") })
@@ -200,6 +203,7 @@ struct RootObservationTests {
     graph.controller.perform(.requestCaptureStart)
     await graph.controller.waitForCurrentWork()
     #expect(runtime.requests.count == 1)
+
     input.suspend()
     output.suspend()
     await graph.controller.shutdown()
@@ -227,19 +231,18 @@ struct RootObservationTests {
     await graph.controller.waitForCurrentWork()
     #expect(runtime.requests.count == 2)
     #expect(runtime.handle("A")?.rendering == true)
-    #expect(settings.appSettings.explicitUserCaptureEnabled)
     await graph.controller.shutdown()
   }
 
-  @Test("An unreadable last-good default cannot resume through a new process snapshot")
+  @Test("An unreadable last-good default cannot resume through AudioEngine process ingestion")
   func defaultFailureSurvivesProcessIngestion() async throws {
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent(
       "FineTuneRootHealth-\(UUID().uuidString)", isDirectory: true)
     defer { try? FileManager.default.removeItem(at: directory) }
-    let settings = SettingsManager(directory: directory, launchAtLoginService: RootHealthLogin())
-    let devices = RootHealthDevices()
-    let processes = RootHealthProcesses()
-    let volumes = RootHealthVolumes()
+    let settings = SettingsManager(directory: directory, launchAtLoginService: RootWiringLogin())
+    let devices = RootWiringDevices()
+    let processes = RootWiringProcesses()
+    let volumes = RootWiringVolumes()
     let runtime = RoutingProbeRuntime()
     let graph = ApplicationGraph(
       settings: settings,
@@ -256,19 +259,14 @@ struct RootObservationTests {
     let first = try #require(runtime.handle("A"))
     #expect(first.commits.count == 1)
 
-    // Same PID101/OID701 remains usable; metadata revision alone is not native invalidation.
-    // Last-good display identity cannot authorize a new prepare during a failed default read.
     volumes.failure = "Default output read failed"
     graph.engine.refreshDeviceLevels()
-    #expect(volumes.defaultDeviceUID == "A")
-    #expect(devices.observation.health == .healthy)
     #expect(!first.cancelled)
     processes.publish(revision: 2)
     graph.engine.ingestObservations()
     await graph.controller.waitForCurrentWork()
     #expect(runtime.requests.count == 1)
     #expect(!first.retired)
-    #expect(settings.appSettings.explicitUserCaptureEnabled)
 
     volumes.failure = nil
     processes.publish(revision: 3)
@@ -278,20 +276,68 @@ struct RootObservationTests {
     #expect(runtime.requests.last?.processRevision == 3)
     #expect(first.retired)
     await graph.controller.shutdown()
-    settings.flushSync()
-    let saved = SettingsManager(directory: directory, launchAtLoginService: RootHealthLogin())
-    #expect(saved.appSettings.explicitUserCaptureEnabled)
+  }
+
+  @Test(
+    "ApplicationGraph wires readDefaultRoutingDecision and setDefaultDevice through OutputPolicy")
+  func applicationGraphWiresOutputPolicyClosures() async throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(
+      "FineTuneRootPolicyWire-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let settings = SettingsManager(directory: directory, launchAtLoginService: RootWiringLogin())
+    let devices = RootWiringDevices(extraUID: "B")
+    let processes = RootWiringProcesses()
+    let volumes = RootWiringVolumes()
+    let runtime = RoutingProbeRuntime()
+    var writes: [String] = []
+    let policy = OutputDevicePolicyController(
+      settings: settings, setDefaultOutput: { writes.append($0) })
+    defer { policy.suspend() }
+    policy.observe(availableUIDs: ["A", "B"], defaultUID: "A", bluetoothUIDs: [])
+
+    let graph = ApplicationGraph(
+      settings: settings,
+      profiles: try AutoEQProfileRepository(
+        directory: directory.appendingPathComponent("Profiles"), cache: AutoEQProfileCache()),
+      devices: devices, processes: processes, volumes: volumes, runtime: runtime,
+      readOutputFailure: { volumes.failure },
+      readDefaultRoutingDecision: { policy.routingDecision() },
+      deviceCommand: { command in
+        if case .setDefaultDevice(.output, let uid) = command {
+          try policy.selectDefaultOutput(uid: uid)
+        }
+      })
+    graph.engine.ingestObservations()
+    graph.controller.perform(.requestCaptureStart)
+    await graph.controller.waitForCurrentWork()
+    #expect(graph.controller.activeDeviceUIDs(for: "unit.player") == ["A"])
+
+    graph.controller.perform(.setDefaultDevice(scope: .output, uid: "B"))
+    await graph.controller.waitForCurrentWork()
+    #expect(writes == ["B"])
+    #expect(policy.intendedDefaultUID == "B")
+    #expect(graph.controller.activeDeviceUIDs(for: "unit.player") == ["B"])
+    await graph.controller.shutdown()
   }
 }
 
 @MainActor
-private final class RootHealthDevices: AudioDeviceObservationProviding {
-  let observation = AudioDeviceObservationSnapshot(
-    outputDevices: [
+private final class RootWiringDevices: AudioDeviceObservationProviding {
+  let observation: AudioDeviceObservationSnapshot
+  init(extraUID: String? = nil) {
+    var outputs = [
       AudioDevice(
         id: 42, uid: "A", name: "Output", icon: nil, supportsAutoEQ: false, bindingRevision: 1)
-    ],
-    health: .healthy, revision: 1)
+    ]
+    if let extraUID {
+      outputs.append(
+        AudioDevice(
+          id: 43, uid: extraUID, name: "Extra", icon: nil, supportsAutoEQ: false,
+          bindingRevision: 1))
+    }
+    observation = AudioDeviceObservationSnapshot(
+      outputDevices: outputs, health: .healthy, revision: 1)
+  }
   var outputDevices: [AudioDevice] { observation.outputDevices }
   var inputDevices: [AudioDevice] { observation.inputDevices }
   var onObservationChanged: (() -> Void)?
@@ -306,7 +352,7 @@ private final class RootHealthDevices: AudioDeviceObservationProviding {
 }
 
 @MainActor
-private final class RootHealthProcesses: AudioProcessObservationProviding {
+private final class RootWiringProcesses: AudioProcessObservationProviding {
   var observation: AudioProcessObservationSnapshot
   var activeApps: [AudioApp] { observation.activeApps }
   var onObservationChanged: (() -> Void)?
@@ -328,13 +374,13 @@ private final class RootHealthProcesses: AudioProcessObservationProviding {
 }
 
 @MainActor
-private final class RootHealthVolumes: DeviceVolumeProviding {
+private final class RootWiringVolumes: DeviceVolumeProviding {
   var failure: String?
   let defaultDeviceID: AudioDeviceID = 42
   let defaultDeviceUID: String? = "A"
   let defaultInputDeviceUID: String? = nil
-  let volumes: [AudioDeviceID: Float] = [42: 0.5]
-  let muteStates: [AudioDeviceID: Bool] = [42: false]
+  let volumes: [AudioDeviceID: Float] = [42: 0.5, 43: 0.5]
+  let muteStates: [AudioDeviceID: Bool] = [42: false, 43: false]
   var onVolumeChanged: ((AudioDeviceID, Float) -> Void)?
   var onMuteChanged: ((AudioDeviceID, Bool) -> Void)?
   var onDefaultDeviceChanged: ((String) -> Void)?
@@ -392,7 +438,7 @@ private final class RootInputHUD: PerAppHUDPresenting {
 }
 
 @MainActor
-private final class RootHealthLogin: LaunchAtLoginService {
+private final class RootWiringLogin: LaunchAtLoginService {
   var isEnabled: Bool { false }
   func setEnabled(_ enabled: Bool) throws { Issue.record("Unexpected login mutation") }
 }

@@ -1,10 +1,13 @@
 import AppTestSupport
 import FineTuneControl
 import FineTuneDomain
+import FineTunePlatform
+import Foundation
 import Testing
+
 @testable import FineTune
 
-@Suite("Main-executable capture metadata admission")
+@Suite("App composition: Capture metadata guard and settings capture transition")
 @MainActor
 struct CaptureUsageTests {
   private var request: AudioRouteRequest {
@@ -43,10 +46,84 @@ struct CaptureUsageTests {
     #expect(native.cleanupRetryRequests == 1 && native.requests.isEmpty && native.handles.isEmpty)
     let prepared = try await runtime.prepare(request)
     #expect(native.requests == [request])
-    // Keep this identity comparison out of #expect: the Swift 6.3.3 SILGen used by CI crashes on
-    // the reabstraction thunk that the macro's autoclosure produces for a class-bound existential.
     let isOwnedHandle = (prepared as AnyObject) === native.handle("A")
     #expect(isOwnedHandle)
     #expect(prepared.key == request.key)
   }
+
+  @Test(
+    "Settings live-audio binding drives capture intent and runtime start/stop through RootBindings")
+  func liveAudioBindingDrivesCaptureIntentTransition() async throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(
+      "FineTuneCaptureSettings-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let settings = SettingsManager(
+      directory: directory, launchAtLoginService: CaptureSettingsLoginService())
+    let runtime = RoutingProbeRuntime()
+    let controller = AudioController(
+      settings: settings, runtime: runtime, profileLookup: { _ in nil },
+      readDefaultRoutingDecision: { .followObserved })
+    let root = RootBindings(controller: controller, settings: settings)
+    let device = DeviceSettingsPresentation(
+      systemOutputUID: nil, systemOutputOptions: [], canSetSystemOutput: false,
+      followsDefault: true, alertVolume: nil, canSetAlertVolume: false, alertIsApplying: false,
+      alertVolumeSilenced: false, error: nil,
+      bluetooth: BluetoothPresentation(isPoweredOn: true, paired: [], error: nil))
+    let read = {
+      SettingsSnapshot(
+        settings: settings.appSettings, isAccessibilityTrusted: false, isMediaKeyOffline: false,
+        error: controller.lastFailure?.message, device: device)
+    }
+    let actions = SettingsActions(
+      updateSettings: root.updateSettings,
+      recordShortcut: { _, _ in Issue.record("Capture editing must not register shortcuts.") },
+      requestAccessibility: { Issue.record("Capture editing must not request Accessibility.") },
+      retryMediaKeys: { Issue.record("Capture editing must not start media keys.") },
+      resetAll: root.resetAllSettings,
+      device: DeviceSettingsActions(
+        setSystemOutput: { _ in Issue.record("Unexpected device call") },
+        setSystemFollowDefault: { Issue.record("Unexpected device call") },
+        setAlertVolume: { _ in Issue.record("Unexpected device call") },
+        refreshBluetooth: { Issue.record("Unexpected device call") },
+        connectBluetooth: { _ in Issue.record("Unexpected device call") }))
+    let binding = SettingsBindings(read: read, actions: actions)
+      .field(\AppSettings.explicitUserCaptureEnabled)
+
+    #expect(!binding.wrappedValue && runtime.requests.isEmpty && controller.captureIntent == .none)
+    controller.observeOutputs(
+      [
+        AudioOutputDescriptor(
+          uid: "capture-output", bindingRevision: 1, supportsAutoEQ: false, processingGain: 1,
+          volume: 1, isMuted: false)
+      ], defaultUID: "capture-output")
+    controller.observeApplications([
+      AudioApplicationDescriptor(
+        identifier: "unit.capture-settings", processID: 72, processRevision: 1,
+        displayName: "Capture Settings", bundleID: "unit.capture-settings")
+    ])
+    #expect(runtime.requests.isEmpty)
+
+    binding.wrappedValue = true
+    #expect(settings.appSettings.explicitUserCaptureEnabled && binding.wrappedValue)
+    guard case .userInitiated(let session) = controller.captureIntent else {
+      Issue.record("The same settings transition must establish capture intent.")
+      return
+    }
+    #expect(session != 0)
+    await controller.waitForCurrentWork()
+    let route = try #require(runtime.handle("capture-output"))
+    #expect(runtime.requests.count == 1 && route.commits.count == 1)
+
+    binding.wrappedValue = false
+    #expect(!settings.appSettings.explicitUserCaptureEnabled && !binding.wrappedValue)
+    #expect(controller.captureIntent == .none && route.cancelled)
+    await controller.shutdown()
+    #expect(route.retired && !route.rendering && runtime.requests.count == 1)
+  }
+}
+
+@MainActor
+private final class CaptureSettingsLoginService: LaunchAtLoginService {
+  var isEnabled = false
+  func setEnabled(_ enabled: Bool) throws { isEnabled = enabled }
 }

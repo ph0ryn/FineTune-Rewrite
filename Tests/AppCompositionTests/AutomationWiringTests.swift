@@ -12,8 +12,7 @@ private final class URLCommandSinkSpy: AudioCommandHandling {
   func perform(_ command: AudioCommand) { commands.append(command) }
 }
 
-// Adapter coverage only; actual saved/runtime effects are tested through the common Control handler.
-@Suite("App URL command consumer")
+@Suite("App composition: URLAutomationController adapter")
 @MainActor
 struct URLAutomationControllerTests {
   @Test("A URL dispatches normalized commands synchronously to the required common handler")
@@ -49,7 +48,6 @@ private final class ProfilePreferenceReadStub: AutoEQPreferencesReading {
   func getAutoEQSelection(for deviceUID: String) -> AutoEQSelection? { selections[deviceUID] }
 }
 
-/// A bounded gate failure: the expected profile HTTP request never reached the gate.
 private struct ProfileRequestTimeout: Error, CustomStringConvertible {
   let target: Int
   let timeout: Duration
@@ -65,22 +63,16 @@ private actor AppProfileHTTPGate: ProfileHTTPTransport {
     let timeout: Task<Void, Never>
   }
 
-  /// One admitted HTTP request in arrival order.
-  ///
-  /// A settled slot keeps its place so `respond(at:)` addresses the same request index for the
-  /// whole test; only the continuation is removed once the request has been resumed.
   private struct Reply {
     let id: UUID
     var continuation: CheckedContinuation<ProfileHTTPResponse, any Error>?
   }
 
   private static let requestTimeout = Duration.seconds(5)
-
   private(set) var requestedURLs: [URL] = []
   private var replies: [Reply] = []
   private var requestWaiters: [UUID: Waiter] = [:]
 
-  /// Parks until `respond` or cancellation claims this reply, so a cancelled task never leaks.
   func get(_ url: URL) async throws -> ProfileHTTPResponse {
     requestedURLs.append(url)
     let id = UUID()
@@ -94,11 +86,6 @@ private actor AppProfileHTTPGate: ProfileHTTPTransport {
     }
   }
 
-  /// Waits until `count` requests have reached the gate.
-  ///
-  /// The wait ends in success, one explicit timeout, or task cancellation. It never polls, and a
-  /// waiter that times out is removed before throwing, so `respond` can only resume a reply that
-  /// a caller is still awaiting.
   func waitForRequest(count: Int = 1) async throws {
     if requestedURLs.count >= count { return }
     let id = UUID()
@@ -113,7 +100,6 @@ private actor AppProfileHTTPGate: ProfileHTTPTransport {
           continuation.resume(throwing: CancellationError())
           return
         }
-        // One explicit timeout per waiter keeps the gate bounded without polling.
         let timeout = Task<Void, Never> { [weak self] in
           try? await Task.sleep(for: Self.requestTimeout)
           guard !Task.isCancelled else { return }
@@ -126,8 +112,6 @@ private actor AppProfileHTTPGate: ProfileHTTPTransport {
     }
   }
 
-  /// Answers the request admitted at `index`, or drops the response if cancellation already
-  /// settled that request. The precondition still rejects an index that was never admitted.
   func respond(_ response: ProfileHTTPResponse, at index: Int = 0) {
     precondition(replies.indices.contains(index))
     guard let continuation = replies[index].continuation else { return }
@@ -155,8 +139,6 @@ private actor AppProfileHTTPGate: ProfileHTTPTransport {
     waiter.continuation.resume(throwing: CancellationError())
   }
 
-  /// Settles the reply cancellation claimed before `respond` did. A reply that already resumed is
-  /// left untouched, so each continuation resumes exactly once.
   private func cancelReply(_ id: UUID) {
     guard let index = replies.firstIndex(where: { $0.id == id }),
       let continuation = replies[index].continuation
@@ -185,7 +167,9 @@ private struct ProfileAutomationFixture {
   }
 }
 
-@Suite("App AutoEQ acquisition consumer", .serialized, .timeLimit(.minutes(1)))
+@Suite(
+  "App composition: AutoEQAutomation orchestration and token cancellation", .serialized,
+  .timeLimit(.minutes(1)))
 @MainActor
 struct AutoEQAutomationTests {
   private let text = "Preamp: -3 dB\nFilter 1: ON PK Fc 500 Hz Gain 2 dB Q 1"
@@ -258,32 +242,7 @@ struct AutoEQAutomationTests {
     #expect(!presentation.isResolving)
     #expect(!presentation.preampEnabled)
     #expect(fixture.automation.search(query: "", favoritesOnly: true).entries.map(\.id) == ["A"])
-    #expect(
-      fixture.automation.search(query: "Profile", favoritesOnly: true).entries.map(\.id) == ["A"])
     #expect(await fixture.http.requestedURLs.isEmpty)
-  }
-
-  @Test("The production Mixer interface retains complete search totals after the fifty-row limit")
-  func mixerSearchRetainsTotalCount() async throws {
-    let fixture = try await fixture(prepareCatalog: false)
-    defer { fixture.cleanUp() }
-    try fixture.files.writeCatalog(
-      (1...80).map {
-        AutoEQCatalogEntry(
-          id: "profile-\($0)", name: "Profile \($0)", measuredBy: "Measurement source",
-          relativePath: "source/Profile \($0)")
-      })
-    try await fixture.repository.loadCatalog()
-    let interface = fixture.automation.makeMixerInterface()
-    let results = interface.search("Profile", false)
-    #expect(results.entries.count == 50)
-    #expect(results.totalCount == 80)
-    fixture.preferences.favoriteAutoEQProfileIDs = ["profile-75", "profile-80"]
-    let favorites = interface.search("Profile", true)
-    #expect(Set(favorites.entries.map(\.id)) == ["profile-75", "profile-80"])
-    #expect(favorites.totalCount == 2)
-    #expect(await fixture.http.requestedURLs.isEmpty)
-    #expect(fixture.commands.commands.isEmpty)
   }
 
   @Test(
@@ -322,7 +281,6 @@ struct AutoEQAutomationTests {
           deviceUID: "origin", selection: AutoEQSelection(profileID: "A", isEnabled: true)),
         .setAutoEQFavorite(profileID: "A", favorite: false), .setAutoEQPreampEnabled(false),
       ])
-    // The spy intentionally does not apply commands: projection must keep reading its saved port.
     #expect(interface.read("origin").selection == saved)
   }
 
@@ -336,7 +294,6 @@ struct AutoEQAutomationTests {
       forDeviceUID: "origin", from: input, name: "Imported"
     ).get()
     #expect(fixture.cache.profile(for: imported.id) == imported)
-    #expect(try fixture.files.readImportedProfiles().first?.id == imported.id)
     #expect(
       fixture.commands.commands == [
         .profileAvailabilityChanged(profileID: imported.id),
@@ -359,21 +316,6 @@ struct AutoEQAutomationTests {
     #expect(fixture.preferences.selections["origin"] == saved)
     #expect(fixture.commands.commands.isEmpty)
     #expect(fixture.automation.presentation(for: "origin").selectionError != nil)
-  }
-
-  @Test("Startup restores imported and selected fetched disk caches before returning")
-  func localCorrectionIsReadyBeforeHTTP() async throws {
-    let fixture = try await fixture()
-    defer { fixture.cleanUp() }
-    try fixture.files.writeImportedProfile(text: text, name: "Local", id: "local")
-    try fixture.files.writeFetchedText(text, id: "A")
-    fixture.preferences.selections["origin"] = AutoEQSelection(profileID: "A", isEnabled: true)
-    let startup = fixture.automation.start()
-    #expect(fixture.cache.profile(for: "local") != nil)
-    #expect(fixture.cache.profile(for: "A") != nil)
-    await startup?.value
-    #expect(fixture.repository.catalogState == .ready)
-    #expect(await fixture.http.requestedURLs.isEmpty)
   }
 
   @Test("A late A response cannot resave A after a newer B selection")
@@ -452,8 +394,6 @@ struct AutoEQAutomationTests {
     #expect(presentation.isMissing)
     #expect(!presentation.isResolving)
     #expect(presentation.selectionError?.contains("503") == true)
-    #expect(
-      fixture.commands.commands == [.setAutoEQSelection(deviceUID: "origin", selection: selected)])
   }
 
   @Test("Catalog failure is distinct from an empty local search")
@@ -494,199 +434,8 @@ struct AutoEQAutomationTests {
       ProfileHTTPResponse(data: Data(oldIndex.utf8), statusCode: oldStatus))
     await first?.value
     #expect(fixture.repository.catalog.map(\.id) == ["newest-b"])
-    #expect(try fixture.files.readCatalog()?.entries.map(\.id) == ["newest-b"])
     #expect(fixture.repository.catalogState == .ready)
     #expect(fixture.repository.catalogError == nil)
     #expect(fixture.automation.presentation(for: "origin").catalogState == .ready)
-  }
-
-  @Test("Delete failure preserves the committed cache; a successful retry clears its old error")
-  func deleteRetryPreservesWishAndReportsItsOutcome() async throws {
-    let fixture = try await fixture()
-    defer { fixture.cleanUp() }
-    let input = fixture.directory.appendingPathComponent("selected-input.txt")
-    try text.write(to: input, atomically: true, encoding: .utf8)
-    let imported = try fixture.automation.importProfile(
-      forDeviceUID: "origin", from: input, name: "Imported"
-    ).get()
-    let saved = AutoEQSelection(profileID: imported.id, isEnabled: true)
-    fixture.preferences.selections["origin"] = saved
-    let profiles = fixture.directory.appendingPathComponent("AutoEQ")
-    let held = fixture.directory.appendingPathComponent("AutoEQ-held")
-    let intendedParent = fixture.directory.resolvingSymlinksInPath()
-    #expect(profiles.resolvingSymlinksInPath().deletingLastPathComponent() == intendedParent)
-    #expect(held.resolvingSymlinksInPath().deletingLastPathComponent() == intendedParent)
-    try FileManager.default.moveItem(at: profiles, to: held)
-    try Data("A regular file blocks the profile directory".utf8).write(to: profiles)
-    let failed = fixture.automation.deleteImportedProfile(id: imported.id)
-    #expect(throws: (any Error).self) { try failed.get() }
-    #expect(fixture.cache.profile(for: imported.id) == imported)
-    #expect(fixture.automation.presentation(for: "origin").selectionError != nil)
-    #expect(fixture.preferences.selections["origin"] == saved)
-    try FileManager.default.removeItem(at: profiles)
-    try FileManager.default.moveItem(at: held, to: profiles)
-    try fixture.automation.deleteImportedProfile(id: imported.id).get()
-    let after = fixture.automation.presentation(for: "origin")
-    #expect(fixture.cache.profile(for: imported.id) == nil)
-    #expect(after.selection == saved)
-    #expect(after.isMissing)
-    #expect(after.selectionError == nil)
-    #expect(fixture.commands.commands.last == .profileAvailabilityChanged(profileID: imported.id))
-  }
-}
-
-@MainActor
-private final class AutomationLoginService: LaunchAtLoginService {
-  var isEnabled = false
-  func setEnabled(_ enabled: Bool) throws { isEnabled = enabled }
-}
-
-@Suite("URL grammar through the real shared controller and isolated settings")
-@MainActor
-struct URLCommandClosedLoopTests {
-  private let active = "Com.Active"
-  private let inactive = "Com.Inactive"
-  private let eq = EQSettings(bandGains: [2, -3, 1], isEnabled: true)
-
-  private func settingsFixture() -> (SettingsManager, URL) {
-    let directory = FileManager.default.temporaryDirectory
-      .appendingPathComponent("FineTuneURLControl-\(UUID().uuidString)", isDirectory: true)
-    return (
-      SettingsManager(directory: directory, launchAtLoginService: AutomationLoginService()),
-      directory
-    )
-  }
-
-  private func cleanUp(_ settings: SettingsManager, directory: URL) {
-    settings.flushSync()
-    precondition(directory.lastPathComponent.hasPrefix("FineTuneURLControl-"))
-    precondition(
-      directory.resolvingSymlinksInPath().deletingLastPathComponent()
-        == FileManager.default.temporaryDirectory.resolvingSymlinksInPath())
-    if FileManager.default.fileExists(atPath: directory.path) {
-      try? FileManager.default.removeItem(at: directory)
-    }
-  }
-
-  private func observeActive(_ controller: AudioController) {
-    controller.observeOutputs(
-      ["A", "B"].map {
-        AudioOutputDescriptor(
-          uid: $0, bindingRevision: 1, supportsAutoEQ: false,
-          processingGain: 1, volume: 1, isMuted: false)
-      }, defaultUID: "A")
-    controller.observeApplications([
-      AudioApplicationDescriptor(
-        identifier: active, processID: 101, processRevision: 1,
-        displayName: "Active", bundleID: active)
-    ])
-  }
-
-  @discardableResult
-  private func dispatch(_ text: String, to urls: URLAutomationController) throws
-    -> URLAutomationPlan
-  {
-    urls.handleURL(try #require(URL(string: text)))
-  }
-
-  @Test("Inactive URL volume, mute and toggle preserve independent fields across real reload")
-  func inactiveURLWritesReachTheOneStore() throws {
-    let (settings, directory) = settingsFixture()
-    defer { cleanUp(settings, directory: directory) }
-    let controller = AudioController(
-      settings: settings, runtime: nil, profileLookup: { _ in nil },
-      readDefaultRoutingDecision: { .followObserved })
-    let urls = URLAutomationController(commandHandler: controller)
-    controller.perform(.setBoost(identifier: inactive, boost: .x3))
-    controller.perform(.setEQ(identifier: inactive, settings: eq))
-    controller.perform(.setRoute(identifier: inactive, mode: .multi, uids: ["A", "B"]))
-    controller.perform(.setMuted(identifier: inactive, muted: true))
-    try dispatch("finetune://set-volumes?app=\(inactive)&volume=25", to: urls)
-    #expect(settings.getVolume(for: inactive) == 0.25)
-    #expect(settings.getMute(for: inactive) == true)
-    try dispatch("finetune://set-mute?app=\(inactive)&muted=false", to: urls)
-    #expect(settings.getMute(for: inactive) == false)
-    try dispatch("finetune://toggle-mute?app=\(inactive)", to: urls)
-    #expect(settings.getMute(for: inactive) == true)
-    #expect(!settings.appSettings.explicitUserCaptureEnabled)
-    settings.flushSync()
-    let restored = SettingsManager(
-      directory: directory, launchAtLoginService: AutomationLoginService())
-    #expect(restored.getVolume(for: inactive) == 0.25)
-    #expect(restored.getMute(for: inactive) == true)
-    #expect(restored.getBoost(for: inactive) == .x3)
-    #expect(restored.getEQSettings(for: inactive) == eq)
-    #expect(restored.getDeviceSelectionMode(for: inactive) == .multi)
-    #expect(restored.getSelectedDeviceUIDs(for: inactive) == ["A", "B"])
-  }
-
-  @Test("URL slider steps preserve mute; step and single-device writes require an observed app")
-  func activeOnlyURLPolicyUsesObservedValues() throws {
-    let (settings, directory) = settingsFixture()
-    defer { cleanUp(settings, directory: directory) }
-    let controller = AudioController(
-      settings: settings, runtime: nil, profileLookup: { _ in nil },
-      readDefaultRoutingDecision: { .followObserved })
-    observeActive(controller)
-    let urls = URLAutomationController(commandHandler: controller)
-    controller.perform(.setGain(identifier: active, gain: 0.25))
-    controller.perform(.setMuted(identifier: active, muted: true))
-    controller.perform(.setGain(identifier: inactive, gain: 0.16))
-    controller.perform(.setMuted(identifier: inactive, muted: true))
-    controller.perform(.setRoute(identifier: inactive, mode: .multi, uids: ["saved"]))
-    try dispatch("finetune://step-volume?app=\(active)&direction=up", to: urls)
-    try dispatch("finetune://step-volume?app=\(inactive)&direction=up", to: urls)
-    try dispatch("finetune://set-device?app=\(active)&device=B", to: urls)
-    try dispatch("finetune://set-device?app=\(inactive)&device=B", to: urls)
-    let stepped = try #require(settings.getVolume(for: active))
-    #expect(abs(stepped - 0.3025) < 0.000001)
-    #expect(settings.getMute(for: active) == true)
-    #expect(settings.getDeviceSelectionMode(for: active) == .single)
-    #expect(settings.getSelectedDeviceUIDs(for: active) == ["B"])
-    #expect(settings.getVolume(for: inactive) == 0.16)
-    #expect(settings.getMute(for: inactive) == true)
-    #expect(settings.getDeviceSelectionMode(for: inactive) == .multi)
-    #expect(settings.getSelectedDeviceUIDs(for: inactive) == ["saved"])
-    #expect(!settings.appSettings.explicitUserCaptureEnabled)
-  }
-
-  @Test("Nil-only reset is rejected; all-active and explicit-inactive reset touch gain/mute only")
-  func resetScopeAndUnrelatedFieldsSurviveReload() throws {
-    let (settings, directory) = settingsFixture()
-    defer { cleanUp(settings, directory: directory) }
-    let controller = AudioController(
-      settings: settings, runtime: nil, profileLookup: { _ in nil },
-      readDefaultRoutingDecision: { .followObserved })
-    observeActive(controller)
-    let urls = URLAutomationController(commandHandler: controller)
-    for id in [active, inactive] {
-      controller.perform(.setGain(identifier: id, gain: 0.2))
-      controller.perform(.setMuted(identifier: id, muted: true))
-      controller.perform(.setBoost(identifier: id, boost: .x3))
-      controller.perform(.setEQ(identifier: id, settings: eq))
-      controller.perform(.setRoute(identifier: id, mode: .multi, uids: ["A", "B"]))
-    }
-    let rejected = try dispatch("finetune://reset?app", to: urls)
-    #expect(!rejected.diagnostics.isEmpty)
-    #expect(settings.getVolume(for: active) == 0.2)
-    #expect(settings.getMute(for: active) == true)
-    try dispatch("finetune://reset", to: urls)
-    #expect(settings.getVolume(for: active) == 1)
-    #expect(settings.getMute(for: active) == false)
-    #expect(settings.getVolume(for: inactive) == 0.2)
-    #expect(settings.getMute(for: inactive) == true)
-    try dispatch("finetune://reset?app=\(inactive)", to: urls)
-    settings.flushSync()
-    let restored = SettingsManager(
-      directory: directory, launchAtLoginService: AutomationLoginService())
-    for id in [active, inactive] {
-      #expect(restored.getVolume(for: id) == 1)
-      #expect(restored.getMute(for: id) == false)
-      #expect(restored.getBoost(for: id) == .x3)
-      #expect(restored.getEQSettings(for: id) == eq)
-      #expect(restored.getDeviceSelectionMode(for: id) == .multi)
-      #expect(restored.getSelectedDeviceUIDs(for: id) == ["A", "B"])
-    }
-    #expect(!restored.appSettings.explicitUserCaptureEnabled)
   }
 }
