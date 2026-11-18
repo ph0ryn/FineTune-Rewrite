@@ -129,7 +129,7 @@ struct DeviceBackendTests {
 
   @Test("Alert writes debounce to the latest rounded percent and confirm the observed readback")
   func alertDebounceAndReadback() async throws {
-    let clock = DeviceBackendTestClock()
+    let clock = ManualTestClock()
     let scripts = BackendScriptSpy(percent: 20)
     let backend = AlertVolumeBackend(
       scriptRunner: scripts, clock: DeviceBackendClock { try await clock.sleep(for: $0) })
@@ -163,7 +163,7 @@ struct DeviceBackendTests {
 
   @Test("Alert command success without matching readback is not reported as applied")
   func alertUnconfirmedWrite() async throws {
-    let clock = DeviceBackendTestClock()
+    let clock = ManualTestClock()
     let scripts = BackendScriptSpy(percent: 20, ignoreWrites: true)
     let backend = AlertVolumeBackend(
       scriptRunner: scripts, clock: DeviceBackendClock { try await clock.sleep(for: $0) })
@@ -190,7 +190,7 @@ struct DeviceBackendTests {
 
   @Test("Stopping an alert request cancels its pending write without executing a script")
   func alertStopAndValidation() async throws {
-    let clock = DeviceBackendTestClock()
+    let clock = ManualTestClock()
     let scripts = BackendScriptSpy(percent: 20)
     let backend = AlertVolumeBackend(
       scriptRunner: scripts, clock: DeviceBackendClock { try await clock.sleep(for: $0) })
@@ -235,7 +235,7 @@ struct DeviceBackendTests {
 
   private func cleanUpAlertRequests(
     backend: AlertVolumeBackend,
-    clock: DeviceBackendTestClock,
+    clock: ManualTestClock,
     requests: [Task<Void, any Error>]
   ) async {
     backend.stop()
@@ -369,116 +369,5 @@ private actor BackendScriptSpy: DeviceScriptRunning {
     if writeStatus != 0 { return DeviceScriptResult(status: writeStatus, output: "Script denied.") }
     if !ignoreWrites { percent = requested }
     return DeviceScriptResult(status: 0, output: "")
-  }
-}
-
-// Test-only monotonic clock shared by the device backend suites. Sleepers that become ready
-// together resume in registration order so coalescing outcomes are deterministic.
-actor DeviceBackendTestClock {
-  private struct Sleeper {
-    let deadline: Duration
-    let sequence: Int
-    let continuation: CheckedContinuation<Void, any Error>
-  }
-  private struct SleepCountWaiter {
-    let target: Int
-    let continuation: CheckedContinuation<Void, any Error>
-    let timeout: Task<Void, Never>
-  }
-  private var now = Duration.zero
-  private var sleepers: [UUID: Sleeper] = [:]
-  private var sleepCountWaiters: [UUID: SleepCountWaiter] = [:]
-  private var nextSequence = 0
-  private var sleepCount = 0
-
-  func sleep(for duration: Duration) async throws {
-    try Task.checkCancellation()
-    let id = UUID()
-    try await withTaskCancellationHandler {
-      try await withCheckedThrowingContinuation {
-        (continuation: CheckedContinuation<Void, any Error>) in
-        guard !Task.isCancelled else {
-          continuation.resume(throwing: CancellationError())
-          return
-        }
-        sleepers[id] = Sleeper(
-          deadline: now + duration, sequence: nextSequence, continuation: continuation)
-        nextSequence += 1
-        sleepCount += 1
-        resumeSatisfiedSleepCountWaiters()
-      }
-    } onCancel: {
-      Task { await self.cancel(id) }
-    }
-  }
-
-  func waitForSleepCount(_ count: Int) async throws {
-    try Task.checkCancellation()
-    guard sleepCount < count else { return }
-    let id = UUID()
-    try await withTaskCancellationHandler {
-      try await withCheckedThrowingContinuation {
-        (continuation: CheckedContinuation<Void, any Error>) in
-        guard sleepCount < count else {
-          continuation.resume()
-          return
-        }
-        guard !Task.isCancelled else {
-          continuation.resume(throwing: CancellationError())
-          return
-        }
-        // One explicit timeout per waiter keeps the gate bounded without polling.
-        let timeout = Task<Void, Never> { [weak self] in
-          try? await Task.sleep(for: .seconds(5))
-          guard !Task.isCancelled else { return }
-          await self?.timeoutSleepCountWaiter(id)
-        }
-        sleepCountWaiters[id] = SleepCountWaiter(
-          target: count, continuation: continuation, timeout: timeout)
-      }
-    } onCancel: {
-      Task { await self.cancelSleepCountWaiter(id) }
-    }
-  }
-
-  func cancelAllSleeps() {
-    let pending = Array(sleepers.values)
-    sleepers.removeAll()
-    for sleeper in pending { sleeper.continuation.resume(throwing: CancellationError()) }
-  }
-
-  func advance(by duration: Duration) {
-    now += duration
-    let ready = sleepers.filter { $0.value.deadline <= now }.sorted {
-      ($0.value.deadline, $0.value.sequence) < ($1.value.deadline, $1.value.sequence)
-    }
-    for (id, sleeper) in ready {
-      sleepers.removeValue(forKey: id)
-      sleeper.continuation.resume()
-    }
-  }
-
-  private func resumeSatisfiedSleepCountWaiters() {
-    for id in sleepCountWaiters.filter({ sleepCount >= $0.value.target }).keys {
-      guard let waiter = sleepCountWaiters.removeValue(forKey: id) else { continue }
-      waiter.timeout.cancel()
-      waiter.continuation.resume()
-    }
-  }
-
-  private func timeoutSleepCountWaiter(_ id: UUID) {
-    guard let waiter = sleepCountWaiters.removeValue(forKey: id) else { return }
-    waiter.continuation.resume(
-      throwing: TestWaitTimeout(waitedFor: "\(waiter.target) injected clock sleeps"))
-  }
-
-  private func cancelSleepCountWaiter(_ id: UUID) {
-    guard let waiter = sleepCountWaiters.removeValue(forKey: id) else { return }
-    waiter.timeout.cancel()
-    waiter.continuation.resume(throwing: CancellationError())
-  }
-
-  private func cancel(_ id: UUID) {
-    sleepers.removeValue(forKey: id)?.continuation.resume(throwing: CancellationError())
   }
 }

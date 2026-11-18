@@ -8,9 +8,9 @@ permissions:
   contents: read
 
 jobs:
-  check:
+  lint-and-packaging:
     runs-on: macos-26
-    timeout-minutes: 20
+    timeout-minutes: 10
     defaults:
       run:
         shell: bash
@@ -37,12 +37,131 @@ jobs:
           brew install just llvm@21
           llvm_prefix="$(brew --prefix llvm@21)"
           printf 'CLANG_FORMAT=%s/bin/clang-format\n' "$llvm_prefix" >> "$GITHUB_ENV"
-      - name: Check
+      - name: Lint and verify build script contract
         run: |
           just --version
           just toolchain
-          just check
-      # This disposable runner may register its built bundle; the local default gate never does.
+          just lint
+          just test-build-app
+
+  swift-tests:
+    runs-on: macos-26
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        configuration: [debug, release]
+    defaults:
+      run:
+        shell: bash
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Verify CI toolchain
+        run: |
+          test "$(xcodebuild -version)" = $'Xcode 26.6\nBuild version 17F113'
+          test "$(uname -m)" = arm64
+          test "$(xcrun --sdk macosx --show-sdk-version)" = 26.5
+          printf 'SDKROOT=%s\n' "$(xcrun --sdk macosx --show-sdk-path)" >> "$GITHUB_ENV"
+      - name: Install just
+        run: brew install just
+      - name: Cache SwiftPM checkouts
+        uses: actions/cache@v4
+        with:
+          path: |
+            .build/checkouts
+            ~/Library/Caches/org.swift.swiftpm
+          key: ${{ runner.os }}-swiftpm-${{ hashFiles('Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-swiftpm-
+      - name: Run unit tests (${{ matrix.configuration }})
+        run: just test-unit ${{ matrix.configuration }}
+      - name: Run contract tests (${{ matrix.configuration }})
+        run: just test-contract ${{ matrix.configuration }}
+
+  dsp-and-native:
+    runs-on: macos-26
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        configuration: [debug, release]
+    defaults:
+      run:
+        shell: bash
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Verify CI toolchain
+        run: |
+          test "$(xcodebuild -version)" = $'Xcode 26.6\nBuild version 17F113'
+          test "$(uname -m)" = arm64
+          test "$(xcrun --sdk macosx --show-sdk-version)" = 26.5
+          printf 'SDKROOT=%s\n' "$(xcrun --sdk macosx --show-sdk-path)" >> "$GITHUB_ENV"
+      - name: Install just
+        run: brew install just
+      - name: Run DSP tests (${{ matrix.configuration }})
+        run: just test-dsp ${{ matrix.configuration }}
+      - name: Run native boundary tests (${{ matrix.configuration }})
+        run: just test-native ${{ matrix.configuration }}
+      - name: Run C++ sanitizers (ASan + UBSan)
+        if: matrix.configuration == 'debug'
+        run: just test-native-sanitizers
+
+  ui-rendered:
+    runs-on: macos-26
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Verify CI toolchain
+        run: |
+          test "$(xcodebuild -version)" = $'Xcode 26.6\nBuild version 17F113'
+          test "$(uname -m)" = arm64
+          test "$(xcrun --sdk macosx --show-sdk-version)" = 26.5
+          printf 'SDKROOT=%s\n' "$(xcrun --sdk macosx --show-sdk-path)" >> "$GITHUB_ENV"
+      - name: Install just
+        run: brew install just
+      - name: Run isolated rendered UI tests
+        run: just test-ui debug
+
+  # This disposable runner may register its built bundle; the local default gate never does.
+  app-bundle:
+    runs-on: macos-26
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Verify CI toolchain
+        run: |
+          test "$(xcodebuild -version)" = $'Xcode 26.6\nBuild version 17F113'
+          test "$(uname -m)" = arm64
+          test "$(xcrun --sdk macosx --show-sdk-version)" = 26.5
+          printf 'SDKROOT=%s\n' "$(xcrun --sdk macosx --show-sdk-path)" >> "$GITHUB_ENV"
+      - name: Install just
+        run: brew install just
       - name: Build unsigned app bundles on ephemeral runner
         run: |
           just build-app debug

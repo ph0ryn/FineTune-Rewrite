@@ -8,8 +8,8 @@ native_patterns := "'*.h' '*.hpp' '*.cpp' '*.mm'"
 clang_format := env("CLANG_FORMAT", "clang-format")
 clang_format_version := "21.1.8"
 
-# Check formatting, non-launching app packaging, and unit/component/DSP/native tests.
-check: _clear-reports lint test-build-app (build "debug") (test "debug") (test-dsp "debug") (test-native "debug") (build "release") (test "release") (test-dsp "release") (test-native "release")
+# Check formatting, packaging contracts, Swift unit/contract tests, DSP, and native boundaries.
+check configuration="debug": lint (test-unit configuration) (test-contract configuration) (test-dsp configuration) (test-native configuration)
 
 # Show the selected Xcode, Swift, Clang, macOS SDK, and native formatter.
 toolchain:
@@ -45,28 +45,45 @@ format-native: _check-clang-format
 build configuration="debug":
   xcrun swift build --scratch-path {{ quote(swift_scratch_path) }} --jobs {{ quote(build_jobs) }} --configuration {{ quote(configuration) }}
 
-# Clear stale events, then record unit/component test results.
-test configuration="debug":
-  mkdir -p {{ quote(swift_scratch_path) }}
-  : > {{ quote(swift_scratch_path + "/test-results-" + configuration + ".xml") }}
-  : > {{ quote(swift_scratch_path + "/test-results-" + configuration + "-swift-testing.xml") }}
-  : > {{ quote(swift_scratch_path + "/test-events-" + configuration + ".jsonl") }}
-  xcrun swift test --scratch-path {{ quote(swift_scratch_path) }} --jobs {{ quote(build_jobs) }} --configuration {{ quote(configuration) }} --xunit-output {{ quote(swift_scratch_path + "/test-results-" + configuration + ".xml") }} --event-stream-output-path {{ quote(swift_scratch_path + "/test-events-" + configuration + ".jsonl") }} --event-stream-version 0
+# Run isolated Swift test suites in order (unit, contract, then serialized UI).
+test configuration="debug": (test-unit configuration) (test-contract configuration) (test-ui configuration)
 
-# Run native DSP and public C ABI scenarios without audio devices.
+# Run fast, pure unit tests with zero AppKit, WindowServer, HAL, or disk-store dependencies.
+test-unit configuration="debug":
+  xcrun swift test --scratch-path {{ quote(swift_scratch_path) }} --jobs {{ quote(build_jobs) }} --configuration {{ quote(configuration) }} --filter "DomainTests|ControlTests|AppPolicyContractTests|AppPresentationContractTests"
+
+# Run DI/I/O boundary, composition wiring, Swift-native ABI, and app-packaging contract tests.
+test-contract configuration="debug": test-build-app
+  xcrun swift test --scratch-path {{ quote(swift_scratch_path) }} --jobs {{ quote(build_jobs) }} --configuration {{ quote(configuration) }} --filter "PlatformTests|NativeContractTests|AppCompositionTests"
+
+# Run rendered AppKit/View tests in an isolated, serialized process.
+test-ui configuration="debug":
+  xcrun swift test --scratch-path {{ quote(swift_scratch_path) }} --jobs {{ quote(build_jobs) }} --configuration {{ quote(configuration) }} --no-parallel --filter "AppRenderedTests"
+
+# Run transitional compatibility suites in an isolated, serialized process.
+test-compat configuration="debug":
+  xcrun swift test --scratch-path {{ quote(swift_scratch_path) }} --jobs {{ quote(build_jobs) }} --configuration {{ quote(configuration) }} --no-parallel --filter "UpstreamCompatibilityTests|IndependentCompatibilityTests"
+
+# Run offline DSP and public C ABI scenarios without audio devices.
 test-dsp configuration="debug":
-  mkdir -p {{ quote(swift_scratch_path) }}
-  printf '{"schema_version":2,"complete":false,"cases":[]}\n' > {{ quote(swift_scratch_path + "/test-dsp-results-" + configuration + ".json") }}
-  xcrun swift run --scratch-path {{ quote(swift_scratch_path) }} --jobs {{ quote(build_jobs) }} --configuration {{ quote(configuration) }} DSPTests --report {{ quote(swift_scratch_path + "/test-dsp-results-" + configuration + ".json") }}
+  xcrun swift run --scratch-path {{ quote(swift_scratch_path) }} --jobs {{ quote(build_jobs) }} --configuration {{ quote(configuration) }} DSPTests
 
-# Run named native ownership/levels and fake-HAL C boundary units, without physical audio.
-test-native configuration="debug": (_clear-native-reports configuration) (test-native-hal configuration)
-  xcrun swift run --scratch-path {{ quote(swift_scratch_path) }} --jobs {{ quote(build_jobs) }} --configuration {{ quote(configuration) }} NativeStageTests --report {{ quote(swift_scratch_path + "/test-native-stage-results-" + configuration + ".json") }}
-  xcrun swift run --scratch-path {{ quote(swift_scratch_path) }} --jobs {{ quote(build_jobs) }} --configuration {{ quote(configuration) }} NativeSlotTests --report {{ quote(swift_scratch_path + "/test-native-slot-results-" + configuration + ".json") }}
-  xcrun swift run --scratch-path {{ quote(swift_scratch_path) }} --jobs {{ quote(build_jobs) }} --configuration {{ quote(configuration) }} NativeLevelsTests --report {{ quote(swift_scratch_path + "/test-native-levels-results-" + configuration + ".json") }}
-  xcrun swift run --scratch-path {{ quote(swift_scratch_path) }} --jobs {{ quote(build_jobs) }} --configuration {{ quote(configuration) }} NativeRuntimeTests --report {{ quote(swift_scratch_path + "/test-native-runtime-results-" + configuration + ".json") }}
+# Run native stage/slot/levels ownership tests and fake-HAL C boundary tests.
+test-native configuration="debug": (test-native-hal configuration)
+  #!/usr/bin/env bash
+  set -euo pipefail
+  scratch={{ quote(swift_scratch_path) }}
+  config={{ quote(configuration) }}
+  jobs={{ quote(build_jobs) }}
+  for product in NativeStageTests NativeSlotTests NativeLevelsTests; do
+    xcrun swift build --scratch-path "$scratch" --jobs "$jobs" --configuration "$config" --product "$product"
+  done
+  bin_dir="$(xcrun swift build --scratch-path "$scratch" --configuration "$config" --show-bin-path)"
+  "$bin_dir/NativeStageTests"
+  "$bin_dir/NativeSlotTests"
+  "$bin_dir/NativeLevelsTests"
 
-# Compile the real native C boundary with only the external HAL provider replaced.
+# Compile and run the real native C boundary with only the external HAL provider replaced.
 test-native-hal configuration="debug":
   #!/usr/bin/env bash
   set -euo pipefail
@@ -78,9 +95,7 @@ test-native-hal configuration="debug":
   esac
   scratch={{ quote(swift_scratch_path) }}
   directory="$scratch/native-hal-$configuration"
-  report="$scratch/test-native-hal-results-$configuration.json"
   mkdir -p "$directory"
-  printf '{"schema_version":2,"complete":false,"cases":[]}\n' > "$report"
   executable="$directory/NativeHALContractTests"
   # Do not link NativeAudio: its real SystemHal provider must be unreachable here.
   xcrun clang++ -std=c++20 -Wall -Wextra -Werror -fno-exceptions -fno-rtti \
@@ -91,10 +106,9 @@ test-native-hal configuration="debug":
     Sources/AudioDSP/Dynamics/SoftLimiter.cpp Sources/AudioDSP/Graph/Pipeline.cpp \
     Sources/NativeAudio/BiquadBridge.cpp Sources/NativeAudio/DynamicsBridge.cpp \
     Sources/NativeAudio/PipelineBridge.cpp Sources/NativeAudio/Runtime/NativeRuntime.cpp \
-    Tests/NativeHALContractTests/main.cpp "-Wl,-map,$directory/link-map.txt" \
-    -framework CoreFoundation -o "$executable" 2>&1 | tee "$directory/build.log"
+    Tests/NativeHALContractTests/*.cpp "-Wl,-map,$directory/link-map.txt" \
+    -framework CoreFoundation -o "$executable"
   symbols="$(xcrun nm -u "$executable")"
-  printf '%s\n' "$symbols" > "$directory/undefined-symbols.log"
   if [[ "$symbols" =~ _Audio(Device|Hardware|Object) ]]; then
     printf 'The fake-HAL executable references a real stateful CoreAudio API; refusing to run.\n' >&2
     exit 1
@@ -104,33 +118,53 @@ test-native-hal configuration="debug":
     printf 'The real HAL provider was linked into the fake-only unit executable; refusing to run.\n' >&2
     exit 1
   fi
-  "$executable" --report "$report" 2>&1 | tee "$directory/run.log"
+  "$executable"
 
-# Replace every configuration report with a complete:false skeleton before any build/run.
-_clear-reports:
+# Run all C++ DSP and native boundary suites under ASan and UBSan without physical audio.
+test-native-sanitizers:
   #!/usr/bin/env bash
   set -euo pipefail
-  scratch={{ quote(swift_scratch_path) }}
-  mkdir -p "$scratch"
-  for configuration in debug release; do
-    : > "$scratch/test-results-$configuration.xml"
-    : > "$scratch/test-results-$configuration-swift-testing.xml"
-    : > "$scratch/test-events-$configuration.jsonl"
-    for target in dsp native-stage native-slot native-levels native-runtime native-hal; do
-      printf '{"schema_version":2,"complete":false,"cases":[]}\n' > "$scratch/test-$target-results-$configuration.json"
-    done
-  done
-
-# Replace the native reports with complete:false skeletons before the native runners start.
-_clear-native-reports configuration="debug":
-  #!/usr/bin/env bash
-  set -euo pipefail
-  scratch={{ quote(swift_scratch_path) }}
-  configuration={{ quote(configuration) }}
-  mkdir -p "$scratch"
-  for target in native-stage native-slot native-levels native-runtime native-hal; do
-    printf '{"schema_version":2,"complete":false,"cases":[]}\n' > "$scratch/test-$target-results-$configuration.json"
-  done
+  directory={{ quote(swift_scratch_path) }}/native-sanitizers
+  mkdir -p "$directory"
+  common_flags=(
+    -std=c++20 -Wall -Wextra -Werror -fno-exceptions -fno-rtti
+    -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer
+    -mmacosx-version-min=15.4 -I Sources/AudioDSP/include -I Sources/NativeAudio/include
+  )
+  dsp_sources=(
+    Sources/AudioDSP/AudioDSP.cpp
+    Sources/AudioDSP/Filters/Biquad.cpp Sources/AudioDSP/Filters/AutoEQ.cpp
+    Sources/AudioDSP/Dynamics/Loudness.cpp Sources/AudioDSP/Dynamics/ISO226.cpp
+    Sources/AudioDSP/Dynamics/SoftLimiter.cpp Sources/AudioDSP/Graph/Pipeline.cpp
+    Sources/NativeAudio/BiquadBridge.cpp Sources/NativeAudio/DynamicsBridge.cpp
+    Sources/NativeAudio/PipelineBridge.cpp
+  )
+  xcrun clang++ "${common_flags[@]}" "${dsp_sources[@]}" \
+    Tools/DSPTests/main.cpp Tools/DSPTests/LoudnessCompatibilityTests.cpp \
+    -o "$directory/DSPTests"
+  xcrun clang++ "${common_flags[@]}" "${dsp_sources[@]}" \
+    Tests/NativeStageTests/main.cpp -o "$directory/NativeStageTests"
+  xcrun clang++ "${common_flags[@]}" \
+    Tests/NativeRuntimeTests/CallbackSlotsTests.cpp -o "$directory/NativeSlotTests"
+  xcrun clang++ "${common_flags[@]}" \
+    Tests/NativeRuntimeTests/CoherentLevelsTests.cpp -o "$directory/NativeLevelsTests"
+  xcrun clang++ "${common_flags[@]}" "${dsp_sources[@]}" \
+    Sources/NativeAudio/Runtime/NativeRuntime.cpp Tests/NativeHALContractTests/*.cpp \
+    "-Wl,-map,$directory/hal-link-map.txt" -framework CoreFoundation \
+    -o "$directory/NativeHALContractTests"
+  if [[ "$(xcrun nm -u "$directory/NativeHALContractTests")" =~ _Audio(Device|Hardware|Object) ]]; then
+    printf 'The fake-HAL sanitizer executable references a real CoreAudio API; refusing to run.\n' >&2
+    exit 1
+  fi
+  if [[ "$(< "$directory/hal-link-map.txt")" == *SystemHal* ]]; then
+    printf 'The real HAL provider was linked into the fake-only sanitizer executable; refusing to run.\n' >&2
+    exit 1
+  fi
+  "$directory/DSPTests"
+  "$directory/NativeStageTests"
+  "$directory/NativeSlotTests"
+  "$directory/NativeLevelsTests"
+  "$directory/NativeHALContractTests"
 
 # Verify the public app-build artifact contract without building or launching the product app.
 test-build-app:

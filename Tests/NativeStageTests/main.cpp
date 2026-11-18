@@ -319,11 +319,22 @@ std::array<Result, 5> results{{
 }};
 } // namespace
 int main(int argc, char **argv) {
-    const bool inject = argc == 4 && std::strcmp(argv[3], "--inject-check-failure") == 0;
-    if ((argc != 3 && !inject) || std::strcmp(argv[1], "--report") != 0)
-        return 2;
+    const char *reportPath = nullptr;
+    bool inject = false;
+    for (int i = 1; i < argc; ++i) {
+        if (std::strcmp(argv[i], "--inject-check-failure") == 0) {
+            inject = true;
+        } else if (std::strcmp(argv[i], "--report") == 0 && i + 1 < argc &&
+                   argv[i + 1][0] != '\0') {
+            reportPath = argv[++i];
+        } else {
+            std::fputs("Usage: NativeStageTests [--report path.json] [--inject-check-failure]\n",
+                       stderr);
+            return 2;
+        }
+    }
     finetune::test::NativeTestReport report;
-    if (!report.begin(argv[2]))
+    if (reportPath && !report.begin(reportPath))
         return 2;
     std::array<finetune::test::NativeTestResult, results.size()> reported{};
     for (std::size_t i = 0; i < results.size(); ++i) {

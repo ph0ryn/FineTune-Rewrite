@@ -338,11 +338,3 @@ struct FakeHAL {
 };
 inline FakeHAL hal;
 } // namespace native_hal_fixture
-
-// Test executable supplies the external OS provider. SystemHal.mm is never linked.
-namespace finetune::runtime {
-const HalAPI &systemHalAPI() noexcept {
-    static const HalAPI api = native_hal_fixture::hal.api();
-    return api;
-}
-} // namespace finetune::runtime

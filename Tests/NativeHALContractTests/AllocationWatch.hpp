@@ -17,29 +17,3 @@ inline void deletion(void *p) noexcept {
         ++deletions;
 }
 } // namespace callback_observation
-void *operator new(std::size_t size) {
-    callback_observation::allocation();
-    if (void *p = std::malloc(size ? size : 1))
-        return p;
-    std::abort();
-}
-void *operator new[](std::size_t size) { return ::operator new(size); }
-void operator delete(void *p) noexcept {
-    callback_observation::deletion(p);
-    std::free(p);
-}
-void operator delete[](void *p) noexcept { ::operator delete(p); }
-void operator delete(void *p, std::size_t) noexcept { ::operator delete(p); }
-void operator delete[](void *p, std::size_t) noexcept { ::operator delete(p); }
-void *operator new(std::size_t size, std::align_val_t alignment) {
-    callback_observation::allocation();
-    void *p = nullptr;
-    if (posix_memalign(&p, static_cast<std::size_t>(alignment), size ? size : 1) != 0)
-        std::abort();
-    return p;
-}
-void *operator new[](std::size_t size, std::align_val_t a) { return ::operator new(size, a); }
-void operator delete(void *p, std::align_val_t) noexcept { ::operator delete(p); }
-void operator delete[](void *p, std::align_val_t) noexcept { ::operator delete(p); }
-void operator delete(void *p, std::size_t, std::align_val_t) noexcept { ::operator delete(p); }
-void operator delete[](void *p, std::size_t, std::align_val_t) noexcept { ::operator delete(p); }

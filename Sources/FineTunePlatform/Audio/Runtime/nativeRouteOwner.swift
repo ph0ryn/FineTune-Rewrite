@@ -49,17 +49,37 @@ final class NativeRouteOwner: @unchecked Sendable {
 /// Native admission bounds the total to 256. This timer only rechecks a pending predicate;
 /// failures are retained and reported, not retried in a tight or automatic failure loop.
 final class NativeRetirementPool: @unchecked Sendable {
+  typealias MonitorScheduler =
+    @Sendable (
+      _ queue: DispatchQueue, _ onTick: @escaping @Sendable () -> Void
+    ) -> @Sendable () -> Void
+
+  private static let timerScheduler: MonitorScheduler = { queue, onTick in
+    let source = DispatchSource.makeTimerSource(queue: queue)
+    source.schedule(deadline: .now(), repeating: .milliseconds(20))
+    source.setEventHandler(handler: onTick)
+    source.resume()
+    return { source.cancel() }
+  }
+
   static let shared = NativeRetirementPool()
   private let lane = DispatchQueue(label: "FineTune.NativeAudio.Retirement")
   private var entries: [ObjectIdentifier: Entry] = [:]
-  private var timer: DispatchSourceTimer?
+  private var cancelMonitor: (@Sendable () -> Void)?
   private let retireAndRelease: @Sendable (NativeRoutePointer) -> NativeRouteResult
+  private let scheduleMonitor: MonitorScheduler
 
   init(
     retireAndRelease: @escaping @Sendable (NativeRoutePointer) -> NativeRouteResult =
-      retireNativeOwner
+      retireNativeOwner,
+    scheduleMonitor: @escaping MonitorScheduler = timerScheduler
   ) {
     self.retireAndRelease = retireAndRelease
+    self.scheduleMonitor = scheduleMonitor
+  }
+
+  deinit {
+    cancelMonitor?()
   }
 
   private struct RetryWaiter {
@@ -133,12 +153,8 @@ final class NativeRetirementPool: @unchecked Sendable {
   }
 
   private func beginMonitoring() {
-    guard timer == nil else { return }
-    let source = DispatchSource.makeTimerSource(queue: lane)
-    source.schedule(deadline: .now(), repeating: .milliseconds(20))
-    source.setEventHandler { [weak self] in self?.service() }
-    timer = source
-    source.resume()
+    guard cancelMonitor == nil else { return }
+    cancelMonitor = scheduleMonitor(lane) { [weak self] in self?.service() }
   }
 
   private func service() {
@@ -157,8 +173,8 @@ final class NativeRetirementPool: @unchecked Sendable {
           }
           finishRetries()
           if !entries.values.contains(where: { !$0.failed }) {
-            timer?.cancel()
-            timer = nil
+            cancelMonitor?()
+            cancelMonitor = nil
           }
         }
       }

@@ -1,64 +1,60 @@
+import Foundation
 import Testing
 
-/// A bounded wait that failed because the expected state never arrived.
+/// Bounded wait failure when an expected test event or task completion does not arrive in time.
 struct TestWaitTimeout: Error, CustomStringConvertible, Sendable {
   let waitedFor: String
   var description: String { "Timed out waiting for \(waitedFor)" }
 }
 
-/// A bounded wait for an owned task that missed its deadline.
-struct TestTaskWaitTimeout: Error, CustomStringConvertible, Sendable {
-  let waitedFor: String
-  /// Whether the task finished after the deadline path cancelled and released it.
-  let finishedAfterRelease: Bool
-
-  var description: String {
-    let drained = finishedAfterRelease ? "finished" : "is still pending"
-    return "Timed out waiting for \(waitedFor); the task \(drained) after release"
-  }
-}
-
-private struct TestWaitStreamFinished: Error, CustomStringConvertible, Sendable {
-  let waitedFor: String
-  var description: String { "Event stream ended while waiting for \(waitedFor)" }
-}
-
-/// Waits for the first matching stream value, one deadline, then drains the cancelled loser.
-func waitForStreamValue<Element: Sendable>(
-  in stream: AsyncStream<Element>,
-  finishing continuation: AsyncStream<Element>.Continuation,
+/// Runs an async operation under a single bounded timeout, cancelling the loser before returning.
+func withTimeout<T: Sendable>(
+  _ timeout: Duration = .seconds(5),
   waitedFor: String,
-  timeout: Duration = .seconds(5),
-  matches: @escaping @Sendable (Element) -> Bool
-) async throws -> Element {
+  operation: @Sendable @escaping () async throws -> T
+) async throws -> T {
   try Task.checkCancellation()
-  return try await withTaskCancellationHandler {
-    try await withThrowingTaskGroup(of: Element.self) { group in
-      group.addTask {
-        var iterator = stream.makeAsyncIterator()
-        while let element = await iterator.next() {
-          if matches(element) { return element }
-        }
-        throw TestWaitStreamFinished(waitedFor: waitedFor)
-      }
-      group.addTask {
-        try await Task.sleep(for: timeout)
-        throw TestWaitTimeout(waitedFor: waitedFor)
-      }
-      let first = await group.nextResult()
-      if case .failure? = first { continuation.finish() }
-      group.cancelAll()
-      while await group.nextResult() != nil {}
-      try Task.checkCancellation()
-      guard let first else { throw TestWaitStreamFinished(waitedFor: waitedFor) }
-      return try first.get()
+  return try await withThrowingTaskGroup(of: T.self) { group in
+    group.addTask { try await operation() }
+    group.addTask {
+      try await Task.sleep(for: timeout)
+      throw TestWaitTimeout(waitedFor: waitedFor)
     }
-  } onCancel: {
-    continuation.finish()
+    let first = try await group.next()!
+    group.cancelAll()
+    return first
   }
 }
 
-/// Runs async test work and awaits cleanup only when the test body throws or is cancelled.
+/// Runs a MainActor operation under one bounded timeout, invoking `onTimeout` to unblock owned
+/// work if the deadline expires before `withThrowingTaskGroup` drains.
+@MainActor
+func withMainActorTimeout<T: Sendable>(
+  _ timeout: Duration = .seconds(5),
+  waitedFor: String,
+  onTimeout: (@MainActor () async -> Void)? = nil,
+  operation: @MainActor @Sendable @escaping () async throws -> T
+) async throws -> T {
+  try Task.checkCancellation()
+  return try await withThrowingTaskGroup(of: T.self) { group in
+    group.addTask { try await operation() }
+    group.addTask {
+      try await Task.sleep(for: timeout)
+      throw TestWaitTimeout(waitedFor: waitedFor)
+    }
+    do {
+      let first = try await group.next()!
+      group.cancelAll()
+      return first
+    } catch {
+      group.cancelAll()
+      await onTimeout?()
+      throw error
+    }
+  }
+}
+
+/// Runs MainActor test work and runs `cleanup` only if the operation throws or is cancelled.
 @MainActor
 func withFailureCleanup<Value>(
   operation: @MainActor () async throws -> Value,
@@ -72,87 +68,156 @@ func withFailureCleanup<Value>(
   }
 }
 
-/// Awaits an owned non-throwing task with one cooperative deadline.
-///
-/// Awaiting `Task.value` is not cancellable, so the wait is driven by a completion event instead:
-/// the watcher is deliberately unstructured and is never joined by the deadline path. On timeout or
-/// caller cancellation this cancels the task, runs `release` to resume any clock or continuation it
-/// is parked on, and drains completion under a second deadline before throwing. A task that finishes
-/// only because of that release is still reported as a missed deadline; it never silently passes.
-///
-/// `release` must itself be a finite release action (cancel a clock, resume a test gate) and must
-/// not await the owned task; anything it waits on is outside `releaseTimeout` and can reintroduce
-/// the unbounded wait this helper exists to avoid. If the post-release drain misses its deadline,
-/// the task and its unstructured watcher can outlive this wait, so the diagnostic says the task is
-/// still pending rather than claiming everything was drained.
+/// Observes a property mutation triggered by `trigger` under one bounded timeout.
 @MainActor
-func waitForOwnedTask(
-  _ task: Task<Void, Never>,
+func awaitObservationChange(
   waitedFor: String,
   timeout: Duration = .seconds(5),
-  releaseTimeout: Duration = .seconds(1),
-  releasing release: @MainActor () async -> Void = {}
+  observing: () -> Void,
+  trigger: () async throws -> Void
 ) async throws {
-  let (completions, completionEvents) = AsyncStream<Void>.makeStream()
-  let (drains, drainEvents) = AsyncStream<Void>.makeStream()
-  // Intentionally unstructured and nonisolated: `Task.value` cannot be cancelled, so joining it
-  // would reintroduce the unbounded wait; completion must not queue behind main-actor work.
-  _ = Task.detached(priority: Task.currentPriority) {
-    await task.value
-    completionEvents.yield()
-    completionEvents.finish()
-    drainEvents.yield()
-    drainEvents.finish()
+  let changed = CountSignal()
+  withObservationTracking {
+    observing()
+  } onChange: {
+    changed.emit()
   }
-  do {
-    _ = try await waitForStreamValue(
-      in: completions, finishing: completionEvents, waitedFor: waitedFor, timeout: timeout,
-      matches: { _ in true })
-  } catch {
-    let cancelled = error is CancellationError || Task.isCancelled
-    task.cancel()
-    await release()
-    // A cancelled caller cannot enter `waitForStreamValue` again (it checks cancellation first), so
-    // the drain runs unstructured with its own deadline: bounded, and not skipped on cancellation.
-    let finishedAfterRelease = await Task { @MainActor in
-      do {
-        _ = try await waitForStreamValue(
-          in: drains, finishing: drainEvents, waitedFor: "the release of \(waitedFor)",
-          timeout: releaseTimeout, matches: { _ in true })
-        return true
-      } catch {
-        return false
+  try await trigger()
+  try await changed.wait(forCount: 1, waitedFor: waitedFor, timeout: timeout)
+}
+
+/// Thread-safe cumulative event counter with bounded async waiting.
+/// Synchronous `emit()` works from both actors and DispatchQueue callbacks.
+final class CountSignal: @unchecked Sendable {
+  private struct Waiter {
+    let target: Int
+    let continuation: CheckedContinuation<Void, any Error>
+    var timeout: Task<Void, Never>?
+  }
+
+  private let lock = NSLock()
+  private var count = 0
+  private var waiters: [UUID: Waiter] = [:]
+
+  func emit() {
+    lock.lock()
+    count += 1
+    let ready = waiters.filter { $0.value.target <= count }
+    for id in ready.keys { waiters.removeValue(forKey: id) }
+    for waiter in ready.values { waiter.timeout?.cancel() }
+    lock.unlock()
+    for waiter in ready.values { waiter.continuation.resume() }
+  }
+
+  func wait(
+    forCount target: Int = 1,
+    waitedFor: String,
+    timeout: Duration = .seconds(5)
+  ) async throws {
+    try Task.checkCancellation()
+    let id = UUID()
+    try await withTaskCancellationHandler {
+      try await withCheckedThrowingContinuation {
+        (continuation: CheckedContinuation<Void, any Error>) in
+        lock.lock()
+        if count >= target {
+          lock.unlock()
+          continuation.resume()
+          return
+        }
+        waiters[id] = Waiter(target: target, continuation: continuation, timeout: nil)
+        waiters[id]?.timeout = Task { [weak self] in
+          do { try await Task.sleep(for: timeout) } catch { return }
+          self?.finish(id, with: TestWaitTimeout(waitedFor: waitedFor))
+        }
+        if Task.isCancelled {
+          waiters.removeValue(forKey: id)?.timeout?.cancel()
+          lock.unlock()
+          continuation.resume(throwing: CancellationError())
+          return
+        }
+        lock.unlock()
       }
-    }.value
-    if cancelled {
-      if !finishedAfterRelease {
-        // Cancellation must not hide a target that missed its release deadline: report it before
-        // preserving the caller's cancellation semantics.
-        Issue.record(
-          "Timed out waiting for \(waitedFor); the owned task is still pending after release"
-        )
-      }
-      throw CancellationError()
+    } onCancel: {
+      finish(id, with: CancellationError())
     }
-    if error is TestWaitTimeout {
-      throw TestTaskWaitTimeout(
-        waitedFor: waitedFor, finishedAfterRelease: finishedAfterRelease)
-    }
-    throw error
+  }
+
+  func cancelAll() {
+    lock.lock()
+    let pending = Array(waiters.values)
+    waiters.removeAll()
+    for waiter in pending { waiter.timeout?.cancel() }
+    lock.unlock()
+    for waiter in pending { waiter.continuation.resume(throwing: CancellationError()) }
+  }
+
+  private func finish(_ id: UUID, with error: any Error) {
+    lock.lock()
+    let waiter = waiters.removeValue(forKey: id)
+    waiter?.timeout?.cancel()
+    lock.unlock()
+    waiter?.continuation.resume(throwing: error)
   }
 }
 
-/// Drains owned tasks whose clocks, continuations and cancellation were already released.
-///
-/// Failure cleanup must report a still-pending task instead of parking the suite, so each drain has
-/// its own deadline and records a test issue rather than awaiting `Task.value` without a bound.
-@MainActor
-func drainOwnedTasks(_ tasks: [Task<Void, Never>], waitedFor: String) async {
-  for task in tasks {
-    do {
-      try await waitForOwnedTask(task, waitedFor: waitedFor, timeout: .seconds(1))
-    } catch {
-      Issue.record("\(error)")
+/// Deterministic virtual clock shared by platform backend and persistence suites.
+/// Sleepers ready at the same deadline resume in registration order.
+actor ManualTestClock {
+  private struct Sleeper {
+    let deadline: Duration
+    let sequence: Int
+    let continuation: CheckedContinuation<Void, any Error>
+  }
+
+  private var now = Duration.zero
+  private var sleepers: [UUID: Sleeper] = [:]
+  private var nextSequence = 0
+  private let sleepSignal = CountSignal()
+
+  func sleep(for duration: Duration) async throws {
+    try Task.checkCancellation()
+    let id = UUID()
+    try await withTaskCancellationHandler {
+      try await withCheckedThrowingContinuation {
+        (continuation: CheckedContinuation<Void, any Error>) in
+        guard !Task.isCancelled else {
+          continuation.resume(throwing: CancellationError())
+          return
+        }
+        sleepers[id] = Sleeper(
+          deadline: now + duration, sequence: nextSequence, continuation: continuation)
+        nextSequence += 1
+        sleepSignal.emit()
+      }
+    } onCancel: {
+      Task { await self.cancelSleeper(id) }
     }
+  }
+
+  func waitForSleepCount(_ count: Int, timeout: Duration = .seconds(5)) async throws {
+    try await sleepSignal.wait(
+      forCount: count, waitedFor: "\(count) injected clock sleep(s)", timeout: timeout)
+  }
+
+  func advance(by duration: Duration) {
+    now += duration
+    let ready = sleepers.filter { $0.value.deadline <= now }.sorted {
+      ($0.value.deadline, $0.value.sequence) < ($1.value.deadline, $1.value.sequence)
+    }
+    for (id, sleeper) in ready {
+      sleepers.removeValue(forKey: id)
+      sleeper.continuation.resume()
+    }
+  }
+
+  func cancelAllSleeps() {
+    let pending = Array(sleepers.values)
+    sleepers.removeAll()
+    for sleeper in pending { sleeper.continuation.resume(throwing: CancellationError()) }
+  }
+
+  private func cancelSleeper(_ id: UUID) {
+    sleepers.removeValue(forKey: id)?.continuation.resume(throwing: CancellationError())
   }
 }

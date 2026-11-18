@@ -133,7 +133,7 @@ struct PersistenceTests {
   /// Injects the manual clock as the debounce wait and records the interval the manager requests,
   /// so a sleeper that ignores the requested delay cannot make the assertion pass.
   private func debouncedManager(
-    directory: URL, clock: DeviceBackendTestClock, recorder: DebounceRequestRecorder
+    directory: URL, clock: ManualTestClock, recorder: DebounceRequestRecorder
   ) -> SettingsManager {
     SettingsManager(
       directory: directory, launchAtLoginService: LoginSpy(),
@@ -145,21 +145,21 @@ struct PersistenceTests {
 
   private func cleanUpDebouncedSave(
     manager: SettingsManager,
-    clock: DeviceBackendTestClock,
+    clock: ManualTestClock,
     additionalTasks: [Task<Void, Never>] = []
   ) async {
     var tasks = additionalTasks
     if let currentSave = manager.saveTask { tasks.append(currentSave) }
     for task in tasks { task.cancel() }
     await clock.cancelAllSleeps()
-    await drainOwnedTasks(tasks, waitedFor: "settings failure cleanup")
+    for task in tasks { await task.value }
   }
 
   @Test("Debounced changes persist the latest snapshot rather than the first scheduled value")
   func debounceReadback() async throws {
     let directory = try temporaryDirectory()
     defer { try? FileManager.default.removeItem(at: directory) }
-    let clock = DeviceBackendTestClock()
+    let clock = ManualTestClock()
     let recorder = DebounceRequestRecorder()
     let manager = debouncedManager(directory: directory, clock: clock, recorder: recorder)
     var supersededSaveForCleanup: Task<Void, Never>?
@@ -185,15 +185,15 @@ struct PersistenceTests {
         let pendingWrite = try #require(manager.saveTask)
         replacementSaveForCleanup = pendingWrite
         await clock.advance(by: .milliseconds(500))
-        // Awaiting the exact scheduled task proves the resumed debounce's write finished, bounded
-        // so a missed shortfall fails with a release instead of parking the suite.
-        try await waitForOwnedTask(
-          pendingWrite, waitedFor: "the replacement settings write",
-          releasing: { await clock.cancelAllSleeps() })
+        try await withMainActorTimeout(
+          waitedFor: "the replacement settings write",
+          onTimeout: { await clock.cancelAllSleeps() },
+          operation: { await pendingWrite.value })
         if let supersededSave {
-          try await waitForOwnedTask(
-            supersededSave, waitedFor: "the superseded settings write",
-            releasing: { await clock.cancelAllSleeps() })
+          try await withMainActorTimeout(
+            waitedFor: "the superseded settings write",
+            onTimeout: { await clock.cancelAllSleeps() },
+            operation: { await supersededSave.value })
         }
         #expect(manager.lastSaveError == nil)
         let loaded = SettingsManager(directory: directory, launchAtLoginService: LoginSpy())
@@ -281,7 +281,7 @@ struct PersistenceTests {
       withIntermediateDirectories: true)
 
     let explicit = SettingsManager(directory: directory, launchAtLoginService: LoginSpy())
-    let clock = DeviceBackendTestClock()
+    let clock = ManualTestClock()
     let recorder = DebounceRequestRecorder()
     let debounced = debouncedManager(directory: directory, clock: clock, recorder: recorder)
     var explicitSaveForCleanup: Task<Void, Never>?
@@ -308,11 +308,10 @@ struct PersistenceTests {
         let pendingSave = try #require(debounced.saveTask)
         pendingSaveForCleanup = pendingSave
         await clock.advance(by: .milliseconds(500))
-        // Awaiting the exact scheduled task proves the load-failure guard and error report finished,
-        // bounded so a missed shortfall fails with a release instead of parking the suite.
-        try await waitForOwnedTask(
-          pendingSave, waitedFor: "the debounced settings write",
-          releasing: { await clock.cancelAllSleeps() })
+        try await withMainActorTimeout(
+          waitedFor: "the debounced settings write",
+          onTimeout: { await clock.cancelAllSleeps() },
+          operation: { await pendingSave.value })
         #expect(debounced.lastSaveError != nil)
         #expect(try Data(contentsOf: file) == original)
       },
