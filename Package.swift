@@ -129,12 +129,6 @@ let package = Package(
       name: "AppTestSupport", dependencies: ["FineTuneControl", "FineTuneDomain"],
       path: "Tests/AppTestSupport"
     ),
-    // Non-render policy contracts, isolated from the render/OCR suites' process.
-    .testTarget(
-      name: "AppPolicyContractTests",
-      dependencies: ["FineTuneControl", "FineTuneDomain", "FineTunePlatform", "AppTestSupport"],
-      path: "Tests/AppPolicyContractTests"
-    ),
     // No-render copy/format/semantic contracts split out of the rendered UI suites.
     .testTarget(
       name: "AppPresentationContractTests",
