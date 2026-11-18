@@ -29,6 +29,7 @@ struct MixerPopupSemantics {
   var ignoredBadge: String?
   var ignoredEmptyHint: String?
   var captureNotice: CaptureNotice?
+  var globalError: String?
 
   @MainActor
   init(snapshot: MixerSnapshot, bindings: MixerBindings, editing: Bool = false) {
@@ -53,6 +54,7 @@ struct MixerPopupSemantics {
       }
       return CaptureNotice(message: notice.message, actionLabel: actionLabel)
     }
+    globalError = snapshot.error
   }
 }
 
@@ -197,7 +199,7 @@ struct MixerView: View {
         }
         .controlSize(.small).foregroundStyle(.orange)
       }
-      if let error = snapshot.error {
+      if let error = semantics.globalError {
         Label(error, systemImage: "exclamationmark.triangle.fill")
           .font(DesignTokens.Typography.rowDescription).foregroundStyle(.orange)
       }
@@ -502,36 +504,51 @@ struct MixerView: View {
   }
 
   private func perform(_ effect: MixerKeyboardEffect) {
+    MixerKeyboardRouter.perform(
+      effect, scope: &scope, expandedAppID: &expandedAppID, bindings: bindings)
+  }
+}
+
+/// Pure dispatcher for keyboard effects emitted by `MixerKeyboardState`.
+@MainActor
+enum MixerKeyboardRouter {
+  static func perform(
+    _ effect: MixerKeyboardEffect,
+    scope: inout MixerDeviceScope,
+    expandedAppID: inout String?,
+    bindings: MixerBindings
+  ) {
     switch effect {
     case .none: break
-    case .close: actions.close()
+    case .close: bindings.actions.close()
     case .switchDeviceTab: scope = scope == .output ? .input : .output
     case .adjust(let row, let isUp, let shift):
       switch row {
-      case .app(let id): actions.app.stepVolume(id, isUp, shift)
-      case .device(let uid): actions.device.stepVolume(scope, uid, isUp, shift)
+      case .app(let id): bindings.actions.app.stepVolume(id, isUp, shift)
+      case .device(let uid): bindings.actions.device.stepVolume(scope, uid, isUp, shift)
       }
     case .activate(let row):
       switch row {
-      case .device(let uid): actions.device.setDefault(scope, uid)
+      case .device(let uid): bindings.actions.device.setDefault(scope, uid)
       case .app(let id): expandedAppID = expandedAppID == id ? nil : id
       }
     case .toggleMute(let row):
       switch row {
       case .app(let id):
         if let app = bindings.visibleApps(editing: false).first(where: { $0.id == id }) {
-          actions.app.setMute(id, !app.isMuted)
+          bindings.actions.app.setMute(id, !app.isMuted)
         }
       case .device(let uid): bindings.toggleDeviceMute(scope: scope, uid: uid)
       }
     case .setPercentage(let row, let percentage):
       let fraction = Double(percentage) / 100
       switch row {
-      case .app(let id): actions.app.setVolume(id, VolumeMapping.sliderToGain(fraction))
+      case .app(let id): bindings.actions.app.setVolume(id, VolumeMapping.sliderToGain(fraction))
       case .device(let uid):
-        if let device = bindings.devices(scope: scope, editing: false).first(where: { $0.id == uid }
-        ) {
-          actions.device.setVolume(
+        if let device = bindings.devices(scope: scope, editing: false).first(where: {
+          $0.id == uid
+        }) {
+          bindings.actions.device.setVolume(
             scope, uid, DeviceRow.sliderToVolume(fraction, backend: device.backend))
         }
       }

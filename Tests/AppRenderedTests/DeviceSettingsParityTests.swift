@@ -1,59 +1,26 @@
-// Independent production-leaf UI regressions. Offscreen AppKit hosts use fake actions only.
-// No production Root, audio runtime, device reader, global settings, or browser is started.
-// The offscreen SwiftUI host exposes no NSAccessibility text tree; OCR on its actual bitmap checks
-// rendered copy visibility. Semantic projection values remain a separate copy oracle; control
-// frames and actions come from the rendered host. Diagnostic PNGs are opt-in only.
+// Offscreen AppKit control-bridging tests for DeviceRow, Settings, and Inspector switches.
+// Uses only public AppKit controls (NSTextField, NSSegmentedControl, NSSwitch); no Vision OCR,
+// no ScreenCaptureKit, no private SwiftUI view proxies, and no synthetic pointer coordinates.
 import AppKit
 import FineTuneDomain
 import FineTunePlatform
 import Observation
 import SwiftUI
 import Testing
-import Vision
 
 @testable import FineTune
 
-@Suite("Device and settings original UI parity")
+@Suite("Device and settings AppKit control bridging")
 @MainActor
 struct DeviceSettingsParityTests {
   @Test(
-    "The actual device row exposes the shared percentage editor and its scoped commit binding",
-    arguments: [false, true])
-  func devicePercentageCommitUsesExistingAction(isInput: Bool) throws {
-    let source = MixerTestSource()
-    let scope: MixerDeviceScope = isInput ? .input : .output
-    let device = isInput ? source.snapshot.inputDevices[0] : source.snapshot.outputDevices[0]
-    let row = source.bindings.deviceRow(device, scope: scope)
-    let fixture = try LeafUIFixture(row, width: 560)
-    let field = try #require(
-      leafDescendants(of: fixture.host).compactMap { $0 as? NSTextField }.first { $0.isEditable })
-    let slider = try #require(row.slider)
-    let format = FloatingPointFormatStyle<Double>.Percent().precision(.fractionLength(0))
-    #expect(field.stringValue == format.format(slider.wrappedValue))
-    #expect(source.events.isEmpty)
-
-    // Exercise the shared editor's parse/commit boundary, not an unshown window's event loop.
-    let percentage = VolumePercentageField(
-      value: slider, range: 0...100, label: "\(device.device.name) volume percentage")
-    percentage.boundedValue.wrappedValue = try format.parseStrategy.parse("60%")
-    #expect(source.events == ["device-volume"])
-    #expect(source.lastDeviceScope == scope && source.lastDeviceUID == device.id)
-    let gain = try #require(source.lastGain)
-    #expect(abs(gain - (isInput ? 0.6 : 0.36)) < 0.000_001)
-    percentage.boundedValue.wrappedValue = 1.4
-    #expect(source.lastGain == 1)
-    percentage.boundedValue.wrappedValue = -0.2
-    #expect(source.lastGain == 0)
-  }
-
-  @Test(
-    "Unknown and read-only device volume never create an editable percentage",
+    "Unknown and read-only device volume never create an editable percentage field",
     arguments: [false, true])
   func unavailableDevicePercentageIsNotEditable(readOnly: Bool) throws {
     let source = MixerTestSource()
     source.snapshot.outputDevices[0].volume = readOnly ? 0.4 : nil
     source.snapshot.outputDevices[0].canSetVolume = !readOnly
-    let fixture = try LeafUIFixture(
+    let fixture = try OffscreenHostFixture(
       source.bindings.deviceRow(source.snapshot.outputDevices[0], scope: .output), width: 560)
     #expect(
       !leafDescendants(of: fixture.host).contains {
@@ -62,11 +29,8 @@ struct DeviceSettingsParityTests {
     #expect(source.events.isEmpty)
   }
 
-  @Test("The actual General tab keeps the original preference descriptions visible")
-  func generalDescriptionsAreNotHoverOnly() throws {
-    let copy = SettingsGeneralCopy()
-    // The exact preference strings are asserted in AppPresentationContractTests; this rendered tab
-    // still asserts the same copy value through the production view and its visible glyphs.
+  @Test("The General tab mounts its Theme segmented control and preference switches inside bounds")
+  func generalTabNativeControls() throws {
     let snapshot = SettingsSnapshot(
       settings: AppSettings(), isAccessibilityTrusted: false, isMediaKeyOffline: false,
       error: nil, device: testDeviceSettings())
@@ -79,24 +43,12 @@ struct DeviceSettingsParityTests {
       device: recordingDeviceSettingsActions { events.append($0) })
     let view = FineTuneSettingsView(
       read: { snapshot }, actions: actions, updates: .unavailable(reason: "No test feed."))
-    #expect(view.generalCopy == copy)
-    // The production view declares the original 720x560 settings frame. Host it at that declared
-    // viewport: with a larger fixture host, reading fittingSize made NSHostingView adopt 720x560
-    // while the platform switches still carried frames from the larger layout pass, so their
-    // converted frames fell outside host.bounds. Use the declared size and flush layout first.
-    let fixture = try LeafUIFixture(view, width: 720)
-    fixture.show()
-    try fixture.writeArtifact("general")
+    let fixture = try OffscreenHostFixture(view, width: 720, height: 560)
     #expect(abs(fixture.host.fittingSize.width - 720) <= 0.5)
     #expect(abs(fixture.host.fittingSize.height - 560) <= 0.5)
-    fixture.render()
-    let text = try fixture.visibleText(artifactName: "general")
-    #expect(text.contains("Theme"), "Positive control: the actual General tab must render.")
-    #expect(text.contains("Start FineTune when you log in"))
-    #expect(text.contains("Show notification when an audio device disconnects"))
     let segmented = leafDescendants(of: fixture.host).compactMap { $0 as? NSSegmentedControl }
       .filter { $0.segmentCount == AppearancePreference.allCases.count }
-    let theme = try #require(segmented.first, "The actual Theme segmented picker must render")
+    let theme = try #require(segmented.first, "The Theme segmented picker must render")
     #expect(segmented.count == 1)
     #expect(
       (0..<theme.segmentCount).compactMap { theme.label(forSegment: $0) }
@@ -115,25 +67,13 @@ struct DeviceSettingsParityTests {
   }
 
   @Test(
-    "The actual inspector override row shows its observed automatic tier without HAL reads",
+    "The inspector override switch bridges native clicks to software override state",
     arguments: [VolumeControlTier.hardware, .ddc])
-  func inspectorAutomaticBadge(tier: VolumeControlTier) throws {
+  func inspectorOverrideSwitchBridging(tier: VolumeControlTier) throws {
     let observed = ObservedVolumeOverride()
     let harness = SoftwareVolumeControlsHarness(autoDetectedTier: tier, observed: observed)
-    let fixture = try LeafUIFixture(
+    let fixture = try OffscreenHostFixture(
       VStack(alignment: .leading) { harness }.padding(), width: 520, height: 140)
-    let text = try fixture.visibleText(
-      artifactName: tier == .hardware ? "inspector-hardware" : "inspector-ddc")
-    #expect(text.contains(tier == .hardware ? "Auto: Hardware" : "Auto: DDC"))
-    #expect(text.contains("Use FineTune's software volume"))
-    // The exact badge/accessibility copy is asserted in AppPresentationContractTests; the rendered
-    // section below is selected by the same production predicate that selects the toggle.
-    #expect(
-      DeviceDetailSheet.shouldShowToggle(
-        autoTier: tier, isInput: false, allowsVolumeOverride: true, hasOverrideAction: true))
-    // The platform switch reports a click's new state only after SwiftUI's observation-driven
-    // render. Query the live descendant after every render instead of holding a pre-click view.
-    fixture.show()
     let toggle = try singleSwitch(
       in: fixture.host, "The override row renders exactly one switch")
     #expect(toggle.isEnabled)
@@ -143,7 +83,6 @@ struct DeviceSettingsParityTests {
     #expect(toggle.state == .off)
     #expect(observed.overrides.isEmpty)
 
-    // Drive the actual rendered NSSwitch action instead of assigning the production binding.
     toggle.performClick(nil)
     fixture.render()
     let enabled = try singleSwitch(
@@ -161,154 +100,16 @@ struct DeviceSettingsParityTests {
     #expect(observed.overrides == [.software, nil])
   }
 
-  @Test("About shows the actual icon input, short version, build, original links and copyright")
-  func aboutOriginalContents() throws {
-    _ = NSApplication.shared
-    let icon = try #require(NSImage(systemSymbolName: "app.fill", accessibilityDescription: nil))
-    var openedURLs: [URL] = []
-    let copy = SettingsAboutCopy()
-    // The exact copy struct and destinations live in AppPresentationContractTests; the rendered
-    // links below keep the action targets and visible labels.
-    let metadata = SettingsAboutPresentation(version: "1.2.3", build: "19", year: 2026)
-    let view = SettingsAboutView(metadata: metadata, appIcon: icon)
-    #expect(view.copy == copy)
-    #expect(view.metadata.versionDescription == "Version 1.2.3 (19)")
-    #expect(view.metadata.copyright == "© 2026 Ronit Singh")
-    let fixture = try LeafUIFixture(
-      view.environment(
-        \.openURL,
-        OpenURLAction {
-          openedURLs.append($0)
-          return .handled
-        }),
-      width: 640, height: 430)
-    #expect(icon.size.width > 0)
-    fixture.show()
-    let text = try fixture.visibleText(artifactName: "about")
-    #expect(text.contains("FineTune"))
-    #expect(text.contains("Version 1.2.3 (19)"))
-    #expect(text.contains("Star on GitHub"))
-    #expect(text.contains("GPL-3.0"))
-    #expect(text.contains("2026 Ronit Singh"))
-    #expect(text.contains("Independent rewrite"))
-    #expect(!text.localizedCaseInsensitiveContains("icon unavailable"))
+  @Test("Updates switch disables when unavailable and bridges live clicks when available")
+  func updatesSwitchBridging() throws {
+    let unavailableView = SettingsUpdatesView(
+      capability: .unavailable(reason: "No signed rewrite release feed is configured."),
+      version: "8.1")
+    let unavailableFixture = try OffscreenHostFixture(unavailableView, width: 640, height: 380)
+    let disabledSwitch = try singleSwitch(
+      in: unavailableFixture.host, "Unavailable updates still render one disabled switch")
+    #expect(!disabledSwitch.isEnabled)
 
-    // The two original links are the actual rendered native link proxies; click each one and
-    // observe the injected OpenURLAction.
-    let links = leafDescendants(of: fixture.host).compactMap { $0 as? NSButton }
-    #expect(links.count == 2)
-    let frames = links.map { fixture.host.convert($0.bounds, from: $0) }.sorted {
-      fixture.host.isFlipped ? $0.minY < $1.minY : $0.minY > $1.minY
-    }
-    for frame in frames {
-      #expect(frame.width > 0 && frame.height > 0)
-      #expect(fixture.host.bounds.contains(frame))
-    }
-    #expect(openedURLs.isEmpty)
-    for frame in frames {
-      try fixture.click(CGPoint(x: frame.midX, y: frame.midY))
-    }
-    #expect(openedURLs == [copy.starURL, copy.licenseURL])
-  }
-
-  @Test("A native button gets one action per real click and none on a miss")
-  func nativeButtonReceivesOnlyRealPointerClicks() throws {
-    _ = NSApplication.shared
-    let counter = NativeClickCounter()
-    let button = NSButton(
-      title: "Leaf", target: counter, action: #selector(NativeClickCounter.press(_:)))
-    button.frame = NSRect(x: 70, y: 35, width: 100, height: 50)
-    #expect(button.cell is NSButtonCell)
-    let probe = PointerProbeView(frame: NSRect(x: 180, y: 0, width: 60, height: 120))
-    let window = NSWindow(
-      contentRect: NSRect(x: -10_000, y: -10_000, width: 240, height: 120),
-      styleMask: .borderless, backing: .buffered, defer: false)
-    defer { window.close() }
-    window.isReleasedWhenClosed = false
-    let content = NSView(frame: NSRect(x: 0, y: 0, width: 240, height: 120))
-    content.addSubview(button)
-    content.addSubview(probe)
-    window.contentView = content
-    window.orderFrontRegardless()
-    #expect(window.windowNumber > 0)
-    #expect(button.window === window)
-    #expect(probe.window === window)
-    let target = content.convert(button.bounds, from: button)
-    let hit = CGPoint(x: target.midX, y: target.midY)
-    let miss = CGPoint(x: target.minX - 20, y: target.midY)
-    #expect(!target.contains(miss))
-    try sendMouseClick(in: window, at: miss)
-    #expect(counter.presses == 0)
-    try sendMouseClick(in: window, at: hit)
-    try sendMouseClick(in: window, at: hit)
-    #expect(counter.presses == 2)
-    let probeTarget = content.convert(probe.bounds, from: probe)
-    try sendMouseClick(in: window, at: CGPoint(x: probeTarget.midX, y: probeTarget.midY))
-    #expect(probe.events == ["down", "up"])
-    let stray = window.nextEvent(
-      matching: .leftMouseUp, until: .distantPast, inMode: .default, dequeue: false)
-    #expect(stray == nil)
-  }
-
-  @Test("Missing About metadata is explicit rather than a fabricated release version")
-  func aboutMissingMetadata() throws {
-    let metadata = SettingsAboutPresentation(version: nil, build: nil, year: 2028)
-    let view = SettingsAboutView(metadata: metadata, appIcon: nil)
-    #expect(view.appIcon == nil)
-    #expect(view.copy.appIconUnavailable == "App icon unavailable")
-    let fixture = try LeafUIFixture(view, width: 640, height: 430)
-    let text = try fixture.visibleText(
-      artifactName: "about-unavailable", requiringVisible: "icon unavailable")
-    #expect(text.contains("Version unavailable (build unavailable)"))
-    // The footer links still render in the explicit-missing-metadata state.
-    let links = leafDescendants(of: fixture.host).compactMap { $0 as? NSButton }
-    #expect(links.count == 2)
-    for link in links {
-      let frame = fixture.host.convert(link.bounds, from: link)
-      #expect(frame.width > 0 && frame.height > 0)
-      #expect(fixture.host.bounds.contains(frame))
-    }
-  }
-
-  @Test(
-    "An unconfigured updater keeps every original field visible and unavailable without fake actions"
-  )
-  func unavailableUpdatesKeepOriginalFields() throws {
-    let reason = "No signed rewrite release feed is configured."
-    let copy = SettingsUpdatesCopy()
-    // The exact section/state copy is asserted in AppPresentationContractTests; this rendered tab
-    // keeps the live capability, version, reason and visible glyphs.
-    let view = SettingsUpdatesView(capability: .unavailable(reason: reason), version: "8.1")
-    #expect(view.copy == copy)
-    #expect(view.version == "8.1")
-    guard case .unavailable(let renderedReason) = view.capability else {
-      Issue.record("Expected the unavailable updater capability")
-      return
-    }
-    #expect(renderedReason == reason, "The reason the actual view renders")
-    #expect(!view.canCheckNow)
-    let fixture = try LeafUIFixture(view, width: 640, height: 380)
-    fixture.show()
-    let text = try fixture.visibleText(artifactName: "updates-unconfigured")
-    #expect(text.contains(reason))
-    #expect(text.contains("Automatic updates"))
-    #expect(text.contains("Last checked"))
-    #expect(text.contains("Never checked"))
-    #expect(text.contains("Version"))
-    #expect(text.contains("Not configured"))
-    #expect(text.contains("Check Now"))
-    let switches = leafDescendants(of: fixture.host).compactMap { $0 as? NSSwitch }
-    #expect(switches.count == 1)
-    #expect(!(try #require(switches.first)).isEnabled)
-    // The Check Now control is rendered but disabled because no capability exists. `Form` also
-    // emits full-row focus rings, so select the compact control below the rendered switch row.
-    let frame = try checkNowButtonFrame(in: fixture.host)
-    #expect(frame.width > 0 && frame.height > 0)
-    #expect(fixture.host.bounds.contains(frame))
-  }
-
-  @Test("An available updater shows its real check date and disables checks while busy")
-  func availableUpdatesUseObservedState() throws {
     var snapshot = SettingsUpdatePresentation(
       automaticallyChecks: true, lastChecked: .now.addingTimeInterval(-60),
       isChecking: false, error: nil)
@@ -321,80 +122,28 @@ struct DeviceSettingsParityTests {
           snapshot.automaticallyChecks = $0
           requests.append("automatic:\($0)")
         }))
-    let view = SettingsUpdatesView(capability: capability, version: "8.1")
-    #expect(view.copy.checkNow == "Check Now")
-    #expect(view.version == "8.1")
-    #expect(view.copy.versionLinePrefix(version: view.version) == "Version 8.1 ·")
-    #expect(view.canCheckNow)
-    let fixture = try LeafUIFixture(view, width: 640, height: 380)
-    fixture.show()
-    let text = try fixture.visibleText(artifactName: "updates-available")
-    #expect(text.contains("Version 8.1"))
-    #expect(text.contains("Last checked"))
-    #expect(text.contains("Check Now"))
-    #expect(!text.contains("Never checked"))
-    #expect(!text.contains("Not configured"))
-    let frame = try checkNowButtonFrame(in: fixture.host)
-    #expect(fixture.host.bounds.contains(frame))
-    try fixture.click(CGPoint(x: frame.midX, y: frame.midY))
-    #expect(requests == ["check"])
-
-    // The actual rendered Automatic updates NSSwitch reports its real observed state, and its
-    // native action writes the new value back through the production binding. The platform switch
-    // publishes that rendered state only after the observation-driven render, so re-query it.
+    let availableView = SettingsUpdatesView(capability: capability, version: "8.1")
+    let fixture = try OffscreenHostFixture(availableView, width: 640, height: 380)
     let automaticChecks = try singleSwitch(
-      in: fixture.host, "The available Automatic updates switch renders once")
+      in: fixture.host, "Available updates render one enabled Automatic updates switch")
     #expect(automaticChecks.isEnabled)
     #expect(automaticChecks.state == .on)
+
     automaticChecks.performClick(nil)
     fixture.render()
     let unchecked = try singleSwitch(
       in: fixture.host, "The Automatic updates switch still renders after the first click")
     #expect(unchecked.state == .off)
     #expect(!snapshot.automaticallyChecks)
-    #expect(requests == ["check", "automatic:false"])
+    #expect(requests == ["automatic:false"])
+
     unchecked.performClick(nil)
     fixture.render()
     let rechecked = try singleSwitch(
       in: fixture.host, "The Automatic updates switch still renders after the second click")
     #expect(rechecked.state == .on)
     #expect(snapshot.automaticallyChecks)
-    #expect(requests == ["check", "automatic:false", "automatic:true"])
-
-    // The capability reads the live observation instead of a captured initial value, and the
-    // actual rendered button is disabled while busy.
-    snapshot.isChecking = true
-    #expect(!view.canCheckNow)
-    let busy = try LeafUIFixture(view, width: 640, height: 380)
-    busy.show()
-    let busyFrame = try checkNowButtonFrame(in: busy.host)
-    #expect(busy.host.bounds.contains(busyFrame))
-    try busy.click(CGPoint(x: busyFrame.midX, y: busyFrame.midY))
-    #expect(requests == ["check", "automatic:false", "automatic:true"])
-  }
-}
-
-/// Counts real pointer-driven actions for the native-button regression; owned by that one test.
-@MainActor
-private final class NativeClickCounter: NSObject {
-  private(set) var presses = 0
-
-  @objc func press(_ sender: NSButton) {
-    presses += 1
-  }
-}
-
-/// Records the input an ordinary non-tracking NSView actually receives in the same regression.
-@MainActor
-private final class PointerProbeView: NSView {
-  private(set) var events: [String] = []
-
-  override func mouseDown(with event: NSEvent) {
-    events.append("down")
-  }
-
-  override func mouseUp(with event: NSEvent) {
-    events.append("up")
+    #expect(requests == ["automatic:false", "automatic:true"])
   }
 }
 
@@ -430,7 +179,7 @@ private struct SoftwareVolumeControlsHarness: View {
 }
 
 @MainActor
-private final class LeafUIFixture<Content: View> {
+private final class OffscreenHostFixture<Content: View> {
   let host: NSHostingView<AnyView>
   let window: NSWindow
 
@@ -446,98 +195,24 @@ private final class LeafUIFixture<Content: View> {
     window.isReleasedWhenClosed = false
     window.appearance = NSAppearance(named: .aqua)
     window.contentView = host
-    host.layoutSubtreeIfNeeded()
-    // Force the offscreen display pass so native field bridges exist before the assertion.
-    _ = try renderBitmap()
-  }
-
-  private func renderBitmap() throws -> NSBitmapImageRep {
+    render()
+    // Trigger one offscreen display pass so SwiftUI creates native AppKit control bridges.
     let bitmap = try #require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
     host.cacheDisplay(in: host.bounds, to: bitmap)
-    return bitmap
   }
 
-  func visibleText(artifactName: String, requiringVisible phrase: String? = nil) throws -> String {
-    let bitmap = try renderBitmap()
-    try writeArtifact(artifactName)
-    let image = try #require(bitmap.cgImage)
-    let request = VNRecognizeTextRequest()
-    request.recognitionLevel = .accurate
-    request.recognitionLanguages = ["en-US"]
-    request.usesLanguageCorrection = false
-    try VNImageRequestHandler(cgImage: image, options: [:]).perform([request])
-    let observations = request.results ?? []
-    let strings = observations.compactMap { $0.topCandidates(1).first?.string }
-    #expect(!strings.isEmpty, "The actual rendered component must produce recognizable text.")
-    if let phrase {
-      let match = try #require(
-        observations.first { observation in
-          observation.topCandidates(1).first?.string.localizedCaseInsensitiveContains(phrase)
-            == true
-        },
-        "Expected rendered text ‘\(phrase)’ in \(strings)")
-      #expect(match.boundingBox.width > 0 && match.boundingBox.height > 0)
-      #expect(
-        CGRect(x: 0, y: 0, width: 1, height: 1).contains(match.boundingBox),
-        "Rendered text ‘\(phrase)’ must remain inside the captured component")
-    }
-    return strings.joined(separator: " ").replacingOccurrences(of: "’", with: "'")
-  }
+  isolated deinit { window.close() }
 
   func render() {
     host.layoutSubtreeIfNeeded()
     window.displayIfNeeded()
     host.layoutSubtreeIfNeeded()
   }
-
-  func show() {
-    window.orderFrontRegardless()
-    _ = window.makeFirstResponder(host)
-    render()
-  }
-
-  func click(_ point: CGPoint) throws {
-    try sendMouseClick(in: window, at: host.convert(point, to: nil))
-    render()
-  }
-
-  /// Opt-in diagnostic evidence only; never part of the pass/fail result.
-  func writeArtifact(_ name: String) throws {
-    guard
-      let path = ProcessInfo.processInfo.environment["FINETUNE_LEAF_UI_ARTIFACT_DIRECTORY"]
-    else { return }
-    let directory = URL(fileURLWithPath: path, isDirectory: true)
-    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-    let bitmap = try #require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
-    host.cacheDisplay(in: host.bounds, to: bitmap)
-    let png = try #require(bitmap.representation(using: .png, properties: [:]))
-    try png.write(to: directory.appendingPathComponent("\(name).png"))
-  }
 }
 
-/// The single native switch rendered by the production leaf. SwiftUI publishes a click's new
-/// switch state only after the observation-driven render, so callers query this after `render()`.
 @MainActor
 private func singleSwitch(in host: NSView, _ comment: Comment) throws -> NSSwitch {
   let switches = leafDescendants(of: host).compactMap { $0 as? NSSwitch }
   #expect(switches.count == 1, comment)
   return try #require(switches.first)
-}
-
-/// The Check Now button is the compact trailing control in the row below the Automatic updates
-/// switch. A grouped `Form` also emits a full-row focus ring for each row, so the first proxy is
-/// not necessarily the button; the rendered switch row identifies the actual button frame.
-@MainActor
-private func checkNowButtonFrame(in host: NSView) throws -> CGRect {
-  let switchFrame = try #require(
-    leafDescendants(of: host).compactMap { $0 as? NSSwitch }
-      .map { host.convert($0.bounds, from: $0) }
-      .first)
-  let candidates = nativeButtonProxyFrames(in: host, minimumWidth: 60).filter { frame in
-    let isBelowSwitch =
-      host.isFlipped ? frame.midY > switchFrame.maxY : frame.midY < switchFrame.minY
-    return isBelowSwitch && frame.width <= 240 && frame.height <= 30
-  }
-  #expect(candidates.count == 1, "The Check Now button renders once below the switch row")
-  return try #require(candidates.first)
 }

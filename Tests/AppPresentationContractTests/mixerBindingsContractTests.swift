@@ -1,17 +1,13 @@
-// Independent rewrite tests: live projection, identity, binding and action guarantees.
-// No application bootstrap, storage, permissions, or audio runtime is started.
-import AppKit
+// No-render contracts for mixer bindings, device row capabilities, EQ, and percentage bounds.
 import FineTuneDomain
-import FineTunePlatform
-import Observation
-import SwiftUI
+import Foundation
 import Testing
 
 @testable import FineTune
 
-@Suite("Mixer projection and actions")
+@Suite("Presentation contract: mixer bindings and device row actions")
 @MainActor
-struct MixerTests {
+struct MixerBindingsContractTests {
   @Test("An app slider reads live gain and writes square-law gain by persistent identity")
   func liveAppVolumeBinding() {
     let source = MixerTestSource()
@@ -120,6 +116,22 @@ struct MixerTests {
     #expect(source.lastDeviceScope == .input)
     #expect(source.lastDeviceUID == "input-uid")
     #expect(source.lastGain == 0.5)
+  }
+
+  @Test("Device default-selection callback forwards the scoped device identity")
+  func deviceRowSetDefaultForwardsScopeAndUID() {
+    let source = MixerTestSource()
+    for (scope, device) in [
+      (MixerDeviceScope.output, source.snapshot.outputDevices[0]),
+      (.input, source.snapshot.inputDevices[0]),
+    ] {
+      source.events.removeAll()
+      let row = source.bindings.deviceRow(device, scope: scope)
+      row.onSetDefault()
+      #expect(source.events == ["default"])
+      #expect(source.lastDeviceScope == scope)
+      #expect(source.lastDeviceUID == device.id)
+    }
   }
 
   @Test(
@@ -336,66 +348,6 @@ struct MixerTests {
     #expect(source.lastGain == 0.3)
   }
 
-  @Test("A first action key wakes and acts on the default row in the same press")
-  func keyboardWakeAndAct() {
-    let navigation = PopupKeyboardNavModel()
-    navigation.syncOrder(activeDevices: [], appPersistenceIDs: ["player"], isEditingPriority: false)
-    var keyboard = MixerKeyboardState()
-    #expect(
-      keyboard.process(.right(shift: true), navigation: navigation, defaultOutputUID: nil)
-        == .adjust(.app(persistenceID: "player"), isUp: true, shift: true))
-    #expect(keyboard.selectedRow == .app(persistenceID: "player"))
-  }
-
-  @Test("An arrow wakes without moving, then traverses without wrapping")
-  func keyboardWakeAndTraverse() {
-    let navigation = PopupKeyboardNavModel()
-    navigation.syncOrder(
-      activeDevices: [], appPersistenceIDs: ["first", "second"], isEditingPriority: false)
-    var keyboard = MixerKeyboardState()
-    #expect(keyboard.process(.down, navigation: navigation, defaultOutputUID: nil) == .none)
-    #expect(keyboard.selectedRow == .app(persistenceID: "first"))
-    _ = keyboard.process(.down, navigation: navigation, defaultOutputUID: nil)
-    #expect(keyboard.selectedRow == .app(persistenceID: "second"))
-    _ = keyboard.process(.down, navigation: navigation, defaultOutputUID: nil)
-    #expect(keyboard.selectedRow == .app(persistenceID: "second"))
-  }
-
-  @Test("Keyboard percentage entry is a transient draft until Return")
-  func keyboardPercentageDraft() {
-    let navigation = PopupKeyboardNavModel()
-    navigation.syncOrder(activeDevices: [], appPersistenceIDs: ["player"], isEditingPriority: false)
-    var keyboard = MixerKeyboardState()
-    _ = keyboard.process(.digit(8), navigation: navigation, defaultOutputUID: nil)
-    _ = keyboard.process(.digit(0), navigation: navigation, defaultOutputUID: nil)
-    #expect(keyboard.percentageDraft == "80")
-    #expect(
-      keyboard.process(.activate, navigation: navigation, defaultOutputUID: nil)
-        == .setPercentage(.app(persistenceID: "player"), 80))
-    #expect(keyboard.percentageDraft == nil)
-  }
-
-  @Test("Escape cancels percentage entry before closing the popup")
-  func keyboardPercentageCancel() {
-    let navigation = PopupKeyboardNavModel()
-    navigation.syncOrder(activeDevices: [], appPersistenceIDs: ["player"], isEditingPriority: false)
-    var keyboard = MixerKeyboardState()
-    _ = keyboard.process(.digit(3), navigation: navigation, defaultOutputUID: nil)
-    #expect(keyboard.process(.cancel, navigation: navigation, defaultOutputUID: nil) == .none)
-    #expect(keyboard.percentageDraft == nil)
-    #expect(keyboard.process(.cancel, navigation: navigation, defaultOutputUID: nil) == .close)
-  }
-
-  @Test("Space is consumed during percentage entry rather than committing or activating")
-  func spaceDoesNotCommitPercentage() {
-    let navigation = PopupKeyboardNavModel()
-    navigation.syncOrder(activeDevices: [], appPersistenceIDs: ["player"], isEditingPriority: false)
-    var keyboard = MixerKeyboardState()
-    _ = keyboard.process(.digit(8), navigation: navigation, defaultOutputUID: nil)
-    #expect(keyboard.process(.space, navigation: navigation, defaultOutputUID: nil) == .none)
-    #expect(keyboard.percentageDraft == "8")
-  }
-
   @Test("Typed app percentages share the real slider binding and clamp to its range")
   func editableAppPercentage() {
     let source = MixerTestSource()
@@ -408,301 +360,26 @@ struct MixerTests {
     #expect(source.lastGain == 1)
   }
 
-  @Test("Unknown Bluetooth status and read failure render without probing or connecting")
-  func bluetoothAvailabilityRendersWithoutEffects() {
-    _ = NSApplication.shared
-    var bluetooth = testDeviceSettings().bluetooth
-    bluetooth.error = "Bluetooth status could not be read."
-    var requests: [String] = []
-    let host = NSHostingView(
-      rootView: MixerBluetoothSection(
-        read: { bluetooth }, actions: recordingDeviceSettingsActions { requests.append($0) }))
-    host.setFrameSize(NSSize(width: 430, height: 160))
-    host.layoutSubtreeIfNeeded()
-    #expect(host.fittingSize.height > 0)
-    #expect(requests.isEmpty)
-  }
-
-  @Test("Selecting an AutoEQ profile targets one device and enables the new selection")
-  func profileSelectionKeepsDeviceIdentity() {
-    let source = MixerProfileTestSource()
-    let bindings = MixerProfileBindings(deviceUID: "headphones-a", interface: source.interface)
-    bindings.choose(
-      MixerProfileChoice(id: "catalog-profile", name: "Headphones", detail: "Measured"))
-    #expect(source.lastDeviceUID == "headphones-a")
-    #expect(source.lastSelection == AutoEQSelection(profileID: "catalog-profile", isEnabled: true))
-    bindings.clear()
-    #expect(source.lastDeviceUID == "headphones-a")
-    #expect(source.lastSelection == nil)
-  }
-
-  @Test("A missing profile remains named and enabling it preserves its desired identity")
-  func missingProfileIsNotReplacedByFlat() {
-    let source = MixerProfileTestSource()
-    source.snapshot.selection = AutoEQSelection(profileID: "offline-profile", isEnabled: false)
-    source.snapshot.isMissing = true
-    let bindings = MixerProfileBindings(deviceUID: "headphones-a", interface: source.interface)
-    #expect(bindings.selectionLabel.contains("offline-profile"))
-    #expect(!bindings.enabled.wrappedValue)
-    bindings.enabled.wrappedValue = true
-    #expect(source.lastSelection == AutoEQSelection(profileID: "offline-profile", isEnabled: true))
-    #expect(source.snapshot.isMissing)
-  }
-
-  @Test("Favorite filtering is requested from the real catalog before its result limit")
-  func profileQueryForwardsFavoriteConstraint() {
-    let source = MixerProfileTestSource()
-    let results = source.interface.search("specific headphones", true)
-    #expect(source.lastQuery == "specific headphones")
-    #expect(source.lastFavoritesOnly == true)
-    #expect(results.entries.map(\.id) == ["catalog-profile"])
-    let bindings = MixerProfileBindings(deviceUID: "headphones-a", interface: source.interface)
-    bindings.toggleFavorite("catalog-profile")
-    bindings.preampEnabled.wrappedValue = false
-    #expect(source.events == ["favorite:catalog-profile:true", "preamp:false"])
-    #expect(source.snapshot.preampEnabled)
-  }
-
-  @Test("Explicit import retains the originating device and user-selected file URL")
-  func profileImportRetainsOrigin() {
-    let source = MixerProfileTestSource()
-    let bindings = MixerProfileBindings(deviceUID: "headphones-b", interface: source.interface)
-    let url = URL(fileURLWithPath: "/temporary-unit-fixture/ParametricEQ.txt")
-    bindings.importFile(url)
-    #expect(source.lastDeviceUID == "headphones-b")
-    #expect(source.lastImportURL == url)
-    #expect(source.lastImportName == "ParametricEQ")
-  }
-
-  @Test("The actual profile component renders cache and catalog failures without external effects")
-  func profilePaneRendersWithoutEffects() {
-    _ = NSApplication.shared
-    let source = MixerProfileTestSource()
-    source.snapshot.catalogState = .failed("Catalog download failed.")
-    source.snapshot.selection = AutoEQSelection(profileID: "offline-profile", isEnabled: false)
-    source.snapshot.isMissing = true
-    let host = NSHostingView(
-      rootView: MixerAutoEQPanel(
-        deviceUID: "headphones-a", deviceName: "Headphones", interface: source.interface))
-    host.setFrameSize(NSSize(width: 380, height: 520))
-    host.layoutSubtreeIfNeeded()
-    #expect(host.fittingSize.width == 380)
-    #expect(host.fittingSize.height > 0)
-    #expect(source.events.isEmpty)
-  }
-
-  @Test("An unknown capture notice renders without asking for permission")
-  func captureNoticeDoesNotRequestPermission() {
-    _ = NSApplication.shared
+  @Test(
+    "Typed device percentages parse, clamp and keep the scoped volume curve",
+    arguments: [false, true])
+  func editableDevicePercentageClampAndCurve(isInput: Bool) throws {
     let source = MixerTestSource()
-    source.snapshot.captureNotice = MixerCaptureNotice(
-      message: "System audio permission has not been determined.", action: .requestPermission)
-    let host = NSHostingView(
-      rootView: MixerView(
-        read: { source.snapshot }, actions: source.actions,
-        profiles: source.profileSource.interface,
-        quit: { source.events.append("quit") }
-      ))
-    host.setFrameSize(NSSize(width: 510, height: 560))
-    host.layoutSubtreeIfNeeded()
-    #expect(source.events.isEmpty)
-    #expect(source.profileSource.events.isEmpty)
-  }
-
-  @Test("The real offscreen mixer uses popup density without invoking any action")
-  func mixerRendersWithoutEffects() {
-    _ = NSApplication.shared
-    let source = MixerTestSource()
-    source.snapshot.settings.popupSize = .compact
-    let host = NSHostingView(
-      rootView: MixerView(
-        read: { source.snapshot }, actions: source.actions,
-        profiles: source.profileSource.interface,
-        quit: { source.events.append("quit") }
-      ))
-    host.setFrameSize(NSSize(width: 470, height: 500))
-    host.layoutSubtreeIfNeeded()
-    #expect(host.fittingSize.width == 470)
-    #expect(host.fittingSize.height > 0)
-    #expect(source.events.isEmpty)
-  }
-}
-
-@MainActor
-@Observable
-final class MixerTestSource {
-  var snapshot: MixerSnapshot
-  let profileSource = MixerProfileTestSource()
-  var events: [String] = []
-  var lastAppID: String?
-  var lastDeviceUID: String?
-  var lastDeviceScope: MixerDeviceScope?
-  var lastGain: Float?
-  var lastBool: Bool?
-  var lastBoost: BoostLevel?
-  var lastEQ: EQSettings?
-  var lastMode: DeviceSelectionMode?
-  var lastUIDs: Set<String>?
-
-  init() {
-    let output = AudioDevice(
-      id: 101, uid: "output-uid", name: "Output", icon: nil, supportsAutoEQ: true)
-    let input = AudioDevice(
-      id: 102, uid: "input-uid", name: "Input", icon: nil, supportsAutoEQ: false)
-    snapshot = MixerSnapshot(
-      apps: [
-        MixerAppPresentation(
-          id: "com.example.player", name: "Player", icon: nil, isActive: false,
-          gain: 0.25, isMuted: false, boost: .x1, selectionMode: .single,
-          isFollowingDefault: true, selectedDeviceUIDs: [], eqSettings: .flat,
-          isPinned: true, isIgnored: false, routeStatus: nil
-        )
-      ],
-      outputDevices: [
-        MixerDevicePresentation(
-          device: output, transport: .usb, isDefault: true, volume: 0.25, isMuted: false,
-          backend: .software, automaticBackend: .software, isHidden: false,
-          iconOverride: nil, volumeOverride: nil, canSetVolume: true, canSetMute: true, error: nil
-        )
-      ],
-      inputDevices: [
-        MixerDevicePresentation(
-          device: input, transport: .usb, isDefault: true, volume: 0.25, isMuted: false,
-          backend: .hardware, automaticBackend: .hardware, isHidden: false,
-          iconOverride: nil, volumeOverride: nil, canSetVolume: true, canSetMute: true, error: nil
-        )
-      ], settings: .init(), userPresets: [], error: nil, backend: testDeviceSettings(),
-      captureNotice: nil
-    )
-  }
-
-  var bindings: MixerBindings { MixerBindings(read: { self.snapshot }, actions: actions) }
-
-  var actions: MixerActions {
-    MixerActions(
-      app: MixerAppActions(
-        setVolume: {
-          self.lastAppID = $0
-          self.lastGain = $1
-          self.events.append("app-volume")
-        },
-        setMute: {
-          self.lastAppID = $0
-          self.lastBool = $1
-          self.events.append("app-mute")
-        },
-        setBoost: {
-          self.lastAppID = $0
-          self.lastBoost = $1
-          self.events.append("app-boost")
-        },
-        followDefault: {
-          self.lastAppID = $0
-          self.events.append("follow-default")
-        },
-        setRoute: {
-          self.lastAppID = $0
-          self.lastMode = $1
-          self.lastUIDs = $2
-          self.events.append("route")
-        },
-        setPinned: {
-          self.lastAppID = $0
-          self.lastBool = $1
-          self.events.append("pin")
-        },
-        setIgnored: {
-          self.lastAppID = $0
-          self.lastBool = $1
-          self.events.append("ignore")
-        },
-        setEQ: {
-          self.lastAppID = $0
-          self.lastEQ = $1
-          self.events.append("eq")
-        },
-        stepVolume: {
-          self.lastAppID = $0
-          self.events.append("app-step:\($1):\($2)")
-        },
-        createPreset: { self.events.append("create-preset:\($0):\($1.bandGains.count)") },
-        renamePreset: { self.events.append("rename-preset:\($0):\($1)") },
-        deletePreset: { self.events.append("delete-preset:\($0)") },
-        activate: {
-          self.lastAppID = $0
-          self.events.append("activate")
-        }
-      ),
-      device: MixerDeviceActions(
-        setDefault: {
-          self.lastDeviceScope = $0
-          self.lastDeviceUID = $1
-          self.events.append("default")
-        },
-        setVolume: {
-          self.lastDeviceScope = $0
-          self.lastDeviceUID = $1
-          self.lastGain = $2
-          self.events.append("device-volume")
-        },
-        setMute: {
-          self.lastDeviceScope = $0
-          self.lastDeviceUID = $1
-          self.lastBool = $2
-          self.events.append("device-mute")
-        },
-        setHidden: { self.events.append("hidden:\($0):\($1):\($2)") },
-        setPriority: { self.events.append("priority:\($0):\($1.joined(separator: ","))") },
-        setIcon: { self.events.append("icon:\($0):\($1 ?? "automatic")") },
-        setVolumeOverride: { self.events.append("override:\($0):\(String(describing: $1))") },
-        stepVolume: { self.events.append("device-step:\($0):\($1):\($2):\($3)") }
-      ),
-      openSettings: { self.events.append("settings") }, close: { self.events.append("close") },
-      backend: recordingDeviceSettingsActions { self.events.append($0) },
-      requestCapturePermission: { self.events.append("capture-request") },
-      openCaptureSettings: { self.events.append("capture-settings") }
-    )
-  }
-}
-
-@MainActor
-@Observable
-final class MixerProfileTestSource {
-  var snapshot = MixerProfilePresentation(
-    catalogState: .ready, selection: nil, profileName: nil, isMissing: false,
-    isResolving: false, selectionError: nil, favoriteIDs: [], preampEnabled: true)
-  var events: [String] = []
-  var lastDeviceUID: String?
-  var lastSelection: AutoEQSelection?
-  var lastQuery: String?
-  var lastFavoritesOnly: Bool?
-  var lastImportURL: URL?
-  var lastImportName: String?
-
-  var interface: MixerProfileInterface {
-    MixerProfileInterface(
-      read: { _ in self.snapshot },
-      search: {
-        self.lastQuery = $0
-        self.lastFavoritesOnly = $1
-        return MixerProfileSearchResult(
-          entries: [
-            MixerProfileChoice(id: "catalog-profile", name: "Headphones", detail: "Measured")
-          ],
-          totalCount: 1)
-      },
-      importProfile: {
-        self.lastDeviceUID = $0
-        self.lastImportURL = $1
-        self.lastImportName = $2
-        self.events.append("import")
-      },
-      select: {
-        self.lastDeviceUID = $0
-        self.lastSelection = $1
-        self.events.append("select")
-      },
-      setFavorite: { self.events.append("favorite:\($0):\($1)") },
-      setPreampEnabled: { self.events.append("preamp:\($0)") })
+    let scope: MixerDeviceScope = isInput ? .input : .output
+    let device = isInput ? source.snapshot.inputDevices[0] : source.snapshot.outputDevices[0]
+    let slider = try #require(source.bindings.deviceRow(device, scope: scope).slider)
+    let format = FloatingPointFormatStyle<Double>.Percent().precision(.fractionLength(0))
+    #expect(format.format(slider.wrappedValue) == (isInput ? "25%" : "50%"))
+    let percentage = VolumePercentageField(
+      value: slider, range: 0...100, label: "\(device.device.name) volume percentage")
+    percentage.boundedValue.wrappedValue = try format.parseStrategy.parse("60%")
+    #expect(source.events == ["device-volume"])
+    #expect(source.lastDeviceScope == scope && source.lastDeviceUID == device.id)
+    let gain = try #require(source.lastGain)
+    #expect(abs(gain - (isInput ? 0.6 : 0.36)) < 0.000_001)
+    percentage.boundedValue.wrappedValue = 1.4
+    #expect(source.lastGain == 1)
+    percentage.boundedValue.wrappedValue = -0.2
+    #expect(source.lastGain == 0)
   }
 }
