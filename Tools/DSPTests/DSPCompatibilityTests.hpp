@@ -578,6 +578,58 @@ inline void biquadSignalMultiBandRatesAndAdversarial() {
     check(std::abs(std::abs(nyqOut.back()) - 1.0F) < 0.02F, "Nyquist through peaking ~unity",
           std::abs(nyqOut.back()), 1.0);
 
+    // Upstream extreme-amplitude pin: +40 dBFS input through +12 dB peaking stays
+    // finite with the expected ~4x gain (no overflow to NaN/Inf).
+    eq1k->reset();
+    const auto hotIn = makeStereoSine(1000.0, 100.0, 48000.0, frames);
+    std::vector<float> hotOut(frames * 2, 0.0F);
+    check(eq1k->processInterleaved(hotIn.data(), hotOut.data(), frames, 2) == dsp::Status::ok,
+          "high amplitude processing succeeds", 0.0, 0.0);
+    bool hotFinite = true;
+    float hotMax = 0.0F;
+    for (const float sample : hotOut) {
+        hotFinite = hotFinite && std::isfinite(sample);
+        hotMax = std::max(hotMax, std::abs(sample));
+    }
+    check(hotFinite, "high amplitude 100.0 through +12dB stays finite", hotMax, 0.0);
+    const float hotGain = measureRMS(hotOut, 0, frames, skip) / measureRMS(hotIn, 0, frames, skip);
+    check(hotGain > 3.0F && hotGain < 5.0F, "high amplitude EQ gain ~4x", hotGain, 4.0);
+
+    // Upstream enable/disable cycle pin: bypass leaves delay history untouched, so
+    // re-enabling resumes from the stale state with decaying filter ringing.
+    auto cycleProc = makeSingleSectionProcessor(dsp::FilterType::peaking, 1000.0, 12.0F,
+                                                dsp::graphicEQQ, 48000.0);
+    constexpr std::size_t cycleFrames = 2048;
+    const auto cycleIn = makeStereoSine(1000.0, 1.0, 48000.0, cycleFrames);
+    std::vector<float> cycleOut(cycleFrames * 2, 0.0F);
+    check(cycleProc->processInterleaved(cycleIn.data(), cycleOut.data(), cycleFrames, 2) ==
+              dsp::Status::ok,
+          "cycle active processing succeeds", 0.0, 0.0);
+    const float activeRMS = measureRMS(cycleOut, 0, cycleFrames, 512);
+
+    cycleProc->setEnabled(false);
+    std::vector<float> silence(cycleFrames * 2, 0.0F);
+    std::vector<float> bypassOut(cycleFrames * 2, 0.0F);
+    cycleProc->processInterleaved(silence.data(), bypassOut.data(), cycleFrames, 2);
+    check(bypassOut == silence, "disabled bypass leaves silence untouched", 0.0, 0.0);
+
+    cycleProc->setEnabled(true);
+    std::vector<float> reEnabledOut(cycleFrames * 2, 0.0F);
+    check(cycleProc->processInterleaved(silence.data(), reEnabledOut.data(), cycleFrames, 2) ==
+              dsp::Status::ok,
+          "cycle re-enabled processing succeeds", 0.0, 0.0);
+    bool ringing = false;
+    for (std::size_t i = 0; i < 10; ++i) {
+        if (reEnabledOut[i * 2] != 0.0F) {
+            ringing = true;
+            break;
+        }
+    }
+    check(ringing, "re-enable resumes from stale delay state with ringing", 0.0, 0.0);
+    const float ringingRMS = measureRMS(reEnabledOut, 0, cycleFrames, 0);
+    check(ringingRMS < activeRMS, "re-enable ringing is quieter than the active signal", ringingRMS,
+          activeRMS);
+
     // Rapid configure churn + extreme boost to flat transition
     const std::array<float, 10> flat{};
     dsp::PreparedBiquad flatPrep;
