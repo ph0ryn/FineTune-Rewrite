@@ -73,31 +73,24 @@ GPL本文とcopyright表示は[THIRD_PARTY_NOTICES.txt](<../App/Resources/THIRD_
 
 ## 現在の保証対応
 
-Settings・Mixerのcopy・format・静的な表示mappingは、View・window・bitmap・run loopを作らない
+Settings・Mixerのcopy・format・静的な表示mappingとbinding・action契約は、View・window・bitmap・run loopを作らない
 [AppPresentationContractTests](<../Tests/AppPresentationContractTests/>)で確認します。
-対象はSettings各tabのexact copy、Mixerのheader/footer・popup semantics・route menuの
-single/multi label、multi routeのobserved/missing subtitle、default出力/入力名、
-capture noticeのaction labelです。
-旧rendered suiteのbinding・action契約（[SettingsViewTests](<../Tests/AppRenderedTests/SettingsViewTests.swift>)、
-[MixerTests](<../Tests/AppRenderedTests/MixerTests.swift>)）は描画用の
-[AppRenderedTests](<../Tests/AppRenderedTests/>)へ残し、
-OCR・pixel・実際のcontrol/actionのoracleは実際に描画するtestへ残します。
-描画/OCR/SCKを実行する9 suite・94宣言は`AppRenderedTests`、非描画の18 suite・127宣言は
-`AppCompositionTests`に分け、runtime IDはmodule prefix（`AppCompositionTests.`→
-`AppRenderedTests.`）だけを変えます。`@Test`属性行・label・argument・invocationは変えません。
+対象はSettings各tabのexact copyとbinding、Mixerのheader/footer・popup semantics・route menuの
+single/multi label、keyboard router・AutoEQ profile bindings、device row actionsです。
+OCR・pixel・実際のcontrol/actionのoracleを描画するtestは[AppRenderedTests](<../Tests/AppRenderedTests/>)、
+非描画のcomposition wiringは[AppCompositionTests](<../Tests/AppCompositionTests/>)に分けています。
 この分離は描画時間やScreenCaptureKitの失敗率の改善を主張しません。
 
 物理default出力・入力のpolicy契約は、View・window・bitmap・run loopを作らない
-[AppPolicyContractTests](<../Tests/AppPolicyContractTests/>)で、実際のSettingsManagerと
+[ControlTests](<../Tests/ControlTests/>)へ移り、InMemoryControlSettingsStoreと
 Output/InputDevicePolicyControllerへclock/writer portを注入して確認します。
-このtargetは描画/OCR suiteとは別のtest bundleで実行し、共有するtest専用helperは
-[AppTestSupport](<../Tests/AppTestSupport/>)へ置きます。
+[OutputDevicePolicyTests](<../Tests/ControlTests/OutputDevicePolicyTests.swift>)と
+[InputDevicePolicyTests](<../Tests/ControlTests/InputDevicePolicyTests.swift>)が2秒/5秒のdeadline付きの保証を持ち、
+default追従中のアプリの再試行は[AudioControllerDefaultRoutingTests](<../Tests/ControlTests/AudioControllerDefaultRoutingTests.swift>)で確認します。
+旧`AppPolicyContractTests`は廃止しました。共有するtest専用helperは[AppTestSupport](<../Tests/AppTestSupport/>)に残し、
 helperは製品targetや製品libraryの一部ではなく、製品側から参照しません。
 `FineTunePlatform`の依存frameworkはlinkされ得るためAppKit非linkは主張せず、
-このtargetのtestがwindow・bitmap・OCR経路を実行しないことを境界とします。
-`OutputPolicyTests`（18宣言）と`InputPolicyTests`（4宣言）のruntime IDはmodule prefixと`@Test`属性行の+1（`import AppTestSupport` 1行追加）のみ
-`AppCompositionTests`から`AppPolicyContractTests`へ移り、
-suite・type・label・argument・invocationと2秒/5秒のpolicy deadlineは変えません。
+ControlTestsがwindow・bitmap・OCR経路を実行しないことを境界とします。
 
 asyncのdeadline・cancel/release・drain・known-issue controlの条件は
 [検証方針](<validation.md>)の「通常の自動チェック」に整理しています。
