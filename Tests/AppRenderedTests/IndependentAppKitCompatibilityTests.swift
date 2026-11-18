@@ -40,6 +40,15 @@ private final class IndependentHUDDeadlineClock {
     }
   }
 
+  /// Deadline firing resumes the sleeping hide task on the shared MainActor
+  /// executor, so the hide needs a bounded condition wait instead of a fixed
+  /// hop count before its effect is observable.
+  func waitUntilHidden(_ hud: HUDWindowController) async {
+    for _ in 0..<50 where hud.isVisible {
+      await Task.yield()
+    }
+  }
+
   func fireNext() {
     guard !waiters.isEmpty else { return }
     let next = waiters.removeFirst()
@@ -179,9 +188,9 @@ struct IndependentAppKitCompatibilityTests {
     #expect(clock.sleepCount == 2)
 
     clock.fireNext()
-    await Task.yield()
+    await clock.waitUntilHidden(hud)
     clock.fireNext()
-    await Task.yield()
+    await clock.waitUntilHidden(hud)
     #expect(!hud.isVisible)
   }
 }
