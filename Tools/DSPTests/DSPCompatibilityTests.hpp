@@ -194,14 +194,18 @@ inline void softLimiterContinuityAndConcavity() {
 }
 
 inline void softLimiterSpecialFloatsAndBuffer() {
+    // Upstream contract: non-finite input propagates as NaN, never as a valid
+    // sample — the NaN safety net in the processing chain depends on this.
     const float nanOut = dsp::softLimit(std::numeric_limits<float>::quiet_NaN());
-    check(nanOut == 0.0F || std::isnan(nanOut), "NaN returns finite/zero or NaN safely",
-          std::isfinite(nanOut) ? nanOut : 0.0F, 0.0);
+    check(std::isnan(nanOut), "NaN input produces NaN output, not a valid sample", nanOut,
+          std::numeric_limits<float>::quiet_NaN());
 
     const float posInfOut = dsp::softLimit(std::numeric_limits<float>::infinity());
     const float negInfOut = dsp::softLimit(-std::numeric_limits<float>::infinity());
-    check(!std::isfinite(posInfOut) || posInfOut <= dsp::limiterCeiling, "+Inf handled", 1.0, 1.0);
-    check(!std::isfinite(negInfOut) || negInfOut >= -dsp::limiterCeiling, "-Inf handled", 1.0, 1.0);
+    check(std::isnan(posInfOut), "+Inf input produces NaN output", posInfOut,
+          std::numeric_limits<float>::quiet_NaN());
+    check(std::isnan(negInfOut), "-Inf input produces NaN output", negInfOut,
+          std::numeric_limits<float>::quiet_NaN());
 
     const float subnormal = std::numeric_limits<float>::denorm_min();
     check(dsp::softLimit(subnormal) == subnormal, "subnormal passthrough",
@@ -243,6 +247,15 @@ inline void biquadCoefficientsAndFrequencyResponse() {
     check(std::abs(boostAtCenter - 6.0) < 0.05, "peaking center gain +6dB", boostAtCenter, 6.0);
     check(std::abs(boostAtDC) < 1e-4, "peaking DC unity", boostAtDC, 0.0);
     check(std::abs(boostAtNyquist) < 1e-4, "peaking Nyquist unity", boostAtNyquist, 0.0);
+
+    // Boost and cut are reciprocal: normalized b0 of +g dB and -g dB peaking
+    // filters multiply to 1 (upstream BiquadMathTests.boostCutSymmetry pin).
+    for (const float gainDB : {3.0F, 6.0F, 12.0F}) {
+        const auto boost = dsp::coefficients({dsp::FilterType::peaking, 1000.0, gainDB, 1.4}, sr);
+        const auto cut = dsp::coefficients({dsp::FilterType::peaking, 1000.0, -gainDB, 1.4}, sr);
+        check(std::abs(boost[0] * cut[0] - 1.0) < 1e-10, "peaking boost/cut b0 reciprocity",
+              boost[0] * cut[0], 1.0);
+    }
 
     const auto lowShelf = dsp::coefficients({dsp::FilterType::lowShelf, 200.0, 6.0F, 0.707}, sr);
     const double lsDC = dbGain(biquadMagnitudeAtFrequency(lowShelf, 0.0, sr));
@@ -615,17 +628,67 @@ inline void iso226ReferenceTableAndContours() {
     check(alpha[17] == 0.300 && lu[17] == 0.0 && tf[17] == 2.4, "1kHz ISO226 Table 1 values",
           alpha[17], 0.300);
 
+    // Table 1 anchor coefficients at the low, mid, and high normative bands
+    // (upstream ISO226ContoursTests.table1CriticalCoefficients pins).
+    check(alpha[0] == 0.635 && lu[0] == -31.5 && tf[0] == 78.1, "ISO226 Table 1 at band 0",
+          alpha[0], 0.635);
+    check(alpha[28] == 0.354 && lu[28] == -3.5 && tf[28] == 12.3, "ISO226 Table 1 at band 28",
+          alpha[28], 0.354);
+
     const auto contour20 = dsp::iso226Contour(20.0);
     const auto contour40 = dsp::iso226Contour(40.0);
     check(std::abs(contour20[17] - 20.0) < 1e-6, "20 phon at 1kHz == 20", contour20[17], 20.0);
     check(std::abs(contour40[17] - 40.0) < 1e-6, "40 phon at 1kHz == 40", contour40[17], 40.0);
-    check(contour20[0] > 70.0 && contour40[0] > contour20[0] - 1.0, "low freq threshold high",
-          contour20[0], 80.0);
+    // Normative equation anchors at bands 0/5/23/28; band 17 is pinned above
+    // (upstream contourReferenceValues20Phon / contourReferenceValues40Phon).
+    const std::array<std::size_t, 4> anchorBands{0, 5, 23, 28};
+    const std::array<double, 4> contour20Anchors{88.167, 58.197, 15.233, 32.746};
+    const std::array<double, 4> contour40Anchors{99.456, 72.849, 36.712, 51.253};
+    for (std::size_t i = 0; i < anchorBands.size(); ++i) {
+        const std::size_t band = anchorBands[i];
+        check(std::abs(contour20[band] - contour20Anchors[i]) < 0.01, "20 phon normative anchor",
+              contour20[band], contour20Anchors[i]);
+        check(std::abs(contour40[band] - contour40Anchors[i]) < 0.01, "40 phon normative anchor",
+              contour40[band], contour40Anchors[i]);
+    }
+    check(std::abs(dsp::iso226Contour(60.0)[17] - 60.0) < 0.02, "60 phon at 1kHz == 60",
+          dsp::iso226Contour(60.0)[17], 60.0);
 
     const auto comp80 = dsp::iso226Compensation(80.0, 80.0, 1.0);
     for (const double g : comp80) {
         check(std::abs(g) < 1e-9, "80 phon comp vs 80 ref is zero", g, 0.0);
     }
+
+    // Compensation exact-value pins at the 20 Hz edge and mid volume, with the
+    // headroom property: required headroom equals the maximum positive gain
+    // (upstream lowFrequencyTwentyHertzEdgeCase / normalizedCompensationAtMidVolume).
+    const auto comp20 = dsp::iso226Compensation(20.0, 80.0, 1.0);
+    check(std::abs(comp20[0] - 29.323) < 0.01, "20 phon 20 Hz compensation == 29.323 dB", comp20[0],
+          29.323);
+    check(std::abs(comp20[23] - (-3.220)) < 0.01, "20 phon band 23 compensation == -3.220 dB",
+          comp20[23], -3.220);
+    double comp20Max = 0.0;
+    for (const double g : comp20) {
+        comp20Max = std::max(comp20Max, g);
+    }
+    check(std::abs(comp20Max - 29.323) < 0.01, "20 phon compensation headroom == max gain",
+          comp20Max, 29.323);
+
+    const auto comp525 = dsp::iso226Compensation(52.5, 80.0, 1.0);
+    check(std::abs(comp525[0] - 14.325) < 0.01, "52.5 phon 20 Hz compensation == 14.325 dB",
+          comp525[0], 14.325);
+    check(std::abs(comp525[5] - 10.161) < 0.01, "52.5 phon band 5 compensation == 10.161 dB",
+          comp525[5], 10.161);
+    check(std::abs(comp525[23] - (-1.130)) < 0.01, "52.5 phon band 23 compensation == -1.130 dB",
+          comp525[23], -1.130);
+    check(std::abs(comp525[28] - 4.024) < 0.01, "52.5 phon band 28 compensation == 4.024 dB",
+          comp525[28], 4.024);
+    double comp525Max = 0.0;
+    for (const double g : comp525) {
+        comp525Max = std::max(comp525Max, g);
+    }
+    check(std::abs(comp525Max - 14.325) < 0.01, "52.5 phon compensation headroom == max gain",
+          comp525Max, 14.325);
 
     const auto comp30Full = dsp::iso226Compensation(30.0, 80.0, 1.0);
     const auto comp30Half = dsp::iso226Compensation(30.0, 80.0, 0.5);
@@ -633,6 +696,12 @@ inline void iso226ReferenceTableAndContours() {
     check(comp30Full[0] > 10.0, "low volume bass compensation positive", comp30Full[0], 15.0);
     check(std::abs(comp30Half[0] - comp30Full[0] * 0.5) < 1e-9, "amount scales compensation",
           comp30Half[0], comp30Full[0] * 0.5);
+    check(std::abs(comp30Half[23] - comp30Full[23] * 0.5) < 1e-9,
+          "amount scales compensation at band 23", comp30Half[23], comp30Full[23] * 0.5);
+    const auto comp30Flat = dsp::iso226Compensation(30.0, 80.0, 0.0);
+    for (const double g : comp30Flat) {
+        check(std::abs(g) < 1e-9, "zero amount compensation is flat", g, 0.0);
+    }
 }
 
 inline void iso226FittingAccuracyAndCompensator() {
@@ -642,6 +711,14 @@ inline void iso226FittingAccuracyAndCompensator() {
           80.0);
     check(dsp::estimatedPhon(0.5F) > dsp::estimatedPhon(0.1F), "estimatedPhon monotonic",
           dsp::estimatedPhon(0.5F), dsp::estimatedPhon(0.1F));
+    // Upstream estimatedPhon boundary pins: out-of-range volumes clamp, and the
+    // square-root curve maps quarter volume to the 50 phon midpoint.
+    check(dsp::estimatedPhon(1.5F) == 80.0, "volume above 1 clamps to reference phon",
+          dsp::estimatedPhon(1.5F), 80.0);
+    check(dsp::estimatedPhon(-0.5F) == 20.0, "negative volume clamps to lower bound",
+          dsp::estimatedPhon(-0.5F), 20.0);
+    check(std::abs(dsp::estimatedPhon(0.25F) - 50.0) < 0.01, "quarter volume maps to 50 phon",
+          dsp::estimatedPhon(0.25F), 50.0);
 
     constexpr double sr = 48000.0;
     const double phon = dsp::estimatedPhon(0.03F);
@@ -649,17 +726,18 @@ inline void iso226FittingAccuracyAndCompensator() {
     const auto gains = dsp::fittedLoudnessGains(phon, sr);
     const auto coeffs = dsp::loudnessBandCoefficients(gains, sr);
 
-    const std::array<double, 13> evalFreqs{20.0,  31.5,   50.0,   80.0,   100.0,  200.0,  400.0,
-                                           800.0, 1000.0, 2000.0, 4000.0, 8000.0, 12500.0};
+    // Upstream evaluation set: 96 log-spaced frequencies across the audible band,
+    // with the low-frequency fit band bounded at 150 Hz.
     double maxAbsErr = 0.0;
     double lowSqErr = 0.0;
     std::size_t lowCount = 0;
-    for (const double f : evalFreqs) {
+    for (int i = 0; i < 96; ++i) {
+        const double f = 20.0 * std::pow(1000.0, static_cast<double>(i) / 95.0);
         const double desired = dsp::interpolateCompensation(target, f);
         const double actual = cascadeMagnitudeDB(coeffs, 4, f, sr);
         const double err = std::abs(actual - desired);
         maxAbsErr = std::max(maxAbsErr, err);
-        if (f <= 500.0) {
+        if (f <= 150.0) {
             lowSqErr += err * err;
             ++lowCount;
         }
