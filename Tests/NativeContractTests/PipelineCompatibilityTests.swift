@@ -42,6 +42,32 @@ private enum CompatPipelineSignal {
     }
     return Float(sqrt(sum / Double(max(1, count))))
   }
+
+  static func rampOutput(
+    initialGain: Float,
+    target: Float,
+    rampCoefficient: Float,
+    frames: Int,
+    crossfadeMultiplier: Float = 1.0,
+    inputValue: Float = 1.0
+  ) -> (samples: [Float], currentGain: Float) {
+    let pipeline = AudioPipeline(initialGain: initialGain)
+    let (inBuf, inPtr) = makeABLBuffer(frames: frames, channels: 2) { _, _ in inputValue }
+    let (outBuf, outPtr) = makeABLBuffer(frames: frames, channels: 2) { _, _ in 0 }
+    defer {
+      inPtr.deallocate()
+      outPtr.deallocate()
+    }
+
+    var params = ft_pipeline_default_parameters()
+    params.target_gain = target
+    params.crossfade_multiplier = crossfadeMultiplier
+    params.output_gate_multiplier = 1.0
+    params.ramp_coefficient = rampCoefficient
+    let status = pipeline.process(input: inBuf, output: outBuf, parameters: params)
+    precondition(status == FT_PIPELINE_OK, "Pipeline processing failed: \(status)")
+    return (Array(UnsafeBufferPointer(start: outPtr, count: frames * 2)), pipeline.currentGain)
+  }
 }
 
 // MARK: - CrossfadeState Compatibility
@@ -341,6 +367,115 @@ struct UpstreamProcessingPipelineCompatibilityTests {
     #expect(abs(outPtr[0]) < 0.05)
     #expect(outPtr[(frames - 1) * 2] > 0.45)
     #expect(pipeline.currentGain > 0.9)
+  }
+
+  @Test("Ramp never overshoots target (upward)")
+  func noOvershootUpward() {
+    let frames = 1024
+    let target: Float = 0.75
+    let result = CompatPipelineSignal.rampOutput(
+      initialGain: 0, target: target, rampCoefficient: 0.05, frames: frames)
+    for f in 0..<frames {
+      let sample = result.samples[f * 2]
+      #expect(sample <= target + 1e-7, "Frame \(f): output \(sample) overshoots target \(target)")
+      #expect(sample >= 0, "Frame \(f): output should be non-negative")
+    }
+  }
+
+  @Test("Ramp never overshoots target (downward)")
+  func noOvershootDownward() {
+    let frames = 1024
+    let target: Float = 0.25
+    let result = CompatPipelineSignal.rampOutput(
+      initialGain: 1, target: target, rampCoefficient: 0.05, frames: frames)
+    for f in 0..<frames {
+      let sample = result.samples[f * 2]
+      #expect(sample >= target - 1e-7, "Frame \(f): output \(sample) undershoots target \(target)")
+      #expect(sample <= 1, "Frame \(f): output should not exceed starting volume")
+    }
+  }
+
+  @Test("Zero target volume: output approaches zero")
+  func zeroTargetApproachesZero() {
+    let frames = 8192
+    let result = CompatPipelineSignal.rampOutput(
+      initialGain: 1, target: 0, rampCoefficient: 0.01, frames: frames)
+    #expect(result.currentGain < 1e-6)
+    #expect(abs(result.samples[(frames - 1) * 2]) < 1e-6)
+  }
+
+  @Test("Unmute from zero: ramp recovers to target")
+  func unmuteFromZero() {
+    let frames = 4096
+    let result = CompatPipelineSignal.rampOutput(
+      initialGain: 0, target: 0.8, rampCoefficient: 0.01, frames: frames)
+    #expect(result.currentGain > 0.79)
+    #expect(result.samples[0] > 0)
+  }
+
+  @Test("Rapid target reversal: ramp changes direction smoothly")
+  func rapidTargetReversal() {
+    let pipeline = AudioPipeline(initialGain: 0)
+    let frames = 512
+    let (inBuf, inPtr) = CompatPipelineSignal.makeABLBuffer(frames: frames, channels: 2) { _, _ in
+      1.0
+    }
+    let (outBuf, outPtr) = CompatPipelineSignal.makeABLBuffer(frames: frames, channels: 2) { _, _ in
+      0
+    }
+    defer {
+      inPtr.deallocate()
+      outPtr.deallocate()
+    }
+
+    var params = ft_pipeline_default_parameters()
+    params.target_gain = 1.0
+    params.crossfade_multiplier = 1.0
+    params.output_gate_multiplier = 1.0
+    params.ramp_coefficient = 0.01
+    #expect(pipeline.process(input: inBuf, output: outBuf, parameters: params) == FT_PIPELINE_OK)
+    let volAfterUp = pipeline.currentGain
+    #expect(volAfterUp > 0)
+
+    params.target_gain = 0.0
+    #expect(pipeline.process(input: inBuf, output: outBuf, parameters: params) == FT_PIPELINE_OK)
+    #expect(pipeline.currentGain < volAfterUp)
+    #expect(pipeline.currentGain >= 0)
+    #expect(!pipeline.currentGain.isNaN)
+  }
+
+  @Test("Single-frame buffer: ramp applies exactly once")
+  func singleFrameBuffer() {
+    let result = CompatPipelineSignal.rampOutput(
+      initialGain: 0, target: 1, rampCoefficient: 0.1, frames: 1)
+    #expect(abs(result.currentGain - 0.1) < 1e-7)
+  }
+
+  @Test("Ramp is symmetric: same coefficient, same speed up and down")
+  func rampSymmetry() {
+    let frames = 256
+    let coeff: Float = 0.02
+    let up = CompatPipelineSignal.rampOutput(
+      initialGain: 0, target: 1, rampCoefficient: coeff, frames: frames)
+    let down = CompatPipelineSignal.rampOutput(
+      initialGain: 1, target: 0, rampCoefficient: coeff, frames: frames)
+    let distanceUp = 1.0 - up.currentGain
+    let distanceDown = down.currentGain
+    #expect(
+      abs(distanceUp - distanceDown) < 1e-5,
+      "Ramp should be symmetric: up distance=\(distanceUp), down distance=\(distanceDown)")
+  }
+
+  @Test("Crossfade multiplier scales output correctly")
+  func crossfadeMultiplierEffect() {
+    let frames = 64
+    let result = CompatPipelineSignal.rampOutput(
+      initialGain: 1, target: 1, rampCoefficient: 1, frames: frames, crossfadeMultiplier: 0.5)
+    for f in 0..<frames {
+      #expect(
+        abs(result.samples[f * 2] - 0.5) < 1e-7,
+        "Crossfade multiplier should halve output at frame \(f)")
+    }
   }
 
   @Test("EQ + SoftLimiter stage ordering keeps hot boosted signal under limiter ceiling")
