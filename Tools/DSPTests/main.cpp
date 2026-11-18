@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Independent boundary units and runner. Derived GPL units are in a separate translation unit.
+#include "../../Tests/NativeRuntimeTests/NativeTestReport.hpp"
 #include "AudioDSP/AudioDSP.hpp"
 #include "AudioDSP/Dynamics.hpp"
 #include "DSPTestUnits.hpp"
@@ -20,6 +21,7 @@
 namespace {
 bool watchAllocations = false;
 std::size_t allocationCount = 0;
+std::size_t assertions = 0;
 int failures = 0;
 const char *activeID = "setup";
 const char *firstFailure = nullptr;
@@ -41,84 +43,15 @@ void recordFailure(const char *message, bool measured, double actual, double exp
     }
 }
 void expect(bool value, const char *message) {
+    ++assertions;
     if (!value) {
         recordFailure(message, false, 0, 0);
     }
 }
-
-struct UnitResult {
-    const char *id;
-    bool passed;
-    const char *failure;
-    bool measured;
-    double actual;
-    double expected;
-};
-
-void jsonString(std::FILE *file, const char *value) {
-    std::fputc('"', file);
-    for (const auto *p = reinterpret_cast<const unsigned char *>(value); *p; ++p) {
-        if (*p == '"' || *p == '\\') {
-            std::fputc('\\', file);
-            std::fputc(*p, file);
-        } else if (*p < 0x20) {
-            std::fprintf(file, "\\u%04x", static_cast<unsigned>(*p));
-        } else {
-            std::fputc(*p, file);
-        }
-    }
-    std::fputc('"', file);
-}
-void jsonMeasurement(std::FILE *file, bool known, double value) {
-    if (!known) {
-        std::fputs("null", file);
-    } else if (std::isfinite(value)) {
-        std::fprintf(file, "%.17g", value);
-    } else {
-        jsonString(file, std::isnan(value) ? "NaN" : value < 0 ? "-Infinity" : "Infinity");
-    }
-}
-bool writeReport(const char *path, std::span<const UnitResult> results, bool complete) {
-    auto *file = std::fopen(path, "w");
-    if (!file) {
-        std::perror("Unable to open DSP report");
-        return false;
-    }
-    std::fprintf(file, "{\"schema_version\":1,\"complete\":%s,\"cases\":[",
-                 complete ? "true" : "false");
-    bool first = true;
-    for (const auto &result : results) {
-        if (!first) {
-            std::fputc(',', file);
-        }
-        first = false;
-        std::fputs("{\"id\":", file);
-        jsonString(file, result.id);
-        std::fprintf(file, ",\"status\":\"%s\",\"invocations\":1",
-                     result.passed ? "passed" : "failed");
-        if (!result.passed) {
-            std::fputs(",\"failure\":{\"message\":", file);
-            jsonString(file, result.failure);
-            std::fputs(",\"actual\":", file);
-            jsonMeasurement(file, result.measured, result.actual);
-            std::fputs(",\"expected\":", file);
-            jsonMeasurement(file, result.measured, result.expected);
-            std::fputc('}', file);
-        }
-        std::fputc('}', file);
-    }
-    std::fputs("]}\n", file);
-    const bool good = !std::ferror(file);
-    const int closeStatus = std::fclose(file);
-    if (!good || closeStatus != 0) {
-        std::fputs("Unable to finish DSP report\n", stderr);
-        return false;
-    }
-    return true;
-}
 } // namespace
 
 void finetune::test::check(bool condition, const char *property, double actual, double expected) {
+    ++assertions;
     if (!condition) {
         recordFailure(property, true, actual, expected);
     }
@@ -424,14 +357,15 @@ void dynamicsNumericalBoundaries() {
 int main(int argc, char **argv) {
     const char *reportPath = nullptr;
     if (argc != 1) {
-        if (argc != 3 || std::strcmp(argv[1], "--report") != 0) {
+        if (argc != 3 || std::strcmp(argv[1], "--report") != 0 || argv[2][0] == '\0') {
             std::fputs("Usage: DSPTests [--report path.json]\n", stderr);
             return EXIT_FAILURE;
         }
         reportPath = argv[2];
-        if (!writeReport(reportPath, {}, false)) {
-            return EXIT_FAILURE;
-        }
+    }
+    finetune::test::NativeTestReport report;
+    if (reportPath && !report.begin(reportPath)) {
+        return EXIT_FAILURE;
     }
     using finetune::test::NamedUnit;
     const auto compatibility = finetune::test::loudnessCompatibilityUnits();
@@ -446,18 +380,27 @@ int main(int argc, char **argv) {
         {"Tools/DSPTests/main.cpp::planarChannelsAndInvalidViews", planarChannelsAndInvalidViews},
         {"Tools/DSPTests/main.cpp::dynamicsNumericalBoundaries", dynamicsNumericalBoundaries},
     };
-    std::vector<UnitResult> results;
+    std::vector<finetune::test::NativeTestResult> results;
     results.reserve(std::size(independent) + compatibility.size());
     const auto run = [&](NamedUnit unit) {
         activeID = unit.id;
         firstFailure = nullptr;
         firstHasMeasurements = false;
-        const int before = failures;
+        const int beforeFailures = failures;
+        const auto beforeAssertions = assertions;
         unit.run();
-        const bool passed = failures == before;
-        results.push_back(
-            {unit.id, passed, firstFailure, firstHasMeasurements, firstActual, firstExpected});
-        std::printf("%s %s\n", passed ? "PASS" : "FAIL", unit.id);
+        if (assertions == beforeAssertions) {
+            std::fprintf(stderr, "FAIL %s: case made no assertions\n", unit.id);
+            if (!firstFailure) {
+                firstFailure = "case made no assertions";
+            }
+            ++assertions;
+            ++failures;
+        }
+        results.push_back({unit.id, 1, 1, assertions - beforeAssertions,
+                           static_cast<std::size_t>(failures - beforeFailures), firstFailure,
+                           firstHasMeasurements, firstActual, firstExpected});
+        std::printf("%s %s\n", failures == beforeFailures ? "PASS" : "FAIL", unit.id);
     };
     for (const auto &unit : independent) {
         run(unit);
@@ -465,10 +408,8 @@ int main(int argc, char **argv) {
     for (const auto &unit : compatibility) {
         run(unit);
     }
-    if (reportPath && !writeReport(reportPath, results, true)) {
-        return EXIT_FAILURE;
-    }
+    const bool reported = report.finish(results);
     std::printf("DSP boundary scenarios: %s (%d failures, %zu named cases)\n",
                 failures == 0 ? "PASS" : "FAIL", failures, results.size());
-    return failures == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
+    return failures == 0 && reported ? EXIT_SUCCESS : EXIT_FAILURE;
 }

@@ -8,7 +8,7 @@
 
 現在のテスト移植では、原作54ファイル・758宣言・静的966呼出しを元の保証の参照母数として扱います。
 最終test数・元本文の一致そのものではなく、保証シナリオから新しいunit/componentへの対応と独立reviewを出口にします。
-[対応台帳](<../Tests/UpstreamCompatibilityTests/migrationManifest.json>)と[確認手順](<test-migration.md>)で追跡します。
+[確認手順](<test-migration.md>)と各テストの出典ヘッダで追跡します。
 原作issue/PR由来の改良は、今回の移植へ追加しません。
 
 この固定版に対する移植時の独立review・実行監査は完了しました。以下は専用監査の削除前の記録で、現在の`just check`で監査を再実行するものではありません。
@@ -16,7 +16,7 @@
 最終Debug/Releaseは各**Swift 1055宣言/1349呼出し（7 products）**と
 **C++ 49 named units/6654呼出し（6 programs）**がpassし、完全監査は両方errors0です。
 有限入力の展開と実function/case終了を照合した結果であり、元966との件数合わせではありません。
-[実行証拠の読み方と限界](<test-migration.md#確定した移植実行結果>)に詳細を記録します。
+[実行証拠の読み方と限界](<test-migration.md#移植時に確定したsnapshot>)に詳細を記録します。
 これは注入可能なunit/componentと静的な製品consumer接続の受入れで、
 実機の音声・権限・OS event順序・GUI見た目・長時間/RT deadlineまで完了したという意味ではありません。
 
@@ -59,19 +59,19 @@ popoverの外側クリック・dismiss・window所有はnative SwiftUIへ任せ�
 表示とkeyboard navigationは同じprojection順に従い、保存済みのpin/ignore値やRootの経路所有は変更しません。
 全Mixerのpixel単位の一致を保証するものではありません。
 
-[表示回帰テスト](<../Tests/AppCompositionTests/MixerControlAppearanceTests.swift>)はfakeを接続した実コンポーネントをoffscreen描画し、
-3つのpopup sizeとlight/darkのidle軌道・icon headerを確認します。
-専用window内のnative pointer eventで、通常/ミュート時の音量操作とtab・編集・設定・Quitのfake actionも検証します。
-入出力それぞれで3つのpopup sizeの行内余白をクリックし、内部controlとの操作分離とdefault再書込の抑制を確認します。
-選択中バッジはlight/darkの実bitmapと、観測default変更後にaccent表示が消えることを確認します。
-`FINETUNE_MIXER_CONTROL_EVIDENCE`に出力先を指定すると、その描画PNGを保存できます。
-[アプリ行テスト](<../Tests/AppCompositionTests/AppRowPresentationTests.swift>)は3つの幅で40pt行・percentage位置・非default subtitleを実描画し、
-active icon/name/mute/slider/boost/EQの操作分離と、停止中・ミュート・dark時の共通slider操作をnative pointer eventで確認します。
-実際のpicker menuでもSingle/Multi/default/UID選択をfake actionへ通し、観測更新の前に選択状態を先行変更しないことを確認します。
-`FINETUNE_APP_ROW_EVIDENCE`で行・picker menuの描画PNGを保存できます。
-編集gridは3つの幅で実描画の名前列を調べ、2列・44pt行送りとpin/ignore/unignoreのUID別actionを確認します。
-[popupテスト](<../Tests/AppCompositionTests/PopupLayoutTests.swift>)はQuitの下部配置・⌘Qと、表示中の自然な高さ変更も検証します。
-transientな親popup内で出力先pickerを実際に開き、child windowの出力行をクリックしても親を閉じず、対象appへroute actionが届くことを確認します。
+[mixerの表示contract](<../Tests/AppPresentationContractTests/mixerContractTests.swift>)は、View・windowを作らずに
+header/footer・icon header・route menuのlabelとpopupのsemanticを確認します。
+[route menu contract](<../Tests/AppPresentationContractTests/mixerRouteMenuContractTests.swift>)はsingle/multi/defaultの選択がactionへ渡ることと、
+編集時に警告を出さないことを確認します。[mixer bindings](<../Tests/AppPresentationContractTests/mixerBindingsContractTests.swift>)は
+app/deviceのslider・mute・route actionをpersistent IDと現在のcapabilityに対して確認し、
+[keyboard](<../Tests/AppPresentationContractTests/mixerKeyboardContractTests.swift>)と
+[AutoEQ profile](<../Tests/AppPresentationContractTests/mixerProfileContractTests.swift>)も同じtargetで入力から共通commandへの変換を確認します。
+productionの`MixerAppRow`は`MixerAppRowPresentation`からname/subtitle/routeStatusを得ます。
+contract testも同じsemantic projection値をassertしますが、これは文字列内容の確認であり、
+実際のText nodeやglyphの可視性・遮蔽のない描画は証明しません。
+[描画を伴うpopup layout](<../Tests/AppRenderedTests/PopupLayoutTests.swift>)はQuitの下部配置・⌘Q、
+vertical scroll containerの不在と、表示中の自然な高さ変更を確認します。
+[device rowの描画](<../Tests/AppRenderedTests/DeviceRowAlignmentTests.swift>)はpercentage列とbitmapの配置を確認します。
 これらの成功を、最小対応OSのnative thumb、実機音声、全UIの操作・見た目の検証へ拡張しません。
 
 ## デバイス切り替えと失敗からの復帰
@@ -87,7 +87,7 @@ OS通知には操作元の情報がないため、この短い区間内のContro
 期限後の新しい外部選択は尊重し、古い書込の確認待ちやtimeoutで元へ戻しません。未解消の失敗は、時間経過や同じUIDの再通知だけでは消しません。
 補正後も選択を維持できない場合や確認が期限切れになった場合は、無限に書き戻さず、Mixer・Settingsへ失敗を表示します。要求先の健全な観測または新しい選択で解消します。
 観測されたdefault UIDとpolicy承認先は分けたままとし、補正で既存の健全なアプリ経路を強制作り直ししたり、captureの再試行範囲を広げたりしません。
-この有限な補正と追従・固定経路の維持は、[policyテスト](<../Tests/AppCompositionTests/OutputPolicyTests.swift>)と[実Graphのテスト](<../Tests/AppCompositionTests/OutputPolicyRoutingTests.swift>)で確認します。
+この有限な補正と追従・固定経路の維持は、[policyテスト](<../Tests/ControlTests/OutputDevicePolicyTests.swift>)と[Controlのdefault経路テスト](<../Tests/ControlTests/AudioControllerDefaultRoutingTests.swift>)で確認します。
 Bluetooth所有権を永続的に固定する機能ではなく、AirPods実機での補正効果・可聴連続性はこのテストの保証に含めません。
 
 切り替えを取り消したcandidateは、callbackの受付を閉じたまま継続用のread ownerとして残さず、次の経路のarmedを待たずに回収を開始します。
@@ -97,7 +97,7 @@ Bluetooth所有権を永続的に固定する機能ではなく、AirPods実機�
 明示的なcapture Retryでは、Controlが保持する完了済みの回収失敗と、prepared handleを返せずnative poolに残った失敗ownerを再試行します。
 進行中・PENDINGのtaskを二重実行せず、旧ownerのretired確認までは新経路をcommitしません。poolの再試行は同じfactoryのownerだけが対象で、新しいprepareはその試行の結果を待ちます。再び失敗したownerは保持と警告を続けます。
 再試行に成功したときはnative snapshotに残った過去のcleanup failureを現在の失敗として再送せず、同じコードでも今回再発した失敗は表示とcommit阻止を維持します。
-[経路の回帰テスト](<../Tests/AppCompositionTests/RoutingTests.swift>)は、取消済み経路のOS IOとrender許可を分け、
+[経路の回帰テスト](<../Tests/ControlTests/AudioControllerHandoffTests.swift>)は、取消済み経路のOS IOとrender許可を分け、
 次のsourceが無音の間にも旧IOの停止が始まること、PENDINGと失敗を後のhandoffが正しく共有することを確認します。
 
 nativeのarmedはsourceの再生開始ではなく、証明済み構成・一致する正のframe数を持つ出力callbackによるtransport準備完了です。
@@ -124,10 +124,10 @@ cleanupの警告は世代の新旧ではなく、資源をまだ所有してい�
 Controlの未完了回収と、prepared handleを返す前に失敗したnative経路の回収は、停止後やアプリ行がない場合も表示します。
 Controlのretired ACK、またはnative poolの該当ownerのrelease成功が確認できた警告だけを外します。別ownerの成功や新世代のprepareでは解除しません。
 nativeの最新診断は履歴として残し、未解決のcleanupは経路ごとに追跡します。この集合が空でも、エラーのないPENDING経路を含むpool全体のdrain完了は意味しません。
-[経路の回帰テスト](<../Tests/AppCompositionTests/RoutingTests.swift>)で、default選択による再試行範囲、即時/PENDING回収、
+[経路の回帰テスト](<../Tests/ControlTests/AudioControllerHandoffTests.swift>)で、default選択による再試行範囲、即時/PENDING回収、
 遅延start/commit/updateとの競合、別アプリ成功時の障害表示と自身の復帰後の解除、
 既知のbinding failure・旧sessionの拒否からの復帰と、新しい回収エラーを隠さないことを確認します。
-[実Rootの表示テスト](<../Tests/AppCompositionTests/RootPresentationTests.swift>)で、Mixer・Settings・アプリ行の表示と、複数出力の片側故障が別出力のcommitで消えないことも確認します。
+[実Rootの表示wiringテスト](<../Tests/AppCompositionTests/RootPresentationWiringTests.swift>)で、Mixer・Settings・アプリ行の表示と、複数出力の片側故障が別出力のcommitで消えないことも確認します。
 この保証はControlと表示の復帰契約であり、物理機器のformat検証・実音声・切り替え時の無音や連続性の保証ではありません。
 
 nativeの入力検証では、所有する単一stereo tapと意図した物理機器だけの構成を読み戻した場合に限り、
@@ -150,8 +150,8 @@ Quitボタン・⌘Q・アプリメニューは原作と同じ`NSApplication.ter
 独自の`terminateLater`・非同期の音声回収待ち・保存失敗時の再試行/取消ダイアログは設けません。
 保存失敗はstoreの`lastSaveError`に残りますが、原作同様、終了を取り消しません。
 音声資源はプロセス終了時のOS回収に従い、通常のcooperative stopの回収結果・安全性契約は変更しません。
-[Hostの回帰テスト](<../Tests/AppCompositionTests/ApplicationHostTerminationTests.swift>)は実delegateの公開capabilityを、
-[lifecycleテスト](<../Tests/AppCompositionTests/BootstrapLifecycleTests.swift>)は同期保存結果・入力停止・古いcallbackの拒否を確認します。
+[Hostの回帰テスト](<../Tests/AppCompositionTests/ApplicationHostTests.swift>)は実delegateの公開capabilityを、
+[lifecycleテスト](<../Tests/AppCompositionTests/LifecycleCoordinatorTests.swift>)は同期保存結果・入力停止・古いcallbackの拒否を確認します。
 このcomponent検証は、実音声中の終了や最小対応OSでの動作確認とは別です。
 
 ## 保存設定
@@ -179,8 +179,7 @@ hardware/DDC tierは機器側のミュートでアラートも消えますが、
 - will-terminateでも同期的に戻し、保存した復元値は次回起動時に確認してから現在のミュートを評価する。終了と復元が競合しても値の取り違えを残さない
 - 復元値は保存schemaの`alertVolumeBeforeMuteSilencing`にだけ置き、アプリ設定のAlert Volumeとは別に扱う。silencing中はSettingsのAlert Volume操作を無効化する
 
-[policyと実際のモデルの接続](<../Tests/AppCompositionTests/SystemAlertSilencingTests.swift>)と
-[実モデルのミュート往復](<../Tests/AppCompositionTests/DeviceBackendCompositionTests.swift>)で確認します。
+[System alert silencingとDeviceControlModelのコマンド往復](<../Tests/AppCompositionTests/DeviceControlWiringTests.swift>)で確認します。
 OSのアラート音量を実際に変更する実機確認は別で、このunitの成功は実音声の確認ではありません。
 
 ## 新設計への適応
@@ -212,8 +211,8 @@ parserのunit、共通Control操作、App event/bundle登録は異なる保証�
 ## ライセンス
 
 原作由来のtest/fixtureと派生物はGNU GPL version 3です。
-[出自説明](<../Tests/UpstreamCompatibilityTests/README.md>)・[COPYING](<../Tests/UpstreamCompatibilityTests/COPYING>)・
-[元path/SHAと対応表](<../Tests/UpstreamCompatibilityTests/migrationManifest.json>)を保持します。
+原作のcopyright表示とGPL本文は、アプリにバンドルする[THIRD_PARTY_NOTICES.txt](<../App/Resources/THIRD_PARTY_NOTICES.txt>)に一本化しています。
+各テストの出典はファイル先頭のSPDXヘッダと[確認手順](<test-migration.md>)に記録します。
 独立した[MIT License](<../LICENSE>)部分を維持し、下記のwhole-file GPL区分と混同しません。
 GPL対象はテストやdataだけではなく派生codeも含むため、productionすべてをMIT-onlyとは表現しません。
 GPL対象を含む製品binaryの配布時は、組合せ・対応source・通知とlicense提供等の条件を別途確認します。

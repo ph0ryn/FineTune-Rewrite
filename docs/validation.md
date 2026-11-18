@@ -4,7 +4,7 @@
 
 原作の意図された用途と、新設計の公開境界を検証します。
 元の保証を十分に確かめられるunitを優先し、テストの完全一致・件数維持・旧内部構造の復元は目的にしません。
-分割・統合・fixture置換は[対応台帳](<../Tests/UpstreamCompatibilityTests/migrationManifest.json>)と独立reviewで説明します。
+分割・統合・fixture置換は各テストの出典ヘッダと[互換方針](<compatibility.md>)に沿って、変更ごとのreviewで説明します。
 原作issue/PR由来の改良は今回の移植から分離します。
 
 **unitの成功、製品consumerの接続、実機動作、配布可能性は別の判定です。**
@@ -36,6 +36,36 @@
 全アプリ起動や実機に拡大せず、新しい境界の誤配線を検出する範囲へ絞ります。
 privateな呼出列だけを検証する巨大mockではなく、公開結果・保存結果・portへ渡した意味を観測します。
 
+#### UI表示leafのoracle
+
+copy・format・静的な表示mappingは、View・window・bitmapを作らない
+[AppPresentationContractTests](<../Tests/AppPresentationContractTests/>)で
+productionのsemantic projectionを検証します。対象はSettings各tab・Mixer header/footer・
+route menu・keyboard/AutoEQ bindings・device row actionsです。
+ここでは意味値だけを確認し、glyphの可視性や実際のcontrol接続は証明しません。
+
+実際のAppKit描画を伴う検証は[AppRenderedTests](<../Tests/AppRenderedTests/>)に集約します。
+このsuiteはproduction Viewをoffscreenの`NSHostingView`へ描画し、実`NSWindow`の
+configured size、native bridge（`NSSwitch`・`NSSegmentedControl`・`NSButton`）、
+SwiftUI buttonの描画bounds、status itemのactionを確認します。
+OCR・pixel probe・ScreenCaptureKit・pointer event loop・private SwiftUI proxyは使いません
+（[renderedTestSupport.swift](<../Tests/AppRenderedTests/renderedTestSupport.swift>)）。
+表示文字の認識はVisionの結果が環境に依存するため自動ゲートのoracleにせず、
+選択badgeのfill/glyphやslider trackの寸法もsemantic projectionの値で確認します。
+bitmap全体の一致や実際に描画されたpixelは保証しません。
+
+status-item testは実`NSStatusItem`の探索・所有actionを検証するため`NSStatusBar.system`
+へ一時的にitemを作成し、test内の`defer`で除去します。popoverは開かず、
+mouse eventもOSへ送りません。
+
+非描画のrouting・Root・policy suiteは[AppCompositionTests](<../Tests/AppCompositionTests/>)に
+置き、共有routing fixtureを[AppTestSupport](<../Tests/AppTestSupport/>)経由で参照します。
+両bundleは製品App module（FineTune）を参照するためAppKit/SwiftUIへのlink依存を持ち得ますが、
+test自身が描画経路を実行しないことを境界とします。
+
+視覚的な回帰は自動ゲート外で、代表状態のスクリーンショットと人間によるレビューで確認します。
+現在の`just check`にはこの手順を含めず、描画時間や撮影成功率の改善も主張しません。
+
 ### 3. 限定した実機観測
 
 権限・hardware・OS固有の仮説を確認する必要がある場合だけ、事前に対象と安全条件を決めて実行します。
@@ -48,9 +78,16 @@ optional hardware/E2E証拠は、未実施のままunitのpassへ合算しませ
 just check
 ```
 
-[Justfile](<../Justfile>)はformat lint、debug/releaseのpackage build・unit/component、
-offline DSP・native所有/levels/fake-HALを実行します。App bundle buildは含めません。
+[Justfile](<../Justfile>)は指定configuration（既定debug）のformat lint、unit・contract・
+DSP・native所有/levels/fake-HALを実行します。描画test（`test-ui`）とApp bundle buildは
+含めず、CIの別jobで実行します。
 通常チェックは製品アプリ起動・音声取得/再生・権限の承認要求（capture/TCC prompt等）・本物の設定移行・実機音量変更を行いません。
+
+注入したclock/transportは、操作後の固定delayではなく登録数・event・task完了を同期点にします。checked continuationを待つtest gateには、個別のfailure deadlineとcancellation pathを持たせます。
+所有taskの完了待ちでは、`Task.value`を待つだけでなく、完了eventとdeadlineで待機を区切ります。期限超過・cancel時はtaskをcancelし、fixtureのclockやgateを解放してから別の期限内で終了を確認します。解放callback自身は有限の操作に留め、対象taskの終了を待たせません。解放後も終了しない場合は未終了を明示して失敗にし、cancelでも診断を隠しません。非協調的なtaskと観測用taskが期限後も残る可能性を、回収成功とは扱いません。
+この診断を検証する故障注入controlだけは、`withKnownIssue`で意図した未終了issueの発生を要求します。通常caseの失敗を免除する用途には使わず、control自身のgateも解放して対象taskの終了を確認します。
+`NativeRetirementPoolRetryTests`は実`DispatchSourceTimer`を動かします。fake cleanup/release callbackのeventで完了を待ち、状態pollingはしません。
+`PopupLayoutTests`に残るpollingは、SwiftUI所有のchild popover windowの表示・dismissを最大2秒、10ms間隔で観測します。fixtureからはそのframework-owned window transitionの完了callbackへ接続できないため、実window stateを読むbounded waitを使います。
 
 個別実行:
 
@@ -63,18 +100,18 @@ just test-dsp release
 just test-native release
 ```
 
-SwiftのXML/JSONLとnativeのreportをconfiguration別に保存します。
-移植台帳・fingerprint・source hashと実行結果の専用自動照合は行いません。
-ソースを変更したら既存イベントを成功証拠として再利用せず、再実行します。
+現在のgateは各runnerの終了statusを確認します。SwiftのXML/event JSONLとnativeのJSON reportは
+既定のレシピでは生成しません。個別に確認したい場合は各runnerの`--report`を明示してください。
+ソースを変更したら既存の実行結果を成功証拠として再利用せず、同じconfigurationで再実行します。
 台帳の確認手順・many-to-many対応・独立reviewは[テスト移植](<test-migration.md>)にまとめます。
 
-- Swift JSONLではcompleteなrunEnded、issue/skipと実際のinvocationを確認します。parameterized declaration一つと実行row複数を区別します。
-- XMLは宣言単位の集約であり、JSONLの展開呼出数ではありません。両modeを別々に照合します。
-- C++ reportのnamed unit・invocation・診断用check counterも別の数です。六reportのcompleteと実行入力を確認します。
-- 元testの静的棚卸し・A/B/C分類・独自D・新Swift/CPP実行数を加算して、総成功数を作りません。
+- 各runnerの非ゼロ終了は失敗として扱い、成功件数の合計や過去のreportで覆いません。
+- parameterized declaration一つと実行row複数は別です。宣言数を実行数と混ぜません。
+- SwiftとC++の成功を加算して総成功数を作りません。
 
 CI設定があることと、CIが実際にpassしたことは区別します。
-ローカルはmacOS27/Xcode27.2/SDK27.2/Swift6.4.2/arm64、[CI設定](<../.github/workflows/check.yml>)はmacOS26/Xcode26.6/SDK26.5です（Xcode27 preview imageはVisionのaccurate OCRが失敗するため）。
+ローカルはmacOS27/Xcode27.2/SDK27.2/Swift6.4.2/arm64、[CI設定](<../.github/workflows/check.yml>)はmacOS26/Xcode26.6/SDK26.5です。
+UI leafは実AppKitの構造と幾何を確認しますが、Vision OCR・ScreenCaptureKit・private SwiftUI proxyは使いません。表示文字の可視性は自動ゲートで検証しないため、別途の視覚レビューが必要です。描画結果はOSのAppKit実装に依存するため、別OSのpassを代替証拠にしません。
 deployment target15.4での実機結果、両modeの同一入力証拠、別構成のsanitizer結果もそれぞれ分離します。
 
 ## DSPとnative境界
@@ -90,8 +127,10 @@ C++ named unitへ移した原作シナリオは、Swift JSONLとは別のnative�
 元Swift methodが消えたことだけで欠落と判定せず、入力・許容差・新unitの実行結果をreviewします。
 数式の出典・ISO資料の確認限界・sanitizer結果は[数値互換記録](<../Tools/DSPTests/Compatibility.md>)を参照してください。
 
-記録済みのC++単独再検証はDebug、`-O2 -DNDEBUG`のRelease、ASan+UBSanの三構成で、各49 named unit/6654 invocationです。
-実productionを使うDSP・Stages・fake HAL・Callback Slots・Coherent Levels・C no-capture boundaryの六プログラムが対象です。
+記録済みのC++単独再検証はDebug、`-O2 -DNDEBUG`のRelease、ASan+UBSanの三構成で、各49 named unit/6654 finite input rowです。
+これは移植時の履歴値で、現在のsource inventoryやschema 2 reportの`invocations`（case実行回数）とは同じ数ではありません。
+現在の五つのnative executableは90 named caseを登録しています。
+実productionを使うDSP・Stages・fake HAL・Callback Slots・Coherent Levelsの五プログラムが対象です。
 実行前のsymbol/link検査でphysical SystemHalを除外した証拠であり、Root・Swift factory・実OSの経路全体の合格ではありません。
 Stage/HALの対応するRelease false-checkは失敗を検出しますが、非対応の他CLIまで検証済みとはしません。
 

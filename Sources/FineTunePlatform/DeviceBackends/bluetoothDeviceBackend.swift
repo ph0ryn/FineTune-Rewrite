@@ -24,11 +24,29 @@ public final class BluetoothDeviceBackend {
   @ObservationIgnored private var lastErrorDeviceID: String?
   @ObservationIgnored private var generation: UInt64 = 0
   @ObservationIgnored private var refreshGeneration: UInt64 = 0
+  /// Test-owned completion event, invoked after a scheduled error clear has published its result.
+  @ObservationIgnored var errorClearDidComplete: (@MainActor (String) -> Void)?
 
   public init(transport: any BluetoothDeviceTransport, clock: DeviceBackendClock) {
     self.transport = transport
     self.clock = clock
   }
+
+  /// The exact automatic refresh task scheduled by `start()` or a power notification.
+  var scheduledRefresh: Task<Void, Never>? { refreshTask }
+
+  /// The backend-owned connection task; a transport return alone does not settle it.
+  func connectionOperation(for id: String) -> Task<Void, Never>? {
+    attempts[id]?.operation
+  }
+
+  /// Snapshots connection operations and timeout tasks before `stop()` removes their attempts.
+  func currentConnectionTasks() -> [Task<Void, Never>] {
+    attempts.values.flatMap { attempt in [attempt.operation, attempt.timeout].compactMap { $0 } }
+  }
+
+  /// Snapshots backend-owned error-clear tasks before `stop()` cancels and removes them.
+  func currentErrorClearTasks() -> [String: Task<Void, Never>] { errorClearTasks }
 
   public var pairedDevices: [BluetoothPeer] {
     guard isRunning, isPoweredOn == true else { return [] }
@@ -250,6 +268,7 @@ public final class BluetoothDeviceBackend {
         guard let self, self.errorTokens[id] == token else { return }
         self.clearError(for: id)
         if self.connectionPhases[id] == .failed { self.connectionPhases[id] = .idle }
+        self.errorClearDidComplete?(id)
       } catch is CancellationError {
         return
       } catch {

@@ -15,23 +15,27 @@
 
 **758宣言・966呼出しを新実装の実行target件数へ固定しません。**
 unitで十分ならE2Eへ拡大せず、分割・統合・書換・高依存fixture置換を許容します。
-元の保証から新unit/少数componentへのmany-to-many対応と、独立reviewによる十分性の説明が出口です。
+元の保証から新unit/少数componentへのmany-to-many対応と、変更ごとのreviewによる十分性の説明が出口です。
 optionalな実機/E2Eを通常CIの前提にしません。
 
-## 確定した移植・実行結果
+## 移植時に確定したsnapshot
 
 この節は専用の自動監査を削除する前に確定した移植時の記録です。
-現在の`just check`は以下の完全監査を再実行しません。
+現在の`just check`はこの完全監査を再実行しません。
 
-固定版の原54ファイル・全758 ID/966展開数・全baseline fingerprintを保持し、
-**A550/B205/C3**の各保証対応と独自**D341台帳record**を独立reviewで確定しました。
-DはSwift/C++を含む保証の台帳件数であり、次の実行件数へ重ねて加算しません。
+固定版の原54ファイル・全758 ID/966展開数を移植時の監査で照合し、
+**A550/B205/C3**の各保証対応と独自**D341**を確定しました。
+これらは移植時snapshotの分類であり、現在のsource件数や実行件数ではありません。DはSwift/C++を含む保証の件数で、実行件数へ重ねて加算しません。
 
 | 移植時に完了した検証 | Debug | Release |
 | --- | --- | --- |
 | Swift Testing・7 products | 1055宣言 /1349有限入力呼出し | 1055宣言 /1349有限入力呼出し |
 | C++・6 programs | 49 named units /6654有限入力呼出し | 49 named units /6654有限入力呼出し |
-| 完全監査 | pass・errors0 | pass・errors0 |
+| 完全監査（移植時snapshot、現在は非実行） | pass・errors0 | pass・errors0 |
+
+上の表は**移植時に確定した履歴snapshot**で、現在のsource inventoryや`just check`の結果ではありません。
+現在のnative 6 executableの登録named caseは77件（DSP 23、Stage 5、Slot 7、Levels 3、Runtime 1、HAL 38）です。
+49 named unit/6654有限入力呼出しを現在のsource件数へ読み替えません。移植時のbaselineは固定版の出自記録として確定済みで、現在のsourceの由来は各テストのSPDXヘッダで示します。
 
 Swiftは各7組のrun開始/終了、全function/case開始/終了、XML1055宣言を照合し、
 issue/failure/error/skip・compiler warningは0です。C++は6つのpositive reportを同じsnapshotで照合しました。
@@ -44,39 +48,63 @@ C++の保守的なsource inventory37とは別に、実`-MMD`和は**authored36�
 未参照umbrella header1件を実compiler依存と数えず、providerもDSP/runtime本体の代用品ではありません。
 SystemHalの実ObjC++ typecheckは別のDebug/Release各1 TUで確認し、incremental SDK進捗だけからfresh compileと推論していません。
 
-最後の登録では独立承認済み新D141宣言/180呼出しと、既存37 methodの理由付きFP差のみを追加照合しました。
-原baseline・分類・入力・数値期待を変えず、Bool callbackの成功stub適応、共有clock型名、強化したUI/status assertionsを個別に説明しています。
-実機・App起動・OS権限・可聴音・RT deadlineの合格をこの結果へ含めません。
+移植時の独立D cohortは147宣言/210入力呼出しで、NativeRoute 5宣言/29呼出しとHUD hide-delay 1/1を含みます。D341は別に確定した範囲です。
+`test-redesign-final`を承認するには、変更後の同一worktreeで`just check debug`と
+`just check release`に加えて`just test-ui debug`を通し、その後にreviewを完了します。
+`just check`は描画testとApp bundle buildを含まないため、それぞれCIの別jobで確認します。
+過去のpassはsource変更後の証拠に再利用しません。上のpass表は移植時snapshotであり、
+現行gateの実行結果ではありません。実機・App起動・OS権限・可聴音・RT deadlineの合格も含めません。
 
-## 台帳の正本
+## 出典の扱い
 
-[永続manifest](<../Tests/UpstreamCompatibilityTests/migrationManifest.json>)に次を記録します。
-
-- 固定revision、元54path/SHA256、元method ID・line・入力展開数
-- 元の入力・本文・assertion・`@Test`属性のversion付きfingerprint
-- A/B/C区分、適応/非可搬理由、対応する新しいSwift/C++ unit ID(s)
-- 新しい実行入力数、review済みsnapshot、独自D、fixture由来
-- authorと異なるreviewer、承認状態、根拠。自己監査だけではapprovedにしない
-
-元IDは`FineTuneTests/<file>.swift::<Suite>.<method>`です。
-移植先のfile数やmethod名を元と一致させる必要はありません。
+旧`migrationManifest.json`、旧`Tests/UpstreamCompatibilityTests/README.md`、旧`COPYING`は削除しました。
+固定版のrevisionとGPL由来のファイル範囲は[互換方針](<compatibility.md#ライセンス>)に、
+GPL本文とcopyright表示は[THIRD_PARTY_NOTICES.txt](<../App/Resources/THIRD_PARTY_NOTICES.txt>)に記録します。
+原作由来のファイルはファイル先頭のSPDXヘッダで由来を示し、現在の承認状態を管理する台帳は維持しません。
+元IDは`FineTuneTests/<file>.swift::<Suite>.<method>`ですが、移植先のfile数やmethod名を一致させる必要はありません。
 複数元IDを一つのunitへ対応させたり、一つの元IDを複数unitへ分けたりできます。
 
-| 区分 | 判定 |
-| --- | --- |
-| A | 可搬な入力・出力保証を直接保持。import・namespace・隔離directory等の意味を変えない適応は理由を記録 |
-| B | 新設計のunit/少数componentへ同等の保証を再配置。旧本文・件数・呼出順序の一致を要求しない |
-| C | 旧private stateや検出位置など非可搬な要求。根拠・新設計での扱い・代替保証を独立承認する |
-| D | 新しい公開境界・所有・error/復帰などの独自試験。Cの代替をDとして別記してもよい |
+移植時は次のA/B/C/Dで分類していました。現行の判断基準ではありません。
 
-B/Cを承認済みの再設計へ移した場合、元methodがないだけで欠落と判定しません。
-一方、理由のない削除、入力削減、許容差緩和、skip、known-issue隠蔽でpassを作りません。
+| 区分 | 意味 |
+| --- | --- |
+| A | 可搬な入力・出力保証を直接保持したもの |
+| B | 新設計のunit/少数componentへ同等の保証を再配置したもの |
+| C | 旧private stateや検出位置など非可搬な要求を置き換えたもの |
+| D | 新しい公開境界・所有・error/復帰などの独自試験 |
+
+理由のない削除、入力削減、許容差緩和、skip、known-issue隠蔽でpassを作りません。
+
+## 現在の保証対応
+
+Settings・Mixerのcopy・format・静的な表示mappingとbinding・action契約は、View・window・bitmap・run loopを作らない
+[AppPresentationContractTests](<../Tests/AppPresentationContractTests/>)で確認します。
+対象はSettings各tabのexact copyとbinding、Mixerのheader/footer・popup semantics・route menuの
+single/multi label、keyboard router・AutoEQ profile bindings、device row actionsです。
+実AppKitの構造・幾何・native bridgeを確認する描画testは[AppRenderedTests](<../Tests/AppRenderedTests/>)、
+非描画のcomposition wiringは[AppCompositionTests](<../Tests/AppCompositionTests/>)に分けています。
+OCR・pixel probe・ScreenCaptureKitは使わず、表示文字の可視性は自動ゲートで検証しません。
+この分離は描画時間や撮影成功率の改善を主張しません。
+
+物理default出力・入力のpolicy契約は、View・window・bitmap・run loopを作らない
+[ControlTests](<../Tests/ControlTests/>)へ移り、InMemoryControlSettingsStoreと
+Output/InputDevicePolicyControllerへclock/writer portを注入して確認します。
+[OutputDevicePolicyTests](<../Tests/ControlTests/OutputDevicePolicyTests.swift>)と
+[InputDevicePolicyTests](<../Tests/ControlTests/InputDevicePolicyTests.swift>)が2秒/5秒のdeadline付きの保証を持ち、
+default追従中のアプリの再試行は[AudioControllerDefaultRoutingTests](<../Tests/ControlTests/AudioControllerDefaultRoutingTests.swift>)で確認します。
+旧`AppPolicyContractTests`は廃止しました。共有するtest専用helperは[AppTestSupport](<../Tests/AppTestSupport/>)に残し、
+helperは製品targetや製品libraryの一部ではなく、製品側から参照しません。
+`FineTunePlatform`の依存frameworkはlinkされ得るためAppKit非linkは主張せず、
+ControlTestsがwindow・bitmap・OCR経路を実行しないことを境界とします。
+
+asyncのdeadline・cancel/release・drain・known-issue controlの条件は
+[検証方針](<validation.md>)の「通常の自動チェック」に整理しています。
+固定delayを同期点にせず、解放後も終了しないtaskを成功扱いしない点も同じです。
 
 ## 現在の確認手順
 
-専用の自動監査器とそのmutation/snapshot testsは削除しました。
-台帳は出自・保証対応・移植時のreview記録として残しますが、現在のソースと実行結果を自動照合するgateではありません。
-台帳の承認状態、fingerprint、必要なunitの欠落、source hashとreportの鮮度の横断照合も行いません。
+専用の自動監査器、そのmutation/snapshot tests、および対応台帳は削除しました。
+現在の`just check`はソースと実行結果を自動照合するgateではなく、各runnerの終了statusを確認します。
 
 通常の入口は[Justfile](<../Justfile>)です。
 
@@ -90,37 +118,27 @@ just test-native release
 just check
 ```
 
-`just check`はformat lint・package buildと両configurationの上記テストをまとめます。
+`just check <configuration>`はformat lintと当該configurationのunit・contract・DSP・nativeをまとめます。
+既定はdebugで、releaseも明示指定できます。描画test（`just test-ui`）は含めません。
 各runnerの非ゼロ終了はチェック失敗として扱います。
 Xcode App bundle buildはLaunchServices等への登録副作用を分離するため含めず、明示opt-inとdisposable CI stepに分けます。
 
 ### 変更時のreview
 
-- 元の保証に対応する新unitの入力・期待値・許容差を確認し、分割・統合や非可搬化の理由を台帳へ記録する
+- 元の保証に対応する新unitの入力・期待値・許容差を確認し、分割・統合や非可搬化の理由を変更の根拠として説明する
 - fixture/helperの変更も含めてreviewし、期待値や入力削減を単なるformat変更へ混ぜない
-- pendingや自己reviewを独立承認へ自動昇格しない
 - production/test sourceを変更したら、同じconfigurationの該当テストを再実行する。古いreportを現在の成功証拠として再利用しない
-
-台帳に残る`swift-format-lexical-v1` fingerprintは、移植時にformatterで正規化した字句の改変検知用記録です。
-hash一致だけで保証の十分性を証明するものではなく、現在の手順では再生成・照合しません。
 
 ### 実行結果の読み方
 
-SwiftのJSONL・XMLと六つのnative JSON reportをconfiguration別にscratchへ保存します。
-source snapshotと監査JSONは生成しません。実際のproduct/report pathsは[Justfile](<../Justfile>)を管理元とします。
+現在のgateは各runnerの終了statusを確認します。SwiftのXML/event JSONLとnativeのJSON reportは
+既定レシピでは生成しません。必要なら各runnerの`--report`を明示して出力先を指定します。
 
-- `just test`は開始時にSwift JSONLを空にする。native executableは起動時にreportを書き直すが、build失敗で起動しなかった旧reportを成功証拠にしない
-- Swift Testing JSONL version 0の`test` descriptorと`testStarted`/`testEnded`を対応させる
-- parameterizedでは`testCaseStarted`/`testCaseEnded`の異なるcase IDを数え、宣言数と分ける
-- 必要なunitの実行、期待した入力数、issue/skipの有無、完了した`runEnded`を確認する
-- native report schema 1の`complete: true`、各caseの`id`・`status: passed`・正の`invocations`を確認する
-- C++の`invocations`は実際に実行した入力case数で、診断用の`checks`とは区別する
-- Swiftの宣言数へC++の成功を混ぜず、元保証→新unit/入力/許容差→実行結果を別に対応付ける
-- debug/releaseを混ぜず、途中終了・欠落・重複・不完全なreportを成功扱いしない
-
-SwiftPMのXCTest `Executed 0 tests` preambleは、Swift Testingが0件という意味ではありません。
-Swift Testing用XMLは`test-results-<configuration>-swift-testing.xml`で、XMLのtestcase数だけでは入力展開の完了を示せません。
-JSONLと併せて読みます。元966への固定比較や、欠落を覆う総数だけの比較は行いません。
+- 各runnerの非ゼロ終了は失敗として扱い、成功件数の合計や過去の実行で覆いません
+- parameterized declaration一つと実行row複数は別に数え、宣言数を実行数と混ぜません
+- `just check debug`と`just check release`を混ぜず、同じconfigurationの結果だけを比較します
+- SwiftとC++の成功を加算して総成功数を作りません
+- 元966への固定比較や、欠落を覆う総数だけの比較は行いません
 
 optional-hardwareにはSwift/C++を問わず明示理由とreviewが必要で、未実施をpassへ加えません。
 実機操作を伴うtestは既定test targetに入れず、別package/明示manual runnerへ隔離してください。
@@ -132,7 +150,7 @@ unit/component passは、App consumer全接続・実HAL音声・権限・最小O
 [検証方針](<validation.md>)と[互換方針](<compatibility.md>)を参照してください。
 
 原作由来test/fixtureと派生C++ unitもGNU GPL version 3を維持します。
-[出自説明](<../Tests/UpstreamCompatibilityTests/README.md>)と[原作copyright/GPL本文](<../Tests/UpstreamCompatibilityTests/COPYING>)を同梱し、
+原作のcopyright表示とGPL本文はアプリにバンドルする[THIRD_PARTY_NOTICES.txt](<../App/Resources/THIRD_PARTY_NOTICES.txt>)に一本化し、
 独立MIT部分の[MIT License](<../LICENSE>)と区別します。
 製品側にも原作由来data・派生codeのwhole-file GPL区分があり、[正確なファイル範囲と固定元](<compatibility.md#製品側の派生codeとdata>)を記録しています。
 テストの隔離を理由に、GPL対象を含む製品binaryの配布条件まで不要とは扱いません。

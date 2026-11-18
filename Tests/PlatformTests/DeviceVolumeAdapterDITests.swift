@@ -57,11 +57,13 @@ struct DeviceVolumeAdapterDITests {
     let rig = OutputAdapterFixture()
     rig.adapter.start()
     rig.provider.outputDevices = [OutputProvider.device(10, "replacement")]
-    #expect(throws: (any Error).self) { try rig.adapter.requestVolume(forUID: "speaker", to: 0.6) }
+    #expect(throws: DeviceBackendError.unavailableDevice("speaker")) {
+      try rig.adapter.requestVolume(forUID: "speaker", to: 0.6)
+    }
     #expect(rig.hal.writes.isEmpty)
     let rebound = OutputAdapterFixture(resolvedID: 99)
     rebound.adapter.start()
-    #expect(throws: (any Error).self) {
+    #expect(throws: DeviceBackendError.unavailableDevice("speaker")) {
       try rebound.adapter.requestVolume(forUID: "speaker", to: 0.6)
     }
     #expect(rebound.hal.writes.isEmpty)
@@ -106,36 +108,28 @@ struct DeviceVolumeAdapterDITests {
   }
 
   @Test("Same-UID default read health is observable per role and recovery retains display identity")
-  func defaultReadHealth() async {
+  func defaultReadHealth() {
     let rig = OutputAdapterFixture()
     rig.adapter.start()
     let inputKey = OutputHAL.Key(.system, kAudioHardwarePropertyDefaultInputDevice)
     let outputKey = OutputHAL.Key(.system, kAudioHardwarePropertyDefaultOutputDevice)
-    func refresh(_ change: () -> Void) async {
-      await withCheckedContinuation { continuation in
-        withObservationTracking {
-          _ = rig.adapter.defaultOutputReadFailure
-          _ = rig.adapter.defaultInputReadFailure
-        } onChange: {
-          continuation.resume()
-        }
-        change()
-        rig.adapter.refreshOutputDeviceStates()
-      }
+    func refresh(_ change: () -> Void) {
+      change()
+      rig.adapter.refreshOutputDeviceStates()
     }
     #expect(
       rig.adapter.defaultOutputReadFailure == nil && rig.adapter.defaultInputReadFailure == nil)
-    await refresh { rig.hal.failedReads.insert(inputKey) }
+    refresh { rig.hal.failedReads.insert(inputKey) }
     #expect(
       rig.adapter.defaultOutputReadFailure == nil && rig.adapter.defaultInputReadFailure != nil)
     #expect(
       rig.adapter.defaultDeviceUID == "speaker" && rig.adapter.defaultInputDeviceUID == "microphone"
     )
-    await refresh { rig.hal.failedReads = [outputKey] }
+    refresh { rig.hal.failedReads = [outputKey] }
     #expect(
       rig.adapter.defaultOutputReadFailure != nil && rig.adapter.defaultInputReadFailure == nil)
     #expect(!rig.adapter.hasCurrentDefaultOutput)
-    await refresh { rig.hal.failedReads.removeAll() }
+    refresh { rig.hal.failedReads.removeAll() }
     #expect(
       rig.adapter.defaultOutputReadFailure == nil && rig.adapter.defaultInputReadFailure == nil)
     #expect(
@@ -158,6 +152,7 @@ struct DeviceVolumeAdapterDITests {
 
 @MainActor
 private final class OutputAdapterFixture {
+  let directory: URL
   let provider = OutputProvider()
   let hal = OutputHAL()
   let observer = OutputObserver()
@@ -166,10 +161,9 @@ private final class OutputAdapterFixture {
   let adapter: CoreAudioDeviceVolumeAdapter
 
   init(ddc enabled: Bool = false, resolvedID: AudioDeviceID? = nil) {
-    settings = SettingsManager(
-      directory: FileManager.default.temporaryDirectory.appendingPathComponent(
-        "output-DI-\(UUID())"),
-      launchAtLoginService: OutputLogin())
+    directory = FileManager.default.temporaryDirectory.appendingPathComponent(
+      "output-DI-\(UUID().uuidString)", isDirectory: true)
+    settings = SettingsManager(directory: directory, launchAtLoginService: OutputLogin())
     adapter = CoreAudioDeviceVolumeAdapter(
       deviceProvider: provider, settingsManager: settings,
       autoDetectedBackend: { _ in enabled ? .ddc : .hardware }, reader: hal, writer: hal,
@@ -181,6 +175,8 @@ private final class OutputAdapterFixture {
         return resolvedID ?? device.id
       })
   }
+
+  deinit { try? FileManager.default.removeItem(at: directory) }
 }
 
 @MainActor

@@ -35,18 +35,19 @@ struct SettingsUpdatesView: View {
   let capability: SettingsUpdateCapability
   var version: String? =
     Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+  var copy = SettingsUpdatesCopy()
 
   var body: some View {
     Form {
-      Section("Software Updates") {
+      Section(copy.sectionTitle) {
         switch capability {
         case .unavailable(let reason):
           HStack {
             automaticUpdatesLabel
             Spacer()
-            Text("Not configured").foregroundStyle(.secondary)
-            Toggle("Automatic updates", isOn: .constant(false)).labelsHidden().disabled(true)
-              .accessibilityValue("Not configured")
+            Text(copy.notConfigured).foregroundStyle(.secondary)
+            Toggle(copy.automaticUpdatesTitle, isOn: .constant(false)).labelsHidden().disabled(true)
+              .accessibilityValue(copy.notConfigured)
           }
           HStack {
             lastCheckedLabel(date: nil)
@@ -54,7 +55,7 @@ struct SettingsUpdatesView: View {
             checkNowButton
           }
           VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
-            Text("Updates are unavailable in this build.")
+            Text(copy.unavailable)
             Text(reason).foregroundStyle(.secondary)
           }
           .font(DesignTokens.Typography.rowDescription)
@@ -64,7 +65,7 @@ struct SettingsUpdatesView: View {
             automaticUpdatesLabel
             Spacer()
             Toggle(
-              "Automatic updates",
+              copy.automaticUpdatesTitle,
               isOn: SettingsUpdateBindings(read: read, actions: actions).automaticChecks
             )
             .labelsHidden()
@@ -94,28 +95,28 @@ struct SettingsUpdatesView: View {
     switch capability {
     case .unavailable:
       // An unreachable presentation placeholder, not a supplied update-service action.
-      Button("Check Now") {}.disabled(!canCheckNow)
+      Button(copy.checkNow) {}.disabled(!canCheckNow)
     case .available(_, let actions):
-      Button("Check Now", action: actions.checkNow).disabled(!canCheckNow)
+      Button(copy.checkNow, action: actions.checkNow).disabled(!canCheckNow)
     }
   }
 
   private var automaticUpdatesLabel: some View {
     VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
-      Text("Automatic updates")
-      Text("Check for new versions automatically")
+      Text(copy.automaticUpdatesTitle)
+      Text(copy.automaticUpdatesDescription)
         .font(DesignTokens.Typography.rowDescription).foregroundStyle(.secondary)
     }
   }
 
   private func lastCheckedLabel(date: Date?) -> some View {
     VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
-      Text("Last checked")
+      Text(copy.lastCheckedTitle)
       if let date {
-        Text("Version \(version ?? "unavailable") · \(date, style: .relative)")
+        Text("\(copy.versionLinePrefix(version: version)) \(date, style: .relative)")
           .font(DesignTokens.Typography.rowDescription).foregroundStyle(.secondary)
       } else {
-        Text("Version \(version ?? "unavailable") · Never checked")
+        Text("\(copy.versionLinePrefix(version: version)) \(copy.neverChecked)")
           .font(DesignTokens.Typography.rowDescription).foregroundStyle(.secondary)
       }
     }

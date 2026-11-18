@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Actual native ownership units; no replacement DSP or test-only production ABI.
 #include "../../Sources/NativeAudio/PreparedPipelineStages.hpp"
+#include "../NativeRuntimeTests/NativeTestReport.hpp"
 #include <array>
 #include <atomic>
 #include <cmath>
@@ -60,15 +61,20 @@ using Stages = PreparedPipelineStages;
 using Buffer = std::array<float, 4096>;
 constexpr std::array<std::uint32_t, 4> bits{Stages::eqChanged, Stages::autoEQChanged,
                                             Stages::equalizerChanged, Stages::compensatorChanged};
-std::size_t failures = 0, checks = 0, invocations = 1;
+std::size_t failures = 0, assertions = 0, inputs = 1;
 const char *currentID = "startup";
-void check(bool value, const char *property) {
-    ++checks;
+const char *firstFailure = nullptr;
+bool check(bool value, const char *property) {
+    ++assertions;
     if (!value) {
+        if (!firstFailure)
+            firstFailure = property;
         if (failures < 12)
             std::fprintf(stderr, "%s: %s\n", currentID, property);
         ++failures;
+        return false;
     }
+    return true;
 }
 #define CHECK(expr) check(bool(expr), #expr)
 using PipelineOwner = std::unique_ptr<FTPipeline, decltype(&ft_pipeline_destroy)>;
@@ -214,7 +220,7 @@ void unmaskedGainAndHistory() {
     CHECK(identities(unchanged) == (std::array<void *, 4>{}));
 }
 void singleStagePreservesOthers() {
-    invocations = 8;
+    inputs = 8;
     for (auto bit : bits)
         for (bool present : {false, true}) {
             auto p = pipeline(0.4F), reference = pipeline(0.4F);
@@ -281,7 +287,7 @@ std::array<std::uint32_t, 2> ternaryState(unsigned value) {
     return {mask, present};
 }
 void exhaustiveUnconsumedMerge() {
-    invocations = 81 * 81;
+    inputs = 81 * 81;
     std::size_t pairs = 0;
     for (unsigned n = 0; n < 81; ++n)
         for (unsigned o = 0; o < 81; ++o) {
@@ -303,7 +309,6 @@ void exhaustiveUnconsumedMerge() {
 struct Result {
     const char *id;
     void (*run)();
-    std::size_t count = 0, checks = 0, failed = 0;
 };
 std::array<Result, 5> results{{
     {"Tests/NativeStageTests/main.cpp::fourStageSwapClearAndRetire", fourStageSwapClearAndRetire},
@@ -312,53 +317,54 @@ std::array<Result, 5> results{{
     {"Tests/NativeStageTests/main.cpp::mergePendingTwoAndNewThree", mergePendingTwoAndNewThree},
     {"Tests/NativeStageTests/main.cpp::exhaustiveUnconsumedMerge", exhaustiveUnconsumedMerge},
 }};
-bool report(const char *path, bool complete) {
-    auto *f = std::fopen(path, "w");
-    if (!f)
-        return false;
-    bool ok = std::fprintf(f, "{\"schema_version\":1,\"complete\":%s,\"cases\":[",
-                           complete ? "true" : "false") >= 0;
-    if (complete)
-        for (std::size_t i = 0; i < results.size(); ++i) {
-            const auto &r = results[i];
-            ok &= std::fprintf(f,
-                               "%s{\"id\":\"%s\",\"status\":\"%s\",\"invocations\":%zu,\"checks\":%"
-                               "zu,\"failures\":%zu}",
-                               i ? "," : "", r.id, r.failed ? "failed" : "passed", r.count,
-                               r.checks, r.failed) >= 0;
-        }
-    ok &=
-        std::fprintf(
-            f,
-            "],\"callback_allocations\":%zu,\"callback_deletions\":%zu,\"total_deletions\":%zu}\n",
-            observation::allocations.load(), observation::deletions.load(),
-            observation::allDeletions.load()) >= 0;
-    const bool wrote = std::ferror(f) == 0;
-    const bool closed = std::fclose(f) == 0;
-    return ok && wrote && closed;
-}
 } // namespace
 int main(int argc, char **argv) {
-    const bool inject = argc == 4 && std::strcmp(argv[3], "--inject-check-failure") == 0;
-    if ((argc != 3 && !inject) || std::strcmp(argv[1], "--report") != 0)
-        return 2;
-    if (!report(argv[2], false))
-        return 2;
-    for (auto &r : results) {
-        currentID = r.id;
-        const auto before = failures, beforeChecks = checks;
-        invocations = 1;
-        if (inject && &r == &results.front())
-            CHECK(false);
-        r.run();
-        CHECK(checks > beforeChecks);
-        r.count = invocations;
-        r.checks = checks - beforeChecks;
-        r.failed = failures - before;
-        std::printf("%s: %s (%zu invocations, %zu always-on checks)\n", r.id,
-                    r.failed ? "FAIL" : "PASS", r.count, r.checks);
+    const char *reportPath = nullptr;
+    bool inject = false;
+    for (int i = 1; i < argc; ++i) {
+        if (std::strcmp(argv[i], "--inject-check-failure") == 0) {
+            inject = true;
+        } else if (std::strcmp(argv[i], "--report") == 0 && i + 1 < argc &&
+                   argv[i + 1][0] != '\0') {
+            reportPath = argv[++i];
+        } else {
+            std::fputs("Usage: NativeStageTests [--report path.json] [--inject-check-failure]\n",
+                       stderr);
+            return 2;
+        }
     }
-    if (!report(argv[2], true))
+    finetune::test::NativeTestReport report;
+    if (reportPath && !report.begin(reportPath))
         return 2;
-    return failures ? 1 : 0;
+    std::array<finetune::test::NativeTestResult, results.size()> reported{};
+    for (std::size_t i = 0; i < results.size(); ++i) {
+        const auto &r = results[i];
+        currentID = r.id;
+        firstFailure = nullptr;
+        const auto beforeFailures = failures, beforeAssertions = assertions;
+        inputs = 1;
+        if (inject && i == 0)
+            CHECK(false);
+        const auto beforeCaseAssertions = assertions;
+        r.run();
+        CHECK(assertions > beforeCaseAssertions);
+        CHECK(inputs > 0);
+        reported[i] = {r.id,
+                       1,
+                       inputs,
+                       assertions - beforeAssertions,
+                       static_cast<std::size_t>(failures - beforeFailures),
+                       firstFailure};
+        std::printf("%s: %s (%zu inputs, %zu always-on assertions)\n", r.id,
+                    reported[i].failures ? "FAIL" : "PASS", reported[i].inputs,
+                    reported[i].assertions);
+    }
+    char extra[256];
+    std::snprintf(extra, sizeof extra,
+                  "\"callback_allocations\":%zu,\"callback_deletions\":%zu,"
+                  "\"total_deletions\":%zu",
+                  observation::allocations.load(), observation::deletions.load(),
+                  observation::allDeletions.load());
+    const bool reportedAll = report.finish(reported, extra);
+    return failures == 0 && reportedAll ? 0 : 1;
 }

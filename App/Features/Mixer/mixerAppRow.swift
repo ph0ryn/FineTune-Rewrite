@@ -9,6 +9,20 @@ import FineTuneDomain
 import Foundation
 import SwiftUI
 
+/// Text the row renders. `MixerAppRow` reads this same value for its name and optional route line.
+struct MixerAppRowPresentation: Equatable {
+  var name: String
+  var subtitle: String?
+  var routeStatus: String?
+
+  @MainActor
+  init(app: MixerAppPresentation, bindings: MixerBindings, isEditing: Bool = false) {
+    name = app.name
+    subtitle = isEditing ? nil : MixerAppRoutePicker.subtitle(app, bindings: bindings)
+    routeStatus = isEditing ? nil : app.routeStatus
+  }
+}
+
 @MainActor
 struct MixerAppRow: View {
   let app: MixerAppPresentation
@@ -25,6 +39,9 @@ struct MixerAppRow: View {
   @State private var isPinHovered = false
   @State private var isEyeHovered = false
 
+  private var presentation: MixerAppRowPresentation {
+    MixerAppRowPresentation(app: app, bindings: bindings, isEditing: isEditing)
+  }
   private var decorationOpacity: Double { app.isActive || isEditing ? 1 : 0.6 }
   private var sliderValue: Double { VolumeMapping.gainToSlider(app.gain) }
 
@@ -48,9 +65,10 @@ struct MixerAppRow: View {
           appIcon
         }
         VStack(alignment: .leading, spacing: 1) {
-          Text(app.name).font(DesignTokens.Typography.rowName).lineLimit(1).help(app.name)
+          Text(presentation.name).font(DesignTokens.Typography.rowName).lineLimit(1)
+            .help(presentation.name)
             .foregroundStyle(app.isIgnored ? DesignTokens.Colors.textSecondary : .primary)
-          if !isEditing, let subtitle = MixerAppRoutePicker.subtitle(app, bindings: bindings) {
+          if let subtitle = presentation.subtitle {
             Text(subtitle).font(.system(size: 9))
               .foregroundStyle(DesignTokens.Colors.textTertiary)
               .lineLimit(1).help(bindings.routeLabel(app))
@@ -62,7 +80,7 @@ struct MixerAppRow: View {
       }
       .frame(height: DesignTokens.Dimensions.rowContentHeight)
       if !isEditing {
-        if let status = app.routeStatus {
+        if let status = presentation.routeStatus {
           Label(status, systemImage: "exclamationmark.triangle")
             .font(DesignTokens.Typography.caption).foregroundStyle(.orange)
             .padding(.top, DesignTokens.Spacing.xs)

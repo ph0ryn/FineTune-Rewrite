@@ -10,6 +10,7 @@ struct FineTuneSettingsView: View {
   let read: () -> SettingsSnapshot
   let actions: SettingsActions
   let updates: SettingsUpdateCapability
+  var generalCopy = SettingsGeneralCopy()
   @State private var tab: Tab = .general
   @State private var confirmingReset = false
 
@@ -51,21 +52,22 @@ struct FineTuneSettingsView: View {
   private var general: some View {
     Form {
       Section("General") {
-        setting("Launch at Login", description: "Start FineTune when you log in") {
-          Toggle("Launch at Login", isOn: bindings.field(\AppSettings.launchAtLogin)).labelsHidden()
+        setting(generalCopy.launchAtLoginTitle, description: generalCopy.launchAtLoginDescription) {
+          Toggle(generalCopy.launchAtLoginTitle, isOn: bindings.field(\AppSettings.launchAtLogin))
+            .labelsHidden()
         }
-        setting("Theme", description: "Match macOS, or lock to Light or Dark") {
-          Picker("Theme", selection: bindings.field(\AppSettings.appearance)) {
+        setting(generalCopy.themeTitle, description: generalCopy.themeDescription) {
+          Picker(generalCopy.themeTitle, selection: bindings.field(\AppSettings.appearance)) {
             ForEach(AppearancePreference.allCases) { Text($0.description).tag($0) }
           }
           .pickerStyle(.segmented).labelsHidden().frame(width: 220)
         }
         setting(
-          "Device Disconnect Alerts",
-          description: "Show notification when an audio device disconnects"
+          generalCopy.disconnectAlertsTitle,
+          description: generalCopy.disconnectAlertsDescription
         ) {
           Toggle(
-            "Device Disconnect Alerts",
+            generalCopy.disconnectAlertsTitle,
             isOn: bindings.field(\AppSettings.showDeviceDisconnectAlerts)
           )
           .labelsHidden()
@@ -268,27 +270,27 @@ struct FineTuneSettingsView: View {
 struct SettingsAboutView: View {
   var metadata: SettingsAboutPresentation = .current
   var appIcon: NSImage? = NSApp?.applicationIconImage
+  var copy = SettingsAboutCopy()
 
   var body: some View {
     VStack(spacing: DesignTokens.Spacing.md) {
       Spacer()
       if let appIcon {
         Image(nsImage: appIcon).resizable().interpolation(.high).frame(width: 96, height: 96)
-          .accessibilityLabel("FineTune app icon")
+          .accessibilityLabel(copy.appIconLabel)
       } else {
-        Label("App icon unavailable", systemImage: "app")
+        Label(copy.appIconUnavailable, systemImage: "app")
           .font(DesignTokens.Typography.rowDescription).foregroundStyle(.secondary)
       }
-      Text("FineTune").font(.system(size: 22, weight: .semibold))
+      Text(copy.title).font(.system(size: 22, weight: .semibold))
       Text(metadata.versionDescription).font(DesignTokens.Typography.percentage)
         .foregroundStyle(.secondary)
-      Text("Independent rewrite · Original project by Ronit Singh")
+      Text(copy.independentRewrite)
         .font(DesignTokens.Typography.rowDescription).foregroundStyle(.secondary)
       Spacer()
-      Link(
-        "Star on GitHub", destination: URL(string: "https://github.com/ronitsingh10/FineTune")!)
+      Link(copy.starLabel, destination: copy.starURL)
       HStack(spacing: DesignTokens.Spacing.xs) {
-        Link("GPL-3.0", destination: URL(string: "https://www.gnu.org/licenses/gpl-3.0.html")!)
+        Link(copy.licenseLabel, destination: copy.licenseURL)
         Text("·")
         Text(metadata.copyright)
       }

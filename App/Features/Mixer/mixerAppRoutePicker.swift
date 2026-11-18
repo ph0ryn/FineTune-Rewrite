@@ -8,6 +8,24 @@ import AppKit
 import FineTuneDomain
 import SwiftUI
 
+/// Copy rendered by the route menu; `MixerAppRouteMenu` reads these values directly so the mode
+/// buttons and System Audio row use the same strings the parity tests assert.
+struct MixerAppRouteCopy: Equatable {
+  var singleMode = "Single"
+  var multiMode = "Multi"
+  var systemAudio = "System Audio"
+  var followsDefault = "Follows macOS default"
+  var unavailableInMulti = "Not available in multi mode"
+
+  func modeLabel(_ mode: DeviceSelectionMode) -> String {
+    mode == .single ? singleMode : multiMode
+  }
+
+  func systemAudioDetail(isMulti: Bool) -> String {
+    isMulti ? unavailableInMulti : followsDefault
+  }
+}
+
 @MainActor
 struct MixerAppRoutePicker: View {
   let app: MixerAppPresentation
@@ -90,24 +108,72 @@ struct MixerAppRoutePicker: View {
   }
 }
 
+/// Pure route-menu selection and dismissal logic shared by `MixerAppRouteMenu` and contract tests.
+@MainActor
+struct MixerAppRouteMenuModel {
+  let app: MixerAppPresentation
+  let bindings: MixerBindings
+  let dismiss: () -> Void
+
+  var current: MixerAppPresentation { bindings.current(app) }
+
+  var visibleDevices: [MixerDevicePresentation] {
+    bindings.read().outputDevices.filter { !$0.isHidden }
+  }
+
+  var isSystemAudioDisabled: Bool { current.selectionMode == .multi }
+
+  func isDeviceSelected(_ device: MixerDevicePresentation) -> Bool {
+    !current.isFollowingDefault && current.selectedDeviceUIDs.contains(device.id)
+  }
+
+  func selectMode(_ mode: DeviceSelectionMode) {
+    let observed = current
+    if observed.selectionMode != mode {
+      bindings.selectRoute(observed, mode: mode, uids: observed.selectedDeviceUIDs)
+    }
+  }
+
+  func selectSystemAudio() {
+    let observed = current
+    guard observed.selectionMode != .multi else { return }
+    bindings.followDefault(observed)
+    dismiss()
+  }
+
+  func selectDevice(_ device: MixerDevicePresentation) {
+    let observed = current
+    var uids = observed.selectionMode == .multi ? observed.selectedDeviceUIDs : []
+    if observed.selectionMode == .multi && uids.contains(device.id) {
+      uids.remove(device.id)
+    } else {
+      uids.insert(device.id)
+    }
+    bindings.selectRoute(observed, mode: observed.selectionMode, uids: uids)
+    if observed.selectionMode == .single { dismiss() }
+  }
+}
+
 /// Selection is always observed. Only whether the native popover is open is local UI state.
 @MainActor
 struct MixerAppRouteMenu: View {
   let app: MixerAppPresentation
   let bindings: MixerBindings
   let dismiss: () -> Void
+  var copy = MixerAppRouteCopy()
   @State private var hoveredMode: DeviceSelectionMode?
 
-  private var current: MixerAppPresentation { bindings.current(app) }
-  private var devices: [MixerDevicePresentation] {
-    bindings.read().outputDevices.filter { !$0.isHidden }
+  private var menuModel: MixerAppRouteMenuModel {
+    MixerAppRouteMenuModel(app: app, bindings: bindings, dismiss: dismiss)
   }
 
   var body: some View {
+    let current = menuModel.current
+    let devices = menuModel.visibleDevices
     VStack(spacing: 0) {
       HStack(spacing: 0) {
-        modeButton(.single, label: "Single")
-        modeButton(.multi, label: "Multi")
+        modeButton(.single, label: copy.modeLabel(.single))
+        modeButton(.multi, label: copy.modeLabel(.multi))
       }
       .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 6))
       .overlay(
@@ -119,22 +185,21 @@ struct MixerAppRouteMenu: View {
       ScrollView(.vertical) {
         VStack(spacing: 2) {
           MixerAppRouteOption(
-            name: "System Audio", icon: nil, isSystemAudio: true,
-            isSelected: current.isFollowingDefault, isMulti: current.selectionMode == .multi,
+            name: copy.systemAudio, icon: nil, isSystemAudio: true,
+            detail: copy.systemAudioDetail(isMulti: menuModel.isSystemAudioDisabled),
+            isSelected: current.isFollowingDefault, isMulti: menuModel.isSystemAudioDisabled,
             isDefault: false
           ) {
-            bindings.followDefault(current)
-            dismiss()
+            menuModel.selectSystemAudio()
           }
           ForEach(devices) { device in
             MixerAppRouteOption(
               name: device.device.name, icon: bindings.deviceIcon(device, scope: .output),
-              isSystemAudio: false,
-              isSelected: !current.isFollowingDefault
-                && current.selectedDeviceUIDs.contains(device.id),
-              isMulti: current.selectionMode == .multi, isDefault: device.isDefault
+              isSystemAudio: false, detail: nil,
+              isSelected: menuModel.isDeviceSelected(device),
+              isMulti: menuModel.isSystemAudioDisabled, isDefault: device.isDefault
             ) {
-              select(device)
+              menuModel.selectDevice(device)
             }
           }
         }
@@ -147,12 +212,9 @@ struct MixerAppRouteMenu: View {
   }
 
   private func modeButton(_ mode: DeviceSelectionMode, label: String) -> some View {
-    let selected = current.selectionMode == mode
+    let selected = menuModel.current.selectionMode == mode
     return Button {
-      let observed = current
-      if observed.selectionMode != mode {
-        bindings.selectRoute(observed, mode: mode, uids: observed.selectedDeviceUIDs)
-      }
+      menuModel.selectMode(mode)
     } label: {
       HStack(spacing: 4) {
         Image(systemName: selected ? "checkmark.circle.fill" : "circle")
@@ -179,18 +241,6 @@ struct MixerAppRouteMenu: View {
     .onHover { hoveredMode = $0 ? mode : nil }
     .animation(DesignTokens.Animation.hover, value: hoveredMode)
   }
-
-  private func select(_ device: MixerDevicePresentation) {
-    let observed = current
-    var uids = observed.selectionMode == .multi ? observed.selectedDeviceUIDs : []
-    if observed.selectionMode == .multi && uids.contains(device.id) {
-      uids.remove(device.id)
-    } else {
-      uids.insert(device.id)
-    }
-    bindings.selectRoute(observed, mode: observed.selectionMode, uids: uids)
-    if observed.selectionMode == .single { dismiss() }
-  }
 }
 
 @MainActor
@@ -198,6 +248,7 @@ private struct MixerAppRouteOption: View {
   let name: String
   let icon: NSImage?
   let isSystemAudio: Bool
+  let detail: String?
   let isSelected: Bool
   let isMulti: Bool
   let isDefault: Bool
@@ -223,8 +274,8 @@ private struct MixerAppRouteOption: View {
         }
         VStack(alignment: .leading, spacing: 1) {
           Text(name).lineLimit(1)
-          if isSystemAudio {
-            Text(isDisabled ? "Not available in multi mode" : "Follows macOS default")
+          if let detail {
+            Text(detail)
               .font(DesignTokens.Typography.caption).foregroundStyle(
                 DesignTokens.Colors.textTertiary)
           }

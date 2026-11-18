@@ -6,6 +6,30 @@
 
 import SwiftUI
 
+/// Copy rendered by the header. `MixerHeader` reads these values for its visible text and the
+/// accessibility/help labels of its icon-only actions.
+struct MixerHeaderCopy: Equatable {
+  var dragHint = "Drag or type a number to set priority"
+  var reorder = "Reorder devices"
+  var doneReordering = "Done reordering"
+  var retryAudio = "Retry Audio"
+  var settings = "Settings"
+  var outputTab = "Output Devices"
+  var inputTab = "Input Devices"
+
+  var allStrings: [String] {
+    [dragHint, reorder, doneReordering, retryAudio, settings, outputTab, inputTab]
+  }
+}
+
+/// Copy rendered by the footer button; `MixerFooter` reads these values directly.
+struct MixerFooterCopy: Equatable {
+  var quit = "Quit"
+  var shortcut = "⌘Q"
+  var accessibilityLabel = "Quit FineTune"
+  var help = "Quit FineTune (⌘Q)"
+}
+
 /// Compact original controls, independent of device services and application lifecycle.
 struct MixerHeader: View {
   @Binding var scope: MixerDeviceScope
@@ -15,13 +39,14 @@ struct MixerHeader: View {
   let edit: () -> Void
   let retryAudio: () -> Void
   let settings: () -> Void
+  var copy = MixerHeaderCopy()
 
   var body: some View {
     HStack(alignment: .top, spacing: DesignTokens.Spacing.sm) {
       deviceTabs
       Spacer(minLength: 0)
       if isEditing {
-        Text("Drag or type a number to set priority")
+        Text(copy.dragHint)
           .font(DesignTokens.Typography.rowDescription)
           .foregroundStyle(DesignTokens.Colors.textSecondary)
       } else {
@@ -29,21 +54,21 @@ struct MixerHeader: View {
       }
       Spacer(minLength: 0)
       Button(
-        isEditing ? "Done reordering" : "Reorder devices",
+        isEditing ? copy.doneReordering : copy.reorder,
         systemImage: isEditing ? "checkmark" : "pencil", action: edit
       )
       .font(.system(size: 12, weight: isEditing ? .bold : .regular))
-      .help(isEditing ? "Done reordering" : "Reorder devices")
+      .help(isEditing ? copy.doneReordering : copy.reorder)
       .modifier(HeaderIcon())
 
-      Button("Retry Audio", systemImage: "arrow.clockwise", action: retryAudio)
+      Button(copy.retryAudio, systemImage: "arrow.clockwise", action: retryAudio)
         .font(.system(size: 12))
-        .help("Retry Audio")
+        .help(copy.retryAudio)
         .modifier(HeaderIcon())
 
-      Button("Settings", systemImage: "gearshape.fill", action: settings)
+      Button(copy.settings, systemImage: "gearshape.fill", action: settings)
         .font(.system(size: 12))
-        .help("Settings")
+        .help(copy.settings)
         .modifier(HeaderIcon())
     }
     .padding(.bottom, DesignTokens.Spacing.xs)
@@ -71,9 +96,9 @@ struct MixerHeader: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(tab.title) Devices")
+        .accessibilityLabel(tab == .output ? copy.outputTab : copy.inputTab)
         .accessibilityAddTraits(scope == tab ? .isSelected : [])
-        .help("\(tab.title) Devices")
+        .help(tab == .output ? copy.outputTab : copy.inputTab)
       }
     }
     .padding(3)
@@ -116,6 +141,7 @@ struct MixerHeader: View {
 
 struct MixerFooter: View {
   let quit: () -> Void
+  var copy = MixerFooterCopy()
   @State private var isHovered = false
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -124,8 +150,8 @@ struct MixerFooter: View {
       Spacer()
       Button(action: quit) {
         HStack(spacing: 6) {
-          Text("Quit")
-          Text("⌘Q").foregroundStyle(DesignTokens.Colors.textTertiary)
+          Text(copy.quit)
+          Text(copy.shortcut).foregroundStyle(DesignTokens.Colors.textTertiary)
         }
         .font(DesignTokens.Typography.caption)
         .foregroundStyle(DesignTokens.Colors.textSecondary)
@@ -141,8 +167,8 @@ struct MixerFooter: View {
       }
       .buttonStyle(.plain)
       .keyboardShortcut("q", modifiers: .command)
-      .accessibilityLabel("Quit FineTune")
-      .help("Quit FineTune (⌘Q)")
+      .accessibilityLabel(copy.accessibilityLabel)
+      .help(copy.help)
       .scaleEffect(isHovered && !reduceMotion ? 1.02 : 1)
       .onHover { isHovered = $0 }
       .animation(reduceMotion ? nil : DesignTokens.Animation.hover, value: isHovered)
