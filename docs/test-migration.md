@@ -49,14 +49,18 @@ C++の保守的なsource inventory37とは別に、実`-MMD`和は**authored36�
 SystemHalの実ObjC++ typecheckは別のDebug/Release各1 TUで確認し、incremental SDK進捗だけからfresh compileと推論していません。
 
 移植時の独立D cohortは147宣言/210入力呼出しで、NativeRoute 5宣言/29呼出しとHUD hide-delay 1/1を含みます。D341は別に確定した範囲です。
-`test-redesign-final`を承認するには、変更後の同一worktreeでfresh full `just check`をDebug/Release両方に通し、その後にreviewを完了します。過去のpassはsource変更後の証拠に再利用しません。上のpass表は移植時snapshotであり、現行gateの実行結果ではありません。実機・App起動・OS権限・可聴音・RT deadlineの合格も含めません。
+`test-redesign-final`を承認するには、変更後の同一worktreeで`just check debug`と
+`just check release`に加えて`just test-ui debug`を通し、その後にreviewを完了します。
+`just check`は描画testとApp bundle buildを含まないため、それぞれCIの別jobで確認します。
+過去のpassはsource変更後の証拠に再利用しません。上のpass表は移植時snapshotであり、
+現行gateの実行結果ではありません。実機・App起動・OS権限・可聴音・RT deadlineの合格も含めません。
 
 ## 出典の扱い
 
 旧`migrationManifest.json`、旧`Tests/UpstreamCompatibilityTests/README.md`、旧`COPYING`は削除しました。
 固定版のrevisionとGPL由来のファイル範囲は[互換方針](<compatibility.md#ライセンス>)に、
 GPL本文とcopyright表示は[THIRD_PARTY_NOTICES.txt](<../App/Resources/THIRD_PARTY_NOTICES.txt>)に記録します。
-各テストの由来はファイル先頭のSPDXヘッダで示し、現在の承認状態を管理する台帳は維持しません。
+原作由来のファイルはファイル先頭のSPDXヘッダで由来を示し、現在の承認状態を管理する台帳は維持しません。
 元IDは`FineTuneTests/<file>.swift::<Suite>.<method>`ですが、移植先のfile数やmethod名を一致させる必要はありません。
 複数元IDを一つのunitへ対応させたり、一つの元IDを複数unitへ分けたりできます。
 
@@ -77,9 +81,10 @@ Settings・Mixerのcopy・format・静的な表示mappingとbinding・action契�
 [AppPresentationContractTests](<../Tests/AppPresentationContractTests/>)で確認します。
 対象はSettings各tabのexact copyとbinding、Mixerのheader/footer・popup semantics・route menuの
 single/multi label、keyboard router・AutoEQ profile bindings、device row actionsです。
-OCR・pixel・実際のcontrol/actionのoracleを描画するtestは[AppRenderedTests](<../Tests/AppRenderedTests/>)、
+実AppKitの構造・幾何・native bridgeを確認する描画testは[AppRenderedTests](<../Tests/AppRenderedTests/>)、
 非描画のcomposition wiringは[AppCompositionTests](<../Tests/AppCompositionTests/>)に分けています。
-この分離は描画時間やScreenCaptureKitの失敗率の改善を主張しません。
+OCR・pixel probe・ScreenCaptureKitは使わず、表示文字の可視性は自動ゲートで検証しません。
+この分離は描画時間や撮影成功率の改善を主張しません。
 
 物理default出力・入力のpolicy契約は、View・window・bitmap・run loopを作らない
 [ControlTests](<../Tests/ControlTests/>)へ移り、InMemoryControlSettingsStoreと
@@ -113,7 +118,8 @@ just test-native release
 just check
 ```
 
-`just check`はformat lint・package buildと両configurationの上記テストをまとめます。
+`just check <configuration>`はformat lintと当該configurationのunit・contract・DSP・nativeをまとめます。
+既定はdebugで、releaseも明示指定できます。描画test（`just test-ui`）は含めません。
 各runnerの非ゼロ終了はチェック失敗として扱います。
 Xcode App bundle buildはLaunchServices等への登録副作用を分離するため含めず、明示opt-inとdisposable CI stepに分けます。
 
@@ -125,29 +131,14 @@ Xcode App bundle buildはLaunchServices等への登録副作用を分離する�
 
 ### 実行結果の読み方
 
-SwiftのJSONL・XMLと六つのnative JSON reportをconfiguration別にscratchへ保存します。
-source snapshotと監査JSONは生成しません。実際のproduct/report pathsは[Justfile](<../Justfile>)を管理元とします。
+現在のgateは各runnerの終了statusを確認します。SwiftのXML/event JSONLとnativeのJSON reportは
+既定レシピでは生成しません。必要なら各runnerの`--report`を明示して出力先を指定します。
 
-- `just test`は`test-results-<configuration>.xml`（`--xunit-output`の引数）、別のSwift Testing report sidecar `test-results-<configuration>-swift-testing.xml`、`test-events-<configuration>.jsonl`を実行前に0バイトへ切り詰める。空のXML/JSONLは有効なreportではなく、成功証拠でもない
-- `just test-dsp`はDSP reportをschema 2の`complete:false` skeletonへ戻し、`just test-native`はnativeの5 report（Stage・Slot・Levels・Runtime・HAL）を初期化してからrunnerを実行する。`just test-native-hal`単独でもHAL reportをclang buildの前に初期化する
-- `just check`はdebug/releaseのSwift XML/JSONLを空にし、native/DSP JSON reportをschema 2の`complete:false` skeletonへ戻してからbuild/runを始める。compile失敗や起動前終了で残る空reportまたはskeletonを成功証拠にしない
-- Swift Testing JSONL version 0の`test` descriptorと`testStarted`/`testEnded`を対応させる
-- parameterizedでは`testCaseStarted`/`testCaseEnded`の異なるcase IDを数え、宣言数と分ける
-- 必要なunitの実行、期待した入力数、issue/skipの有無、完了した`runEnded`を確認する
-- native report schema 2の`complete: true`、各caseの`id`・`status: passed`・`failures: 0`を確認する
-- `invocations`はrunnerがそのnamed caseを実行した回数で、登録caseは1。0・欠落・重複IDは実行証拠にしない
-- `inputs`はcaseがreportへ明示的に宣言した有限シナリオ/入力行の数。単一シナリオのcaseは1、Stage/HALのようにparameter/merge/iterationを明示rowとして数えるcaseはその件数。`assertions`は実際に評価したalways-on checkの数であり、`invocations`とも`inputs`とも別の数
-- `inputs`または`assertions`が0のcase、空の`cases`、ID欠落・重複、`invocations`が1でないreportは`complete:true`でも成功扱いしない
-- 失敗したcaseは`status: failed`と最初のactual/expected（不明ならnull）を`complete:true`のreportへ残すが、実行は非ゼロ終了する。report内の失敗行を成功件数へ読み替えない
-- 期待するcase IDの集合は各executableのsource registryで確認し、総数だけの一致や古いreportの再利用で欠落を覆わない
-- Swiftの宣言数へC++の成功を混ぜず、元保証→新unit/入力/許容差→実行結果を別に対応付ける
-- debug/releaseを混ぜず、途中終了・欠落・重複・不完全なreportを成功扱いしない
-
-SwiftPMのXCTest `Executed 0 tests` preambleは、Swift Testingが0件という意味ではありません。
-`Justfile`は`test-results-<configuration>.xml`を`--xunit-output`へ渡します。
-`test-results-<configuration>-swift-testing.xml`は別のSwift Testing report sidecarで、前者の旧名ではありません。
-XMLのtestcase数だけでは入力展開の完了を示せないため、event JSONLと併せて読みます。
-元966への固定比較や、欠落を覆う総数だけの比較は行いません。
+- 各runnerの非ゼロ終了は失敗として扱い、成功件数の合計や過去の実行で覆いません
+- parameterized declaration一つと実行row複数は別に数え、宣言数を実行数と混ぜません
+- `just check debug`と`just check release`を混ぜず、同じconfigurationの結果だけを比較します
+- SwiftとC++の成功を加算して総成功数を作りません
+- 元966への固定比較や、欠落を覆う総数だけの比較は行いません
 
 optional-hardwareにはSwift/C++を問わず明示理由とreviewが必要で、未実施をpassへ加えません。
 実機操作を伴うtestは既定test targetに入れず、別package/明示manual runnerへ隔離してください。

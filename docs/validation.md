@@ -38,30 +38,33 @@ privateな呼出列だけを検証する巨大mockではなく、公開結果・
 
 #### UI表示leafのoracle
 
-Settings・Mixerの表示leafはproductionのViewをoffscreenの`NSHostingView`へ描画し、fake actionだけを接続して検証します。実Root・音声runtime・desktop全体や他processのwindowは起動・取得しません。最大音量sliderの一例だけはScreenCaptureKitのcurrent-process APIでfixture自身のwindowを撮影します。外部windowやdesktopは対象にせず、captureImageが失敗した場合もoffscreen bitmapへ代替しません。
+copy・format・静的な表示mappingは、View・window・bitmapを作らない
+[AppPresentationContractTests](<../Tests/AppPresentationContractTests/>)で
+productionのsemantic projectionを検証します。対象はSettings各tab・Mixer header/footer・
+route menu・keyboard/AutoEQ bindings・device row actionsです。
+ここでは意味値だけを確認し、glyphの可視性や実際のcontrol接続は証明しません。
 
-描画/OCR/SCKを実行するsuiteは描画専用の[AppRenderedTests](<../Tests/AppRenderedTests/>)に置き、非描画のrouting・Root・policy suiteは[AppCompositionTests](<../Tests/AppCompositionTests/>)に残します。非描画bundleのtestはwindow・View・bitmap・Vision・ScreenCaptureKitを構築せず、共有routing fixture（[routingProbeRuntime.swift](<../Tests/AppTestSupport/routingProbeRuntime.swift>)）を[AppTestSupport](<../Tests/AppTestSupport/>)経由で参照します。両bundleは製品App module（FineTune）を参照するためAppKit/SwiftUIへのlink依存を持ち得ますが、test自身が描画経路を実行しないことを境界とし、frameworkの非linkは主張しません。SCKの撮影caseはawake/active/unlockedの対話sessionを前提とし、testがdisplayをwake・unlock・activateしたり、失敗をskipや代替bitmapへ変換したりはしません。
+実際のAppKit描画を伴う検証は[AppRenderedTests](<../Tests/AppRenderedTests/>)に集約します。
+このsuiteはproduction Viewをoffscreenの`NSHostingView`へ描画し、実`NSWindow`の
+configured size、native bridge（`NSSwitch`・`NSSegmentedControl`・`NSButton`）、
+SwiftUI buttonの描画bounds、status itemのactionを確認します。
+OCR・pixel probe・ScreenCaptureKit・pointer event loop・private SwiftUI proxyは使いません
+（[renderedTestSupport.swift](<../Tests/AppRenderedTests/renderedTestSupport.swift>)）。
+表示文字の認識はVisionの結果が環境に依存するため自動ゲートのoracleにせず、
+選択badgeのfill/glyphやslider trackの寸法もsemantic projectionの値で確認します。
+bitmap全体の一致や実際に描画されたpixelは保証しません。
 
-status-item testは実`NSStatusItem`の探索・所有actionを検証するため`NSStatusBar.system`へ一時的にitemを作成します。作成したitemはtest内の`defer`で除去します。popoverは開かず、mouse eventもOSへ送らず、探索側は`eventPoster`、所有側はtoggle closureを注入します。これらはsessionのstatus barを短時間だけ変更するAppKit integration testです。
+status-item testは実`NSStatusItem`の探索・所有actionを検証するため`NSStatusBar.system`
+へ一時的にitemを作成し、test内の`defer`で除去します。popoverは開かず、
+mouse eventもOSへ送りません。
 
-このoffscreen test hostでは`NSHostingView.accessibilityChildren()`が空でprocessにAX trustがなく、文字列をaccessibility treeから取得できません。PDF描画からも選択可能な文字は得られません。copyの意味値はproductionのsemantic projectionで確認し、指定した表示文字は実際のbitmapにVision OCRをかけて検証します。OCR markerの認識とboundsは表示viewport内のglyph可視性を確認しますが、全text node・全copy・desktop上のz-orderまでは保証しません。bitmap全体のgolden比較にも使いません。
+非描画のrouting・Root・policy suiteは[AppCompositionTests](<../Tests/AppCompositionTests/>)に
+置き、共有routing fixtureを[AppTestSupport](<../Tests/AppTestSupport/>)経由で参照します。
+両bundleは製品App module（FineTune）を参照するためAppKit/SwiftUIへのlink依存を持ち得ますが、
+test自身が描画経路を実行しないことを境界とします。
 
-- Settings: `SettingsGeneralCopy`・`SettingsAboutCopy`・`SettingsUpdatesCopy`
-- Mixer: `MixerHeaderCopy`・`MixerFooterCopy`・`MixerPopupSemantics`・`MixerAppRowPresentation`・route menuの`MixerAppRouteCopy`（Single/Multiのmode labelとSystem Audio行のdetail）
-- Device: `DeviceDetailSheet`のautomatic tier copy（`Auto: Hardware/DDC`のbadgeと`Auto-detected volume control: Hardware/DDC`のaccessibility label）
-- `DeviceBadgeStyle`は選択/未選択のfillとglyphの意味値をViewと同じ解決順で返します。
-
-copy・format・静的な表示mappingの値は、[AppPresentationContractTests](<../Tests/AppPresentationContractTests/>)でwindow・View・bitmapを作らずに検証します。製品App moduleを参照するためAppKit/SwiftUIのlink依存は残りますが、テスト自身は描画・Vision・run loopを使いません。意味値の成功はglyphの可視性やcontrolの接続を証明しません。表示leaf側のOCR・pixel・実control/actionの検証は引き続き実行し、この分離だけで描画時間やScreenCaptureKitの失敗率が改善するとはみなしません。
-
-実際に描画されたcontrolとactionは次で確認します。
-
-- native bridge: `NSSwitch`、`NSSegmentedControl`のsegmentラベル、`NSPopUpButton`不在、`NSButton`として描画されたLink。
-- SwiftUI buttonの実際の描画bounds: `_FocusRingView`/`KeyViewProxy`が重複して持つ同じframeを統合し、その中心へclickしてfake actionを観測します。Quit・Check Now・Open System Settings・app編集gridのpin/eye・EQ・route menuの行はすべてこの実frameを使い、fixtureの寸法からclick座標を再計算しません。
-- 高さ・fit: productionの`.frame`/`fixedSize`/grid spacingから得た`fittingSize`・`preferredContentSize`を使い、fixtureが`setFrameSize`した値を表示結果として扱いません。
-
-drawn-onlyの見た目は限定的なpixel probeに留めます。選択badgeは28pt領域内のaccent面積>250とwhite glyph面積>10、未選択は両方0をassertします。sliderのidle trackは3–5ptの高さだけをassertします。OCRは指定文字の可視性を確認しますが、bitmap全体の一致やglyphの字形・font・anti-aliasing・行折返しは保証しません。
-
-診断PNGは`FINETUNE_*_EVIDENCE`/`FINETUNE_LEAF_UI_ARTIFACT_DIRECTORY`を指定した場合だけ保存し、pass/failには参加しません。`_FocusRingView`/`KeyViewProxy`はSwiftUIのprivate実装名であり、macOS間の互換契約ではありません。各対応macOSでproxyのclass名とframeを実行確認し、得られない環境ではtestが失敗します。別OSでのpassを代替証拠にせず、該当環境で実際のbutton frame/actionを検証できるoracleへ再設計します。
+視覚的な回帰は自動ゲート外で、代表状態のスクリーンショットと人間によるレビューで確認します。
+現在の`just check`にはこの手順を含めず、描画時間や撮影成功率の改善も主張しません。
 
 ### 3. 限定した実機観測
 
@@ -75,8 +78,9 @@ optional hardware/E2E証拠は、未実施のままunitのpassへ合算しませ
 just check
 ```
 
-[Justfile](<../Justfile>)はformat lint、debug/releaseのpackage build・unit/component、
-offline DSP・native所有/levels/fake-HALを実行します。App bundle buildは含めません。
+[Justfile](<../Justfile>)は指定configuration（既定debug）のformat lint、unit・contract・
+DSP・native所有/levels/fake-HALを実行します。描画test（`test-ui`）とApp bundle buildは
+含めず、CIの別jobで実行します。
 通常チェックは製品アプリ起動・音声取得/再生・権限の承認要求（capture/TCC prompt等）・本物の設定移行・実機音量変更を行いません。
 
 注入したclock/transportは、操作後の固定delayではなく登録数・event・task完了を同期点にします。checked continuationを待つtest gateには、個別のfailure deadlineとcancellation pathを持たせます。
@@ -96,22 +100,18 @@ just test-dsp release
 just test-native release
 ```
 
-SwiftのXML/JSONLとnativeのreportをconfiguration別に保存します。
-移植台帳・fingerprint・source hashと実行結果の専用自動照合は行いません。
-ソースを変更したら既存イベントを成功証拠として再利用せず、再実行します。
-`just test`はSwift XMLとevent JSONLを実行前に空へ切り詰めます。`just test-dsp`・`just test-native`・`just test-native-hal`は、各runner/buildの前に自分のDSP/native JSON reportをschema 2の`complete:false` skeletonへ戻します。
-`just check`は開始時にこの両方をdebug/release向けに行うため、compile失敗後に前回の`complete:true`を現在の成功証拠として使えません。空のSwift reportとnative/DSP skeletonは成功を示しません。
+現在のgateは各runnerの終了statusを確認します。SwiftのXML/event JSONLとnativeのJSON reportは
+既定のレシピでは生成しません。個別に確認したい場合は各runnerの`--report`を明示してください。
+ソースを変更したら既存の実行結果を成功証拠として再利用せず、同じconfigurationで再実行します。
 台帳の確認手順・many-to-many対応・独立reviewは[テスト移植](<test-migration.md>)にまとめます。
 
-- Swift JSONLではcompleteなrunEnded、issue/skipと実際のinvocationを確認します。parameterized declaration一つと実行row複数を区別します。
-- XMLは宣言単位の集約であり、JSONLの展開呼出数ではありません。両modeを別々に照合します。
-- native report schema 2は`invocations`（runnerがcaseを実行した回数、登録caseは1）、`inputs`（caseが明示的に宣言した有限シナリオ/入力行数、単一シナリオは1）、`assertions`（評価したalways-on check数）、`failures`を別々に持ちます。空の`cases`、ID欠落・重複、`invocations`が1でない、`inputs`/`assertions`が0、`failures`が1以上なら成功にしません。
-- 失敗caseは`complete:true`のreportへ`status: failed`として残すことがありますが、実行の非ゼロ終了とreportの失敗行を成功へ読み替えません。
-- 元testの静的棚卸し・A/B/C分類・独自D・新Swift/CPP実行数を加算して、総成功数を作りません。
+- 各runnerの非ゼロ終了は失敗として扱い、成功件数の合計や過去のreportで覆いません。
+- parameterized declaration一つと実行row複数は別です。宣言数を実行数と混ぜません。
+- SwiftとC++の成功を加算して総成功数を作りません。
 
 CI設定があることと、CIが実際にpassしたことは区別します。
 ローカルはmacOS27/Xcode27.2/SDK27.2/Swift6.4.2/arm64、[CI設定](<../.github/workflows/check.yml>)はmacOS26/Xcode26.6/SDK26.5です。
-UI leafはVision OCRを使うため、認識結果は実行環境のVision/macOSに依存します。対応するmacOSごとに同じ文字可視性testを実行し、別OSのpassを代替証拠にしません。ScreenCaptureKitを使うcaseもfixture自身のwindowだけを対象にします。
+UI leafは実AppKitの構造と幾何を確認しますが、Vision OCR・ScreenCaptureKit・private SwiftUI proxyは使いません。表示文字の可視性は自動ゲートで検証しないため、別途の視覚レビューが必要です。描画結果はOSのAppKit実装に依存するため、別OSのpassを代替証拠にしません。
 deployment target15.4での実機結果、両modeの同一入力証拠、別構成のsanitizer結果もそれぞれ分離します。
 
 ## DSPとnative境界
