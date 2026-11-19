@@ -21,6 +21,9 @@ public final class InputDevicePolicyController {
   private var suspended = false
   private var previousLockEnabled: Bool
   private var previousPriority: [String]
+  /// The connect-episode device this controller already corrected once; further OS re-assertions
+  /// of the same device are deferred to instead of fought. Reset when a new episode starts.
+  private var restoredConnectedUID: String?
 
   public init(
     settings: any InputDevicePolicySettingsStore,
@@ -80,7 +83,21 @@ public final class InputDevicePolicyController {
       {
         settings.setLockedInputDeviceUID(preferred)
       }
-      try reconcile(removed: removed, oldDefault: oldDefault)
+      // A connect batch starts a fresh episode: enforce the lock or fallback once, then defer
+      // further OS re-assertions of the same device instead of fighting them.
+      let connectedDevice = connected.first
+      if !connected.isEmpty { restoredConnectedUID = nil }
+      let defaultChanged = oldDefault != defaultUID
+      let removalFallback =
+        oldDefault.map(removed.contains) == true
+        || settings.lockedInputDeviceUID.map(removed.contains) == true
+      let episodeCorrection =
+        initialized && defaultChanged && defaultUID == connectedDevice
+        && restoredConnectedUID != defaultUID
+      if !connected.isEmpty || removalFallback || episodeCorrection {
+        try reconcile(removed: removed, oldDefault: oldDefault)
+        if defaultChanged, defaultUID == connectedDevice { restoredConnectedUID = defaultUID }
+      }
       if initialized, settings.appSettings.lockInputDevice, let newUID = connected.first {
         grace.start(uid: newUID, bluetooth: bluetoothUIDs.contains(newUID))
       } else if let grace = graceConnectionUID, removed.contains(grace) {
@@ -121,23 +138,22 @@ public final class InputDevicePolicyController {
     previousLockEnabled = enabled
     previousPriority = settings.inputDevicePriorityOrder
     if !enabled { self.grace.cancel() }
-    guard !suspended, hasObservation, observationFailure == nil else { return }
+    // Priority reordering while unlocked is the only settings-driven enforcement; plain
+    // settings changes never chase the observed default.
+    guard !suspended, hasObservation, observationFailure == nil, !enabled, priorityChanged,
+      let target = DevicePrioritySelection.highestPriority(
+        availableUIDs: availableUIDs, priorityOrder: settings.inputDevicePriorityOrder)
+    else { return }
     do {
-      if !enabled, priorityChanged,
-        let target = DevicePrioritySelection.highestPriority(
-          availableUIDs: availableUIDs, priorityOrder: settings.inputDevicePriorityOrder)
-      {
-        pendingDefaultUID = nil
-        try request(target)
-      } else {
-        try reconcile(removed: [], oldDefault: observedDefaultUID)
-      }
+      pendingDefaultUID = nil
+      try request(target)
     } catch { operationFailure = routeFailure(error) }
   }
 
   public func suspend() {
     suspended = true
     pendingDefaultUID = nil
+    restoredConnectedUID = nil
     self.grace.cancel()
   }
 

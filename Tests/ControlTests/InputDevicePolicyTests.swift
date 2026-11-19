@@ -94,6 +94,40 @@ struct InputDevicePolicyTests {
         && writes.isEmpty)
   }
 
+  @Test("A repeated headset-mode re-assertion after one lock correction is deferred to")
+  func inputReassertionAfterOneCorrectionIsAccepted() {
+    let store = makeStore()
+    store.setLockedInputDeviceUID("built-in")
+    store.setPreferredInputDeviceUID("built-in")
+    var writes: [String] = []
+    let policy = InputDevicePolicyController(
+      settings: store, setDefaultInput: { writes.append($0) })
+    defer { policy.suspend() }
+
+    policy.observe(
+      availableUIDs: ["built-in"], defaultUID: "built-in", builtInUIDs: ["built-in"],
+      bluetoothUIDs: [])
+    // The headset-mode input appears with macOS already switched to it.
+    policy.observe(
+      availableUIDs: ["built-in", "headset"], defaultUID: "headset", builtInUIDs: ["built-in"],
+      bluetoothUIDs: ["headset"])
+    #expect(writes == ["built-in"])
+
+    // Our correction's acknowledgement, then the OS re-asserting its choice.
+    policy.observe(
+      availableUIDs: ["built-in", "headset"], defaultUID: "built-in", builtInUIDs: ["built-in"],
+      bluetoothUIDs: ["headset"])
+    policy.observe(
+      availableUIDs: ["built-in", "headset"], defaultUID: "headset", builtInUIDs: ["built-in"],
+      bluetoothUIDs: ["headset"])
+    #expect(writes == ["built-in"] && policy.observedDefaultUID == "headset")
+
+    policy.observe(
+      availableUIDs: ["built-in", "headset"], defaultUID: "headset", builtInUIDs: ["built-in"],
+      bluetoothUIDs: ["headset"])
+    #expect(writes == ["built-in"])
+  }
+
   @Test(
     "Grace follows pinned non-BT two seconds / BT and BLE five seconds", arguments: [false, true])
   func connectionGraceUsesObservedTransport(bluetooth: Bool) async throws {
