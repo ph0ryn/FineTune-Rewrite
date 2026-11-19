@@ -90,6 +90,26 @@ OS通知には操作元の情報がないため、この短い区間内のContro
 この有限な補正と追従・固定経路の維持は、[policyテスト](<../Tests/ControlTests/OutputDevicePolicyTests.swift>)と[Controlのdefault経路テスト](<../Tests/ControlTests/AudioControllerDefaultRoutingTests.swift>)で確認します。
 Bluetooth所有権を永続的に固定する機能ではなく、AirPods実機での補正効果・可聴連続性はこのテストの保証に含めません。
 
+### 観測defaultへの再書込は接続エピソード1回まで（原作との意図的な差異）
+
+原作は接続直後の猶予中、macOSが既定を接続デバイスへ切り替えるたびに確認済みdefaultへ書き戻し、
+上書きから1秒超の間隔が空いたときだけユーザー操作として受け入れる。macOS 26のAirPods装着検出は
+0.5秒周期でtransientを再適用でき、この条件では1秒が永久に成立せず、書き戻しとOS再適用が無限に
+綱引きになる（2026-11-14の実機ログで既定出力317回・既定入力95回・約168秒継続を確認）。
+原作のコードにも同じ弱点があるため、原作の切り替えロジックの忠実な移植では解消しない。
+
+そこで書き戻しの契機を「接続バッチ開始・切断フォールバック・明示選択・設定変更」の各1回に限り、
+同じ接続エピソード内でのOSの再適用（装着検出のtransientを含む）には書き返さず受容する。
+これは原作が[troubleshootingで明示する「Automatic Ear Detectionに干渉しない」](https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/guide/troubleshooting.md)の仕様を、
+原作コードが実機で満たせていない環境においてコード側で満たすもので、意図的な差異として記録する。
+入力ロックも同じ契機でのみ適用するため、原作が持つ「lockはSettings変更にも保持する」挙動は
+外れる（Settingsでの入力変更は尊重する）。優先度機能（上位デバイス接続時の1回の切替、
+切断時の次点フォールバック）は維持する。
+エピソード内の補正は[output/inputのpolicyテスト](<../Tests/ControlTests/OutputDevicePolicyTests.swift>)で
+「1回の補正後のOS再適用は書込ゼロで受容」として固定する。
+さらに原作のecho timeout時の再書込（書込の確認が2秒以内に戻らなかった場合の再試行）は、
+この方針では追試行になるため行わない。
+
 切り替えを取り消したcandidateは、callbackの受付を閉じたまま継続用のread ownerとして残さず、次の経路のarmedを待たずに回収を開始します。
 取消はOSのIO停止やsource mute解除そのものではないため、実際のretired ACKまで所有権を維持します。
 取消通知はownerごとに一度とし、遅れて返る旧start/commitがPENDING回収の進捗監視を再取消ししないようにします。
