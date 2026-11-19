@@ -338,7 +338,39 @@ void streamLayoutChannelOrigins() {
     }
 }
 
-constexpr std::array<CaseUnit, 8> cases{{
+void bluetoothTapPolicy() {
+    inputs = 4;
+    // A Bluetooth output shares its clock with the process tap: drift compensation is off.
+    resetFixture();
+    hal.bluetooth = true;
+    hal.driftCompensation = 0;
+    auto bt = prepare(request(state()));
+    REQUIRE(bt);
+    CHECK(hal.requestedDrift == 0);
+    CHECK(snapshot(bt).failure.kind == FT_NATIVE_NO_FAILURE);
+    bt.reset();
+    CHECK(hal.resources() == 0);
+
+    // A read-back that disagrees with the transport's policy is still rejected.
+    resetFixture();
+    hal.bluetooth = true;
+    hal.wrongDrift = true;
+    FTNativeRoute *p = nullptr;
+    FTNativeError error{};
+    const auto r = request(state());
+    CHECK(ft_native_route_prepare(&r, &p, &error) == FT_NATIVE_FAILED);
+    CHECK(p == nullptr && hal.starts == 0 && hal.resources() == 0);
+    CHECK(error.kind == FT_NATIVE_UNSUPPORTED && error.operation == FT_NATIVE_CERTIFY_FORMAT);
+    CHECK(error.code == -5101);
+
+    // Wired outputs keep requesting and certifying drift compensation.
+    resetFixture();
+    auto wired = prepare(request(state()));
+    REQUIRE(wired);
+    CHECK(hal.requestedDrift == 1);
+}
+
+constexpr std::array<CaseUnit, 9> cases{{
     {"Tests/NativeHALContractTests/main.cpp::latestCommitState", latestCommitState},
     {"Tests/NativeHALContractTests/main.cpp::acquisitionGuards", acquisitionGuards},
     {"Tests/NativeHALContractTests/main.cpp::capabilityAndCertificate", capabilityAndCertificate},
@@ -350,6 +382,7 @@ constexpr std::array<CaseUnit, 8> cases{{
      idleTransportRejectsInvalidReadiness},
     {"Tests/NativeHALContractTests/main.cpp::streamLayoutChannelOrigins",
      streamLayoutChannelOrigins},
+    {"Tests/NativeHALContractTests/main.cpp::bluetoothTapPolicy", bluetoothTapPolicy},
 }};
 
 } // namespace

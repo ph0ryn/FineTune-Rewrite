@@ -52,7 +52,8 @@ struct FakeHAL {
     bool usage = true, selfPID = false, microphone = false, unsupportedOutput = false;
     bool mismatchedOutputUID = false, aggregateOutput = false;
     bool wrongTapFormat = false, wrongRate = false, wrongCertificate = false, planar = false;
-    bool wrongPhysicalOutput = false;
+    bool wrongPhysicalOutput = false, bluetooth = false, wrongDrift = false;
+    UInt32 requestedDrift = 99; // Sentinel: createAggregate observed a physical device policy.
     bool partial = true, holdAggregate = false;
     Fault fault = Fault::none, cleanupFault = Fault::none;
     OSStatus stopStatus = noErr, destroyIOStatus = noErr, destroyAggregateStatus = noErr;
@@ -129,6 +130,8 @@ struct FakeHAL {
             out.aggregate = f.aggregateOutput;
             out.outputChannels = 2;
             out.nominalSampleRate = f.nominalRate;
+            out.transportType =
+                f.bluetooth ? kAudioDeviceTransportTypeBluetooth : kAudioDeviceTransportTypeBuiltIn;
             out.output = stereo(f.planar);
             out.output.nativePackedFloat32 = !f.unsupportedOutput;
             out.stereoOrderKnown = f.preferredStereo;
@@ -168,14 +171,15 @@ struct FakeHAL {
             std::erase_if(f.taps, [id](const auto &t) { return t.id == id; });
             return noErr;
         };
-        a.createAggregate = [](void *c, const char *output, const char *tap,
+        a.createAggregate = [](void *c, const OutputDevice &physical, const char *tap,
                                AudioObjectID &id) -> OSStatus {
             auto &f = at(c);
             ++f.creates;
             if (f.fault == Fault::aggregate && !f.partial)
                 return acquisitionError;
             id = f.nextID++;
-            f.aggregates.push_back({id, output, tap});
+            f.requestedDrift = expectedDriftCompensation(physical);
+            f.aggregates.push_back({id, physical.uid, tap});
             return f.fault == Fault::aggregate ? acquisitionError : noErr;
         };
         a.destroyAggregate = [](void *c, AudioObjectID id) -> OSStatus {
@@ -259,7 +263,8 @@ struct FakeHAL {
             out.output = physical.output;
             out.maximumFrames = f.oversized ? 65537 : f.maximumFrames;
             out.subTap = f.missingSubTap ? kAudioObjectUnknown : device + f.subTapOffset;
-            out.subTapDriftCompensation = f.driftCompensation;
+            out.subTapDriftCompensation =
+                f.wrongDrift ? 1 - expectedDriftCompensation(physical) : f.driftCompensation;
             out.subTapDriftQuality = f.driftQuality;
             out.hasVariableBufferFrames = f.variableFrames;
             out.ioStreamsEnabled = !f.disabledStreams;

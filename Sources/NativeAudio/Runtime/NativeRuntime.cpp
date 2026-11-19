@@ -284,7 +284,7 @@ bool validCertificate(const FormatCertificate &value, const OutputDevice &output
     return validLayout(value.input) && validLayout(value.output) && value.onlyOwnedTapInput &&
            value.intendedPhysicalOutput && value.ioStreamsEnabled && value.maximumFrames > 0 &&
            value.maximumFrames <= 65536 && value.subTap != kAudioObjectUnknown &&
-           value.subTapDriftCompensation == 1 &&
+           value.subTapDriftCompensation == expectedDriftCompensation(output) &&
            value.subTapDriftQuality == kAudioAggregateDriftCompensationHighQuality &&
            value.input.sampleRate == value.output.sampleRate &&
            value.output.sampleRate == output.output.sampleRate &&
@@ -626,8 +626,8 @@ FTNativeResult prepareWithHal(const FTNativeRouteRequest *request, FTNativeRoute
         route->tapDescription.format.mChannelsPerFrame != 2 ||
         route->tapDescription.format.mSampleRate != route->physical.output.sampleRate)
         return abort(failure(FT_NATIVE_UNSUPPORTED, FT_NATIVE_READ_TAP, invalidFormat));
-    status = api.createAggregate(api.context, route->physical.uid.c_str(),
-                                 route->tapDescription.uid.c_str(), route->aggregate);
+    status = api.createAggregate(api.context, route->physical, route->tapDescription.uid.c_str(),
+                                 route->aggregate);
     if (status != noErr || route->aggregate == 0)
         return abort(failure(FT_NATIVE_FAILURE, FT_NATIVE_CREATE_AGGREGATE, status));
     route->render.reset(new (std::nothrow) RenderState(levelsOf(request->initial_state)));

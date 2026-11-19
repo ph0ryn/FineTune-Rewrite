@@ -191,6 +191,9 @@ FTNativeError inspectOutput(void *, const char *uid, OutputDevice &output) {
     status = scalar(output.id, kAudioDevicePropertyNominalSampleRate, output.nominalSampleRate);
     if (status != noErr)
         return failure(FT_NATIVE_FAILURE, FT_NATIVE_RESOLVE_OUTPUT, status);
+    status = scalar(output.id, kAudioDevicePropertyTransportType, output.transportType);
+    if (status != noErr)
+        return failure(FT_NATIVE_FAILURE, FT_NATIVE_RESOLVE_OUTPUT, status);
     status = layout(output.id, kAudioObjectPropertyScopeOutput, output.output, output.outputStreams,
                     &output.outputChannels);
     if (status != noErr)
@@ -227,16 +230,17 @@ OSStatus inspectTap(void *, AudioObjectID tap, TapDescription &output) {
     auto status = stringProperty(tap, kAudioTapPropertyUID, output.uid);
     return status == noErr ? scalar(tap, kAudioTapPropertyFormat, output.format) : status;
 }
-OSStatus createAggregate(void *, const char *outputUID, const char *tapUID,
+OSStatus createAggregate(void *, const OutputDevice &physical, const char *tapUID,
                          AudioObjectID &aggregate) {
-    auto physical = CFDictionaryCreateMutable(nullptr, 0, &kCFTypeDictionaryKeyCallBacks,
-                                              &kCFTypeDictionaryValueCallBacks);
+    auto subDevice = CFDictionaryCreateMutable(nullptr, 0, &kCFTypeDictionaryKeyCallBacks,
+                                               &kCFTypeDictionaryValueCallBacks);
     auto tap = CFDictionaryCreateMutable(nullptr, 0, &kCFTypeDictionaryKeyCallBacks,
                                          &kCFTypeDictionaryValueCallBacks);
     auto composition = CFDictionaryCreateMutable(nullptr, 0, &kCFTypeDictionaryKeyCallBacks,
                                                  &kCFTypeDictionaryValueCallBacks);
-    CFGuard a(physical), b(tap), c(composition);
-    auto destination = CFStringCreateWithCString(nullptr, outputUID, kCFStringEncodingUTF8);
+    CFGuard a(subDevice), b(tap), c(composition);
+    auto destination =
+        CFStringCreateWithCString(nullptr, physical.uid.c_str(), kCFStringEncodingUTF8);
     auto source = CFStringCreateWithCString(nullptr, tapUID, kCFStringEncodingUTF8);
     auto uuid = CFUUIDCreate(nullptr);
     CFGuard d(destination), e(source), f(uuid);
@@ -247,15 +251,16 @@ OSStatus createAggregate(void *, const char *outputUID, const char *tapUID,
     auto on = CFNumberCreate(nullptr, kCFNumberSInt32Type, &one);
     auto driftQuality = CFNumberCreate(nullptr, kCFNumberSInt32Type, &quality);
     CFGuard h(off), i(on), j(driftQuality);
-    if (!physical || !tap || !composition || !destination || !source || !uuid || !identifier ||
+    if (!subDevice || !tap || !composition || !destination || !source || !uuid || !identifier ||
         !off || !on || !driftQuality)
         return kAudioHardwareUnspecifiedError;
-    CFDictionarySetValue(physical, CFSTR(kAudioSubDeviceUIDKey), destination);
-    CFDictionarySetValue(physical, CFSTR(kAudioSubDeviceInputChannelsKey), off);
+    CFDictionarySetValue(subDevice, CFSTR(kAudioSubDeviceUIDKey), destination);
+    CFDictionarySetValue(subDevice, CFSTR(kAudioSubDeviceInputChannelsKey), off);
     CFDictionarySetValue(tap, CFSTR(kAudioSubTapUIDKey), source);
-    CFDictionarySetValue(tap, CFSTR(kAudioSubTapDriftCompensationKey), on);
+    CFDictionarySetValue(tap, CFSTR(kAudioSubTapDriftCompensationKey),
+                         expectedDriftCompensation(physical) ? on : off);
     CFDictionarySetValue(tap, CFSTR(kAudioSubTapDriftCompensationQualityKey), driftQuality);
-    const void *members[]{physical}, *taps[]{tap};
+    const void *members[]{subDevice}, *taps[]{tap};
     auto memberList = CFArrayCreate(nullptr, members, 1, &kCFTypeArrayCallBacks);
     auto tapList = CFArrayCreate(nullptr, taps, 1, &kCFTypeArrayCallBacks);
     CFGuard k(memberList), l(tapList);

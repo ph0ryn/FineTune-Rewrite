@@ -33,17 +33,30 @@ struct StereoLayout {
     std::array<std::uint32_t, 2> channels{};
     bool nativePackedFloat32 = false;
 };
+inline bool bluetoothTransport(UInt32 transport) noexcept {
+    return transport == kAudioDeviceTransportTypeBluetooth ||
+           transport == kAudioDeviceTransportTypeBluetoothLE;
+}
+
 struct OutputDevice {
     AudioObjectID id = kAudioObjectUnknown;
     std::string uid;
     std::uint32_t inputChannels = 0;
     std::uint32_t outputChannels = 0;
     double nominalSampleRate = 0;
+    UInt32 transportType = 0;
     StereoLayout output;
     bool stereoOrderKnown = false;
     bool aggregate = false;
     std::vector<AudioObjectID> outputStreams;
 };
+
+// A Bluetooth output and its process tap share the BT clock domain. Drift compensation there
+// makes the HAL insert/delete samples on the ~50ppm offset (audible periodic crackle), so only
+// other transports request and certify it.
+inline UInt32 expectedDriftCompensation(const OutputDevice &output) noexcept {
+    return bluetoothTransport(output.transportType) ? 0 : 1;
+}
 struct TapDescription {
     AudioObjectID id = kAudioObjectUnknown;
     std::string uid;
@@ -72,7 +85,8 @@ struct HalAPI {
     OSStatus (*createTap)(void *, const AudioObjectID *, std::uint32_t, AudioObjectID &) = nullptr;
     OSStatus (*inspectTap)(void *, AudioObjectID, TapDescription &) = nullptr;
     OSStatus (*destroyTap)(void *, AudioObjectID) = nullptr;
-    OSStatus (*createAggregate)(void *, const char *, const char *, AudioObjectID &) = nullptr;
+    OSStatus (*createAggregate)(void *, const OutputDevice &, const char *,
+                                AudioObjectID &) = nullptr;
     OSStatus (*destroyAggregate)(void *, AudioObjectID) = nullptr;
     // noErr/present=false only after an actual bad-object observation, not a guessed delay.
     OSStatus (*aggregatePresent)(void *, AudioObjectID, bool &) = nullptr;
