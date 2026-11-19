@@ -34,7 +34,7 @@ optionalな実機/E2Eを通常CIの前提にしません。
 | 完全監査（移植時snapshot、現在は非実行） | pass・errors0 | pass・errors0 |
 
 上の表は**移植時に確定した履歴snapshot**で、現在のsource inventoryや`just check`の結果ではありません。
-現在のnative 6 executableの登録named caseは77件（DSP 23、Stage 5、Slot 7、Levels 3、Runtime 1、HAL 38）です。
+現在の実行構成とnative named case数は[検証方針](<validation.md#dspとnative境界>)を正本とします。
 49 named unit/6654有限入力呼出しを現在のsource件数へ読み替えません。移植時のbaselineは固定版の出自記録として確定済みで、現在のsourceの由来は各テストのSPDXヘッダで示します。
 
 Swiftは各7組のrun開始/終了、全function/case開始/終了、XML1055宣言を照合し、

@@ -94,7 +94,8 @@ BUILD_JOBS=2 just check
 ```
 
 既定値はSwiftPMが`.build`、Xcodeが`DerivedData`、並列build数が2です。
-SwiftのJSONL・XMLとnativeのJSON reportをconfiguration別にscratchへ保存します。
+既定のレシピはrunnerの終了statusで成否を判定し、test reportをscratchへ保存しません。
+reportが必要な場合は各runnerの`--report`を明示します。
 結果の読み方と台帳の確認手順は[テスト移植](<docs/test-migration.md>)、全体の保証境界は[検証方針](<docs/validation.md>)を参照してください。
 
 formatを適用する場合:
