@@ -100,6 +100,24 @@ struct DeviceSettingsParityTests {
     #expect(observed.overrides == [.software, nil])
   }
 
+  @Test("Every settings tab renders as a selectable tab item, including the lazy Shortcuts tab")
+  func settingsTabsRenderAllItems() throws {
+    let snapshot = SettingsSnapshot(
+      settings: AppSettings(), isAccessibilityTrusted: false, isMediaKeyOffline: false,
+      error: nil, device: testDeviceSettings())
+    let actions = SettingsActions(
+      updateSettings: { _ in }, recordShortcut: { _, _ in }, requestAccessibility: {},
+      retryMediaKeys: {}, resetAll: {}, device: recordingDeviceSettingsActions { _ in })
+    let view = FineTuneSettingsView(
+      read: { snapshot }, actions: actions, updates: .unavailable(reason: "No test feed."))
+    let fixture = try OffscreenHostFixture(view, width: 720, height: 560)
+    let titles = leafDescendants(of: fixture.host).compactMap { $0 as? NSTabView }
+      .flatMap { $0.tabViewItems.compactMap(\.label) }
+    #expect(
+      titles == ["General", "Audio", "Shortcuts", "Updates", "About"],
+      "The Settings tab bar must expose all five tabs; missing tabs hide whole feature areas")
+  }
+
   @Test("Updates switch disables when unavailable and bridges live clicks when available")
   func updatesSwitchBridging() throws {
     let unavailableView = SettingsUpdatesView(

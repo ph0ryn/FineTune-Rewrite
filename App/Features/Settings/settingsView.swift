@@ -28,11 +28,11 @@ struct FineTuneSettingsView: View {
       TabView(selection: $tab) {
         general.tabItem { Label("General", systemImage: "gearshape") }.tag(Tab.general)
         audio.tabItem { Label("Audio", systemImage: "speaker.wave.2") }.tag(Tab.audio)
-        Group {
-          // Mounting General must not instantiate a global shortcut recorder.
-          if tab == .shortcuts { shortcuts }
-        }
-        .tabItem { Label("Shortcuts", systemImage: "keyboard") }.tag(Tab.shortcuts)
+        // The tabItem must attach to the mounted Form itself: a Group whose conditional
+        // content is empty renders no tab item at all on current SwiftUI, hiding Shortcuts.
+        // Laziness still holds because TabView instantiates the recorder NSViews only when
+        // this tab becomes selected; the General tab never creates a recorder control.
+        shortcuts.tabItem { Label("Shortcuts", systemImage: "keyboard") }.tag(Tab.shortcuts)
         SettingsUpdatesView(capability: updates)
           .tabItem { Label("Updates", systemImage: "arrow.triangle.2.circlepath") }.tag(Tab.updates)
         SettingsAboutView().tabItem { Label("About", systemImage: "info.circle") }.tag(Tab.about)
