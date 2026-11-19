@@ -294,7 +294,28 @@ void timingRetirementArchivesAndLateCallbacksAreInert() {
     CHECK(retired.zero() && sameTiming(before, timingSnapshot(p)));
 }
 
-constexpr std::array<CaseUnit, 9> cases{{
+void timingDetectsOutputWaveformDiscontinuity() {
+    inputs = 2;
+    resetFixture();
+    auto p = prepare(request(state()));
+    REQUIRE(p && !hal.ios.empty());
+    enableTiming(p);
+    commit(p, state());
+    const auto io = hal.ios.back();
+    Signal normal;
+    normal.render(io);
+    const auto baseline = timingSnapshot(p);
+    CHECK(baseline.output_discontinuities == 0);
+    CHECK(baseline.max_output_sample_delta < 0.5F);
+    Signal spike;
+    spike.input[16] = 4.0F; // One extreme sample amid a quiet alternating signal.
+    spike.render(io);
+    const auto after = timingSnapshot(p);
+    CHECK(after.output_discontinuities > baseline.output_discontinuities);
+    CHECK(after.max_output_sample_delta > 0.5F);
+}
+
+constexpr std::array<CaseUnit, 10> cases{{
     {"Tests/NativeHALContractTests/main.cpp::timingDisabledByDefault", timingDisabledByDefault},
     {"Tests/NativeHALContractTests/main.cpp::timingEnableLifecycleAndNullSafety",
      timingEnableLifecycleAndNullSafety},
@@ -311,6 +332,8 @@ constexpr std::array<CaseUnit, 9> cases{{
      timingDoesNotChangeRenderedOutput},
     {"Tests/NativeHALContractTests/main.cpp::timingRetirementArchivesAndLateCallbacksAreInert",
      timingRetirementArchivesAndLateCallbacksAreInert},
+    {"Tests/NativeHALContractTests/main.cpp::timingDetectsOutputWaveformDiscontinuity",
+     timingDetectsOutputWaveformDiscontinuity},
 }};
 
 } // namespace

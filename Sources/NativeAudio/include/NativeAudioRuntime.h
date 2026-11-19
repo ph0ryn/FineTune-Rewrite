@@ -191,6 +191,8 @@ typedef struct FTNativeTimingSnapshot {
     double last_output_sample_time;
     double last_io_offset_frames;
     double max_io_offset_change_frames;
+    double max_output_sample_delta;  // Largest adjacent-sample jump in rendered output.
+    uint64_t output_discontinuities; // Adjacent jumps far above the smoothed local mean.
 } FTNativeTimingSnapshot;
 
 typedef struct FTNativeOutputDescription {

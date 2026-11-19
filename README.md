@@ -158,6 +158,7 @@ callback内では固定領域とlock-free atomicだけを使い、時刻変換�
 - `maxEntryGapNs` / `maxProcessingNs`: 計測地点間隔と処理時間の累積最大値。計測区間はcallbackの受付・format検証後から復帰直前までで、HAL全体の所要時間ではありません。
 - `validMask`: 直近の有効時刻を示します（1=HAL host、2=入力sample、4=出力sample）。欠損・非有限値で比較の基準を切り、復帰時に飛びを捏造しません。
 - `lastIOOffsetFrames`: 出力sample時刻−入力sample時刻。異なる時刻原点を含むため、物理的な可聴遅延とはみなしません。
+- `maxOutputDelta` / `outputDiscontinuities`: 生成した出力の同一チャンネル内で、連続frame間のSample値の差の累積最大値と、それが全尺度の0.2を超えた回数。サンプル抜けやクリックを検出するための量で、音質やBluetooth伝送の是否正常は表しません。
 
 統計は経路の世代ごとに累積し、回収後も保持します。独立atomicの近似snapshotであり、隣接callbackの値が混ざることがあります。
 時刻欠損中のsample値・offsetは最後に観測した値のままなので、`validMask`と併せて読みます。これらの診断から権限・音声の正しさ・復旧成功を推定したり、経路を自動変更したりはしません。

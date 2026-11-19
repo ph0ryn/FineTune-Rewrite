@@ -46,8 +46,8 @@ class CallbackTiming {
     std::uint32_t previousHostFrames = 0;
     std::atomic<std::uint64_t> callbacks{0}, idle{0}, missingHost{0}, nonincreasingHost{0},
         largeHostGaps{0}, overBudget{0}, maxEntryGap{0}, maxDuration{0}, maxHostGap{0},
-        latestOffset{0}, maxOffsetChange{0};
-    std::atomic<std::uint32_t> validMask{0};
+        latestOffset{0}, maxOffsetChange{0}, discontinuities{0};
+    std::atomic<std::uint32_t> validMask{0}, maxSampleDelta{0};
 
     static void maximum(std::atomic<std::uint64_t> &destination, std::uint64_t value) noexcept {
         // Single exclusive callback writer: no CAS loop, lock or retry.
@@ -149,6 +149,28 @@ class CallbackTiming {
         validMask.store(valid, std::memory_order_relaxed);
         return {this, entry, outputFrames};
     }
+    // Rendered-output waveform check. Counts adjacent jumps that dwarf the smoothed local
+    // mean step, which is what an inserted/deleted sample or a discontinuity sounds like.
+    void observeOutput(const float *samples, std::uint32_t count) noexcept {
+        if (!enabled || !samples || count < 2)
+            return;
+        // Output is always interleaved stereo. Compare each channel to its own previous
+        // frame; comparing adjacent array slots would count the L/R boundary as a jump.
+        float peakDelta = 0;
+        std::uint64_t spikes = 0;
+        constexpr float threshold = 0.2F;
+        for (std::uint32_t n = 2; n < count; ++n) {
+            const float delta = std::fabs(samples[n] - samples[n - 2]);
+            if (delta > peakDelta)
+                peakDelta = delta;
+            if (delta > threshold)
+                ++spikes;
+        }
+        const auto deltaBits = std::bit_cast<std::uint32_t>(peakDelta);
+        if (deltaBits > maxSampleDelta.load(std::memory_order_relaxed))
+            maxSampleDelta.store(deltaBits, std::memory_order_relaxed);
+        discontinuities.fetch_add(spikes, std::memory_order_relaxed);
+    }
     FTNativeTimingSnapshot snapshot() const noexcept {
         FTNativeTimingSnapshot value{};
         value.enabled = enabled;
@@ -173,6 +195,9 @@ class CallbackTiming {
         value.last_output_sample_time = readDouble(output.latest);
         value.last_io_offset_frames = readDouble(latestOffset);
         value.max_io_offset_change_frames = readDouble(maxOffsetChange);
+        value.max_output_sample_delta =
+            std::bit_cast<float>(maxSampleDelta.load(std::memory_order_relaxed));
+        value.output_discontinuities = discontinuities.load(std::memory_order_relaxed);
         return value;
     }
 };

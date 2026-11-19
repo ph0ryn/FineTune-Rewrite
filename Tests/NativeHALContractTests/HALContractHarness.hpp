@@ -235,7 +235,9 @@ inline bool sameTiming(const FTNativeTimingSnapshot &a, const FTNativeTimingSnap
            a.last_input_sample_time == b.last_input_sample_time &&
            a.last_output_sample_time == b.last_output_sample_time &&
            a.last_io_offset_frames == b.last_io_offset_frames &&
-           a.max_io_offset_change_frames == b.max_io_offset_change_frames;
+           a.max_io_offset_change_frames == b.max_io_offset_change_frames &&
+           a.max_output_sample_delta == b.max_output_sample_delta &&
+           a.output_discontinuities == b.output_discontinuities;
 }
 
 std::span<const CaseUnit> acquisitionAndFormatCases() noexcept;
