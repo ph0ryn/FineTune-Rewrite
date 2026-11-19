@@ -35,7 +35,7 @@ struct MixerContractFixture {
   }
 
   var bindings: MixerBindings {
-    MixerBindings(read: { snapshot }, actions: Self.failingActions)
+    MixerBindings(snapshot: snapshot, actions: Self.failingActions, readFresh: { snapshot })
   }
 
   static func app(
@@ -157,7 +157,9 @@ final class MixerTestSource {
     )
   }
 
-  var bindings: MixerBindings { MixerBindings(read: { self.snapshot }, actions: actions) }
+  var bindings: MixerBindings {
+    MixerBindings(snapshot: snapshot, actions: actions, readFresh: { self.snapshot })
+  }
 
   var actions: MixerActions {
     MixerActions(

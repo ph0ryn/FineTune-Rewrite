@@ -8,15 +8,17 @@ import Testing
 @Suite("Presentation contract: mixer bindings and device row actions")
 @MainActor
 struct MixerBindingsContractTests {
-  @Test("An app slider reads live gain and writes square-law gain by persistent identity")
+  @Test("An app slider reads its render snapshot and writes square-law gain by identity")
   func liveAppVolumeBinding() {
     let source = MixerTestSource()
     let app = source.snapshot.apps[0]
     let binding = source.bindings.appVolume(app)
     #expect(binding.wrappedValue == 0.5)
     source.snapshot.apps[0].gain = 0.81
-    #expect(abs(binding.wrappedValue - 0.9) < 0.000_001)
-    binding.wrappedValue = 0.4
+    // SwiftUI rebuilds bindings each render pass; the next render sees the new observed value.
+    let refreshed = source.bindings.appVolume(source.snapshot.apps[0])
+    #expect(abs(refreshed.wrappedValue - 0.9) < 0.000_001)
+    refreshed.wrappedValue = 0.4
     #expect(source.lastAppID == "com.example.player")
     #expect(abs((source.lastGain ?? 0) - 0.16) < 0.000_001)
   }

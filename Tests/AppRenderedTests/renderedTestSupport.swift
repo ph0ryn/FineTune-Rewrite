@@ -56,7 +56,9 @@ final class MixerTestSource {
     )
   }
 
-  var bindings: MixerBindings { MixerBindings(read: { self.snapshot }, actions: actions) }
+  var bindings: MixerBindings {
+    MixerBindings(snapshot: snapshot, actions: actions, readFresh: { self.snapshot })
+  }
 
   var actions: MixerActions {
     MixerActions(

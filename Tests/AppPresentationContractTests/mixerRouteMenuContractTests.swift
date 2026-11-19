@@ -22,9 +22,12 @@ struct MixerRouteMenuContractTests {
     hidden.isHidden = true
     source.snapshot.outputDevices.append(hidden)
 
-    let model = MixerAppRouteMenuModel(
-      app: source.snapshot.apps[0], bindings: source.bindings,
-      dismiss: { source.events.append("dismiss") })
+    func makeModel() -> MixerAppRouteMenuModel {
+      MixerAppRouteMenuModel(
+        app: source.snapshot.apps[0], bindings: source.bindings,
+        dismiss: { source.events.append("dismiss") })
+    }
+    var model = makeModel()
     #expect(model.visibleDevices.map(\.id) == ["output-uid"])
     let output = try #require(model.visibleDevices.first)
 
@@ -39,6 +42,7 @@ struct MixerRouteMenuContractTests {
     source.snapshot.apps[0].selectionMode = .multi
     source.snapshot.apps[0].isFollowingDefault = false
     source.snapshot.apps[0].selectedDeviceUIDs = ["output-uid"]
+    model = makeModel()
     #expect(model.isSystemAudioDisabled)
     #expect(model.isDeviceSelected(output))
     model.selectSystemAudio()
@@ -55,6 +59,7 @@ struct MixerRouteMenuContractTests {
 
     source.snapshot.apps[0].selectionMode = .single
     source.snapshot.apps[0].selectedDeviceUIDs = []
+    model = makeModel()
     #expect(!model.isSystemAudioDisabled)
     model.selectDevice(output)
     #expect(source.events == ["route", "dismiss"])

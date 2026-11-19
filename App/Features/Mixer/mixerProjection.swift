@@ -114,20 +114,35 @@ struct MixerActions {
   let openCaptureSettings: () -> Void
 }
 
-/// The actual view bindings. They read fresh values and forward requests, without retaining edits.
+/// View bindings over one render snapshot. Getters read only that value, so a SwiftUI body never
+/// rebuilds the whole projection or subscribes every control to every observed owner. Event-time
+/// operations that merge with current state use `readFresh` instead of the captured snapshot.
 @MainActor
 struct MixerBindings {
-  let read: () -> MixerSnapshot
+  /// The single snapshot used by this render pass. Never replaced mid-body.
+  let snapshot: MixerSnapshot
   let actions: MixerActions
+  /// Fresh state, for event handlers only. A view body or binding getter must not call it.
+  let readFresh: () -> MixerSnapshot
+
+  init(snapshot: MixerSnapshot, actions: MixerActions, readFresh: (() -> MixerSnapshot)? = nil) {
+    self.snapshot = snapshot
+    self.actions = actions
+    self.readFresh = readFresh ?? { snapshot }
+  }
 
   func current(_ app: MixerAppPresentation) -> MixerAppPresentation {
-    read().apps.first { $0.id == app.id } ?? app
+    snapshot.apps.first { $0.id == app.id } ?? app
+  }
+
+  func freshApp(_ app: MixerAppPresentation) -> MixerAppPresentation {
+    readFresh().apps.first { $0.id == app.id } ?? app
   }
 
   func current(_ device: MixerDevicePresentation, scope: MixerDeviceScope)
     -> MixerDevicePresentation
   {
-    let rows = scope == .output ? read().outputDevices : read().inputDevices
+    let rows = scope == .output ? readFresh().outputDevices : readFresh().inputDevices
     return rows.first { $0.id == device.id } ?? device
   }
 
@@ -137,7 +152,7 @@ struct MixerBindings {
       if app.isPinned { return app.isActive ? 0 : 1 }
       return app.isActive ? 2 : 3
     }
-    return read().apps.filter { editing || (!$0.isIgnored && ($0.isActive || $0.isPinned)) }
+    return snapshot.apps.filter { editing || (!$0.isIgnored && ($0.isActive || $0.isPinned)) }
       .sorted { first, second in
         let firstGroup = group(first)
         let secondGroup = group(second)
@@ -148,7 +163,7 @@ struct MixerBindings {
   }
 
   func devices(scope: MixerDeviceScope, editing: Bool) -> [MixerDevicePresentation] {
-    let all = scope == .output ? read().outputDevices : read().inputDevices
+    let all = scope == .output ? snapshot.outputDevices : snapshot.inputDevices
     let visible = all.filter { $0.isDefault || !$0.isHidden }
     return editing || visible.isEmpty ? all : visible
   }
@@ -195,7 +210,8 @@ struct MixerBindings {
 
   /// Mouse and keyboard resolve the current UID's same UI intent; no stale row supplies mute state.
   func toggleDeviceMute(scope: MixerDeviceScope, uid: String) {
-    let rows = scope == .output ? read().outputDevices : read().inputDevices
+    let fresh = readFresh()
+    let rows = scope == .output ? fresh.outputDevices : fresh.inputDevices
     guard let row = rows.first(where: { $0.id == uid }),
       let intent = DeviceRow.muteToggleIntent(
         volume: row.volume, isMuted: row.isMuted,
@@ -212,7 +228,7 @@ struct MixerBindings {
     Binding(
       get: { current(app).eqSettings.isEnabled },
       set: { value in
-        var settings = current(app).eqSettings
+        var settings = freshApp(app).eqSettings
         settings.isEnabled = value
         actions.app.setEQ(app.id, settings)
       }
@@ -224,7 +240,7 @@ struct MixerBindings {
     return Binding(
       get: { Double(current(app).eqSettings.bandGains[index]) },
       set: { value in
-        var settings = current(app).eqSettings
+        var settings = freshApp(app).eqSettings
         settings.bandGains[index] = Float(
           max(Double(EQSettings.minGainDB), min(Double(EQSettings.maxGainDB), value)))
         actions.app.setEQ(app.id, settings)
@@ -238,7 +254,7 @@ struct MixerBindings {
 
   func applyCurve(_ curve: EQSettings, to app: MixerAppPresentation) {
     var next = curve
-    next.isEnabled = current(app).eqSettings.isEnabled
+    next.isEnabled = freshApp(app).eqSettings.isEnabled
     actions.app.setEQ(app.id, next)
   }
 
@@ -250,7 +266,7 @@ struct MixerBindings {
 
   func routeLabel(_ app: MixerAppPresentation) -> String {
     if app.isFollowingDefault { return "System Default" }
-    let devices = read().outputDevices
+    let devices = snapshot.outputDevices
     let names = app.selectedDeviceUIDs.sorted().map { uid in
       devices.first { $0.id == uid }?.device.name ?? "Unavailable (\(uid))"
     }

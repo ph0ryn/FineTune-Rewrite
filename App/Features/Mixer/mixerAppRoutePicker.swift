@@ -34,7 +34,7 @@ struct MixerAppRoutePicker: View {
   @State private var isHovered = false
 
   private var selectedDevices: [MixerDevicePresentation] {
-    bindings.read().outputDevices.filter { app.selectedDeviceUIDs.contains($0.id) }
+    bindings.snapshot.outputDevices.filter { app.selectedDeviceUIDs.contains($0.id) }
   }
 
   var body: some View {
@@ -96,7 +96,7 @@ struct MixerAppRoutePicker: View {
     if app.selectionMode == .single {
       return app.isFollowingDefault ? nil : bindings.routeLabel(app)
     }
-    let devices = bindings.read().outputDevices.filter { app.selectedDeviceUIDs.contains($0.id) }
+    let devices = bindings.snapshot.outputDevices.filter { app.selectedDeviceUIDs.contains($0.id) }
     let missingCount = app.selectedDeviceUIDs.subtracting(Set(devices.map(\.id))).count
     let summary: String
     switch devices.count {
@@ -118,7 +118,7 @@ struct MixerAppRouteMenuModel {
   var current: MixerAppPresentation { bindings.current(app) }
 
   var visibleDevices: [MixerDevicePresentation] {
-    bindings.read().outputDevices.filter { !$0.isHidden }
+    bindings.snapshot.outputDevices.filter { !$0.isHidden }
   }
 
   var isSystemAudioDisabled: Bool { current.selectionMode == .multi }
@@ -128,21 +128,21 @@ struct MixerAppRouteMenuModel {
   }
 
   func selectMode(_ mode: DeviceSelectionMode) {
-    let observed = current
+    let observed = bindings.freshApp(app)
     if observed.selectionMode != mode {
       bindings.selectRoute(observed, mode: mode, uids: observed.selectedDeviceUIDs)
     }
   }
 
   func selectSystemAudio() {
-    let observed = current
+    let observed = bindings.freshApp(app)
     guard observed.selectionMode != .multi else { return }
     bindings.followDefault(observed)
     dismiss()
   }
 
   func selectDevice(_ device: MixerDevicePresentation) {
-    let observed = current
+    let observed = bindings.freshApp(app)
     var uids = observed.selectionMode == .multi ? observed.selectedDeviceUIDs : []
     if observed.selectionMode == .multi && uids.contains(device.id) {
       uids.remove(device.id)

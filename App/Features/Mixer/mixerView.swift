@@ -120,15 +120,21 @@ struct MixerView: View {
     var id: String { "\(scope.rawValue):\(uid)" }
   }
 
-  private var bindings: MixerBindings { MixerBindings(read: read, actions: actions) }
-  private var rowIDs: [PopupKeyboardNavModel.RowID] {
+  /// Event-time bindings only. A view body must use the snapshot read in `body` instead.
+  private var eventBindings: MixerBindings {
+    MixerBindings(snapshot: read(), actions: actions, readFresh: read)
+  }
+
+  private func rowIDs(in bindings: MixerBindings) -> [PopupKeyboardNavModel.RowID] {
     bindings.devices(scope: scope, editing: isEditing).map { .device(uid: $0.id) }
       + bindings.visibleApps(editing: isEditing).map { .app(persistenceID: $0.id) }
   }
 
   var body: some View {
     let snapshot = read()
-    content
+    let bindings = MixerBindings(snapshot: snapshot, actions: actions, readFresh: read)
+    let rowIDs = rowIDs(in: bindings)
+    content(snapshot: snapshot, bindings: bindings)
       .padding(snapshot.settings.popupSize.dimensions.contentPadding)
       .frame(width: snapshot.settings.popupSize.dimensions.width)
       .fixedSize(horizontal: false, vertical: true)
@@ -152,10 +158,10 @@ struct MixerView: View {
         draggedDeviceUID = nil
         syncNavigation()
       }
-      .popover(item: $inspected) { selection in inspector(selection) }
-      .popover(item: $iconSelection) { selection in iconPicker(selection) }
+      .popover(item: $inspected) { selection in inspector(selection, bindings: eventBindings) }
+      .popover(item: $iconSelection) { selection in iconPicker(selection, bindings: eventBindings) }
       .popover(item: $profileSelection) { selection in
-        if let device = bindings.devices(scope: .output, editing: true).first(where: {
+        if let device = eventBindings.devices(scope: .output, editing: true).first(where: {
           $0.id == selection.uid
         }) {
           MixerAutoEQPanel(
@@ -166,8 +172,7 @@ struct MixerView: View {
       }
   }
 
-  private var content: some View {
-    let snapshot = read()
+  private func content(snapshot: MixerSnapshot, bindings: MixerBindings) -> some View {
     let semantics = MixerPopupSemantics(
       snapshot: snapshot, bindings: bindings, editing: isEditing)
     return VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
@@ -203,7 +208,7 @@ struct MixerView: View {
         Label(error, systemImage: "exclamationmark.triangle.fill")
           .font(DesignTokens.Typography.rowDescription).foregroundStyle(.orange)
       }
-      deviceSection
+      deviceSection(bindings: bindings)
       if scope == .output && isEditing {
         MixerBluetoothSection(
           read: {
@@ -214,13 +219,15 @@ struct MixerView: View {
           }, actions: actions.backend)
       }
       Divider().padding(.vertical, DesignTokens.Spacing.xs)
-      applicationsSection(semantics: semantics)
+      applicationsSection(semantics: semantics, bindings: bindings)
       Divider().padding(.vertical, DesignTokens.Spacing.xs)
       MixerFooter(quit: quit)
     }
   }
 
-  private func applicationsSection(semantics: MixerPopupSemantics) -> some View {
+  private func applicationsSection(semantics: MixerPopupSemantics, bindings: MixerBindings)
+    -> some View
+  {
     return VStack(alignment: .leading, spacing: 0) {
       HStack {
         Text(semantics.sectionHeader).font(DesignTokens.Typography.sectionHeader)
@@ -263,13 +270,13 @@ struct MixerView: View {
         .padding(.vertical, DesignTokens.Spacing.xl)
       } else {
         VStack(alignment: .leading, spacing: 0) {
-          ForEach(semantics.apps) { app in appRow(app) }
+          ForEach(semantics.apps) { app in appRow(app, bindings: bindings) }
         }
       }
     }
   }
 
-  private func appRow(_ app: MixerAppPresentation) -> some View {
+  private func appRow(_ app: MixerAppPresentation, bindings: MixerBindings) -> some View {
     MixerAppRow(
       app: app, bindings: bindings, isEditing: isEditing,
       percentageDraft: keyboard.selectedRow == .app(persistenceID: app.id)
@@ -281,7 +288,7 @@ struct MixerView: View {
     .id(PopupKeyboardNavModel.RowID.app(persistenceID: app.id))
   }
 
-  private var deviceSection: some View {
+  private func deviceSection(bindings: MixerBindings) -> some View {
     let sectionScope = scope
     let devices = bindings.devices(scope: sectionScope, editing: isEditing)
     return VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
@@ -298,11 +305,14 @@ struct MixerView: View {
             TextField(
               "Priority",
               value: Binding(
-                get: { index + 1 }, set: { moveDevice(device.id, to: $0 - 1, scope: sectionScope) }),
+                get: { index + 1 },
+                set: {
+                  moveDevice(device.id, to: $0 - 1, scope: sectionScope, bindings: bindings)
+                }),
               format: .number
             )
             .frame(width: 28).accessibilityLabel("Priority for \(device.device.name)")
-            deviceContent(device)
+            deviceContent(device, bindings: bindings)
             if device.isDefault {
               Text("DEFAULT").font(DesignTokens.Typography.caption).foregroundStyle(.secondary)
             }
@@ -322,12 +332,12 @@ struct MixerView: View {
           }
           .onDrop(of: [UTType.text], isTargeted: nil) { _ in
             guard let uid = draggedDeviceUID else { return false }
-            moveDevice(uid, to: index, scope: sectionScope)
+            moveDevice(uid, to: index, scope: sectionScope, bindings: bindings)
             draggedDeviceUID = nil
             return true
           }
         } else {
-          deviceContent(device)
+          deviceContent(device, bindings: bindings)
             .id(PopupKeyboardNavModel.RowID.device(uid: device.id))
             .background(selectionBackground(.device(uid: device.id)))
         }
@@ -335,7 +345,9 @@ struct MixerView: View {
     }
   }
 
-  private func deviceContent(_ device: MixerDevicePresentation) -> some View {
+  private func deviceContent(_ device: MixerDevicePresentation, bindings: MixerBindings)
+    -> some View
+  {
     let renderScope = scope
     let profile = profiles.read(device.id)
     let subtitle =
@@ -389,7 +401,9 @@ struct MixerView: View {
     }
   }
 
-  @ViewBuilder private func inspector(_ selection: DeviceSelection) -> some View {
+  @ViewBuilder private func inspector(_ selection: DeviceSelection, bindings: MixerBindings)
+    -> some View
+  {
     if let row = bindings.devices(scope: selection.scope, editing: true).first(where: {
       $0.id == selection.uid
     }) {
@@ -407,7 +421,9 @@ struct MixerView: View {
     }
   }
 
-  @ViewBuilder private func iconPicker(_ selection: DeviceSelection) -> some View {
+  @ViewBuilder private func iconPicker(_ selection: DeviceSelection, bindings: MixerBindings)
+    -> some View
+  {
     if let row = bindings.devices(scope: selection.scope, editing: true).first(where: {
       $0.id == selection.uid
     }) {
@@ -425,7 +441,9 @@ struct MixerView: View {
     }
   }
 
-  private func moveDevice(_ uid: String, to proposedIndex: Int, scope: MixerDeviceScope) {
+  private func moveDevice(
+    _ uid: String, to proposedIndex: Int, scope: MixerDeviceScope, bindings: MixerBindings
+  ) {
     var uids = bindings.devices(scope: scope, editing: true).map(\.id)
     guard let index = uids.firstIndex(of: uid) else { return }
     uids.remove(at: index)
@@ -443,6 +461,7 @@ struct MixerView: View {
   }
 
   private func syncNavigation() {
+    let bindings = eventBindings
     navigation.syncOrder(
       activeDevices: bindings.devices(scope: scope, editing: false).map(\.device),
       appPersistenceIDs: bindings.visibleApps(editing: false).map(\.id),
@@ -496,7 +515,8 @@ struct MixerView: View {
     guard let input else { return keyboard.percentageDraft == nil ? .ignored : .handled }
     let effect = keyboard.process(
       input, navigation: navigation,
-      defaultOutputUID: bindings.devices(scope: scope, editing: false).first(where: \.isDefault)?.id
+      defaultOutputUID: eventBindings.devices(scope: scope, editing: false).first(
+        where: \.isDefault)?.id
     )
     if input == .deviceTab && effect == .none && keyboard.percentageDraft == nil { return .ignored }
     perform(effect)
@@ -505,7 +525,7 @@ struct MixerView: View {
 
   private func perform(_ effect: MixerKeyboardEffect) {
     MixerKeyboardRouter.perform(
-      effect, scope: &scope, expandedAppID: &expandedAppID, bindings: bindings)
+      effect, scope: &scope, expandedAppID: &expandedAppID, bindings: eventBindings)
   }
 }
 

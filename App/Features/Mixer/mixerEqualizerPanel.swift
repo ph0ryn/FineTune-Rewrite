@@ -16,7 +16,7 @@ struct MixerEqualizerPanel: View {
   }
 
   private var matchingUserPreset: UserEQPreset? {
-    bindings.read().userPresets.first { $0.settings.bandGains == app.eqSettings.bandGains }
+    bindings.snapshot.userPresets.first { $0.settings.bandGains == app.eqSettings.bandGains }
   }
 
   var body: some View {
@@ -66,7 +66,7 @@ struct MixerEqualizerPanel: View {
         if let id = renamingPresetID {
           bindings.actions.app.renamePreset(id, presetName)
         } else {
-          bindings.actions.app.createPreset(presetName, bindings.current(app).eqSettings)
+          bindings.actions.app.createPreset(presetName, bindings.freshApp(app).eqSettings)
         }
         renamingPresetID = nil
       }
@@ -87,7 +87,7 @@ struct MixerEqualizerPanel: View {
           }
         }
       }
-      let presets = bindings.read().userPresets
+      let presets = bindings.snapshot.userPresets
       if !presets.isEmpty {
         Section("My Presets") {
           ForEach(presets) { preset in
