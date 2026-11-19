@@ -270,6 +270,7 @@ OSStatus createAggregate(void *, const OutputDevice &physical, const char *tapUI
                          CFSTR("FineTune Process Route"));
     CFDictionarySetValue(composition, CFSTR(kAudioAggregateDeviceUIDKey), identifier);
     CFDictionarySetValue(composition, CFSTR(kAudioAggregateDeviceMainSubDeviceKey), destination);
+    CFDictionarySetValue(composition, CFSTR(kAudioAggregateDeviceClockDeviceKey), destination);
     CFDictionarySetValue(composition, CFSTR(kAudioAggregateDeviceSubDeviceListKey), memberList);
     CFDictionarySetValue(composition, CFSTR(kAudioAggregateDeviceTapListKey), tapList);
     CFDictionarySetValue(composition, CFSTR(kAudioAggregateDeviceIsPrivateKey), on);
