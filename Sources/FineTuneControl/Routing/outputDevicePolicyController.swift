@@ -42,7 +42,9 @@ public final class OutputDevicePolicyController {
   private var hasObservation = false
   private var suspended = false
   private var previousPriority: [String]
-  private var lastOverrideTime: Double?
+  /// The grace-episode device this controller already corrected once; further OS re-assertions
+  /// of the same device are deferred to instead of fought. Reset when a new episode starts.
+  private var restoredGraceUID: String?
 
   public init(
     settings: any OutputDevicePolicySettingsStore,
@@ -62,13 +64,12 @@ public final class OutputDevicePolicyController {
       guard let self, !self.suspended, self.pendingRequest?.token == token else { return }
       self.pendingRequest = nil
       guard self.observationFailure == nil else { return }
-      if let selection = self.explicitSelection, self.intendedDefaultUID == selection.uid {
-        guard self.observedDefaultUID != selection.uid else { return }
+      if let selection = self.explicitSelection, self.intendedDefaultUID == selection.uid,
+        self.observedDefaultUID != selection.uid
+      {
         // A corrective lease can outlive the fixed window; it must never restart a write loop.
         self.failExplicitSelection()
-        return
       }
-      do { try self.restoreIntendedDefault() } catch { self.recordFailure(error) }
     }
   }
 
@@ -128,7 +129,7 @@ public final class OutputDevicePolicyController {
     }
     if let uid = grace.uid, removed.contains(uid) {
       grace.cancel()
-      lastOverrideTime = nil
+      restoredGraceUID = nil
     }
     let defaultChanged = oldDefault != defaultUID
     let ownEcho = defaultChanged && defaultUID.map(echoes.consume) == true
@@ -168,32 +169,37 @@ public final class OutputDevicePolicyController {
         if let target = highestPriority() { try request(target) }
       }
       // Same ordering as the upstream producer: listed priority first, then deterministic unknowns.
+      // A connect batch starts a fresh grace episode: assert priority once, then defer to the OS.
+      if !connectedOrder.isEmpty { restoredGraceUID = nil }
+      var restoredThisObserve = false
       for uid in connectedOrder {
         if uid == highestPriority() {
           try request(uid)
         } else if defaultUID == uid, !ownEcho {
           try restoreIntendedDefault()
+          restoredGraceUID = uid
+          restoredThisObserve = true
         }
         grace.start(uid: uid, bluetooth: bluetoothUIDs.contains(uid))
-        lastOverrideTime = nil
       }
       guard defaultChanged, !ownEcho, let defaultUID else { return }
-      if let pending = grace.uid, defaultUID == pending {
-        if let lastOverrideTime, now() - lastOverrideTime > 1 {
+      if let pending = grace.uid, defaultUID == pending, !restoredThisObserve {
+        if restoredGraceUID == pending {
+          // The OS re-asserted its choice after our one correction: defer to it and end the episode.
+          pendingRequest = nil
           grace.cancel()
-          self.lastOverrideTime = nil
+          restoredGraceUID = nil
           intendedDefaultUID = defaultUID
-          return
+        } else {
+          restoredGraceUID = pending
+          try restoreIntendedDefault()
         }
-        try restoreIntendedDefault()
-        lastOverrideTime = now()
-        grace.start(uid: pending, bluetooth: bluetoothUIDs.contains(pending))
         return
       }
       // Unknown-before-device-list is not an observed eligible default; wait for healthy topology.
       guard current.contains(defaultUID), pendingRequest == nil else { return }
       grace.cancel()
-      lastOverrideTime = nil
+      restoredGraceUID = nil
       intendedDefaultUID = defaultUID
     } catch { recordFailure(error) }
   }
@@ -202,7 +208,7 @@ public final class OutputDevicePolicyController {
   public func selectDefaultOutput(uid: String) throws {
     // A new explicit attempt supersedes old hotplug and correction authority.
     grace.cancel()
-    lastOverrideTime = nil
+    restoredGraceUID = nil
     // Retain older echo tokens as provenance, but revoke their timeout/write authority.
     pendingRequest = nil
     explicitSelection = nil
@@ -233,7 +239,7 @@ public final class OutputDevicePolicyController {
     pendingRequest = nil
     grace.cancel()
     echoes.cancelAll()
-    lastOverrideTime = nil
+    restoredGraceUID = nil
   }
 
   public func resume() {

@@ -78,6 +78,35 @@ struct OutputDevicePolicyTests {
     }
   }
 
+  @Test("A repeated OS re-assertion after one correction is deferred to, not fought")
+  func osReassertionAfterOneCorrectionIsAccepted() {
+    let store = makeStore(["monitor", "airpods"])
+    var writes: [String] = []
+    let policy = OutputDevicePolicyController(
+      settings: store, setDefaultOutput: { writes.append($0) })
+    defer { policy.suspend() }
+
+    policy.observe(availableUIDs: ["monitor"], defaultUID: "monitor", bluetoothUIDs: [])
+    // The device connects with macOS already switched to it (an in-ear style transient).
+    policy.observe(
+      availableUIDs: ["monitor", "airpods"], defaultUID: "airpods", bluetoothUIDs: ["airpods"])
+    #expect(writes == ["monitor"] && policy.intendedDefaultUID == "monitor")
+
+    // Our correction's acknowledgement, then the OS re-asserting its choice.
+    policy.observe(
+      availableUIDs: ["monitor", "airpods"], defaultUID: "monitor", bluetoothUIDs: ["airpods"])
+    policy.observe(
+      availableUIDs: ["monitor", "airpods"], defaultUID: "airpods", bluetoothUIDs: ["airpods"])
+    #expect(
+      writes == ["monitor"] && policy.intendedDefaultUID == "airpods"
+        && policy.graceConnectionUID == nil)
+
+    // Further observations of the accepted default must not restart the fight.
+    policy.observe(
+      availableUIDs: ["monitor", "airpods"], defaultUID: "airpods", bluetoothUIDs: ["airpods"])
+    #expect(writes == ["monitor"] && policy.intendedDefaultUID == "airpods")
+  }
+
   @Test("Failed priority write and failed discovery preserve actual default and priority")
   func priorityFailureAndObservationFailure() {
     let store = makeStore(["mid", "high"])
