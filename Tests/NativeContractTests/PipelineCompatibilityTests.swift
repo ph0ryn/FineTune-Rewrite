@@ -111,6 +111,10 @@ struct UpstreamCrossfadeStateCompatibilityTests {
       #expect(p >= -1e-6 && p <= 1 + 1e-6)
       #expect(s >= -1e-6 && s <= 1 + 1e-6)
       let powerSum = p * p + s * s
+      // Tolerance policy: the measured worst-case Float32 identity error is
+      // ~1.2e-7 (rounded progress plus Float32 cos/sin), so 1e-4 stays far above
+      // the achievable error, while linear-crossfade-scale failures (~0.1-1.0)
+      // still fail. Loosening further would only hide narrower regressions.
       #expect(abs(powerSum - 1.0) < 1e-4, "Expected p^2+s^2=1, got \(powerSum)")
       #expect(p <= prevPrimary + 1e-6)
       #expect(s >= prevSecondary - 1e-6)
@@ -122,6 +126,8 @@ struct UpstreamCrossfadeStateCompatibilityTests {
     while !state.isCrossfadeComplete {
       _ = state.updateProgress(samples: 512)
     }
+    // Same tolerance policy: the measured Float32 |cos(pi/2)| is 4.4e-8 at
+    // progress 1, so this bounds the multiplier, not the library ULPs.
     #expect(abs(state.primaryMultiplier) < 1e-4)
     #expect(abs(state.secondaryMultiplier - 1.0) < 1e-4)
   }
