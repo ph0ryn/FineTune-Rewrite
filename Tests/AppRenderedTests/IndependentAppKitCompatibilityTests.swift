@@ -118,6 +118,22 @@ struct IndependentAppKitCompatibilityTests {
   }
 
   @Test(
+    "The Settings window hosts SwiftUI in a contentView NSHostingView with the fitted size",
+    arguments: [NSSize(width: 720, height: 560)]
+  )
+  func settingsWindowHosting(fitted: NSSize) throws {
+    let window = SettingsWindowFactory.make(
+      content: Text("Settings").frame(width: fitted.width, height: fitted.height))
+    defer { window.close() }
+    // contentViewController(NSHostingController) would detach the TabView bar from the title bar.
+    #expect(window.contentViewController == nil)
+    let content = try #require(window.contentView)
+    #expect(String(describing: type(of: content)).hasPrefix("NSHostingView"))
+    #expect(content.frame.size == fitted)
+    #expect(!window.isReleasedWhenClosed)
+  }
+
+  @Test(
     "MenuBarIconImage boundary cases return nil for nonexistent assets/symbols and 22x18 bitmaps for valid inputs"
   )
   func menuBarIconRendererBoundary() {

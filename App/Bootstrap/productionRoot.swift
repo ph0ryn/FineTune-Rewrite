@@ -94,17 +94,13 @@ final class ProductionRoot {
     audioEngine: graph.engine, hud: hud, keyboard: keyboard)
 
   private lazy var settingsWindow: NSWindow = {
-    let window = NSWindow(
-      contentViewController: NSHostingController(
-        rootView: FineTuneSettingsView(
-          read: { [presentation = self.presentation] in presentation.settingsSnapshot() },
-          actions: settingsActions,
-          updates: .unavailable(
-            reason: "Automatic updates are not configured for this rewrite build."))))
+    let window = SettingsWindowFactory.make(
+      content: FineTuneSettingsView(
+        read: { [presentation = self.presentation] in presentation.settingsSnapshot() },
+        actions: settingsActions,
+        updates: .unavailable(
+          reason: "Automatic updates are not configured for this rewrite build.")))
     window.title = "FineTune Rewrite Settings"
-    window.styleMask = [.titled, .closable, .miniaturizable]
-    window.isReleasedWhenClosed = false
-    window.center()
     return window
   }()
 
