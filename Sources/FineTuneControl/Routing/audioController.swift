@@ -284,7 +284,10 @@ public final class AudioController: AudioCommandHandling {
         }
         runtime?.requestCleanupRetry()
         retryFailedRetirements()
-        reconcileAll(explicitRetry: true)
+        // An explicit retry must also rebuild routes that still look healthy locally: a stale
+        // owner can keep its committed observation while the OS side is broken. Forcing every
+        // app mirrors a device switch, which only recovers because the UID changes.
+        reconcileAll(force: true, explicitRetry: true)
       case .stopCapture:
         var settings = settingsStore.appSettings
         settings.explicitUserCaptureEnabled = false

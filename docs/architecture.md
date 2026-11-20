@@ -124,7 +124,7 @@ idleではDSP履歴と適用済みrevisionを進めず、破損したmetadata・
 継続用のread ownerとして保持せず、次のcandidateのarmedを待たずに非リアルタイムの回収を開始する。
 Controlの取消はownerごとに一度だけ通知し、遅れて終了した旧処理から再通知してPENDING回収の監視を止めない。
 資源の解放は引き続き実際のreader-zeroとretired ACKを待つ。回収失敗の結果はownerとともに保持し、後のhandoffから自動再試行しない。
-明示的なcapture Retryは、Controlが保持する終了済みの失敗taskだけを再試行する。進行中・PENDINGの回収は共有し、旧ownerを再びrender可能にはしない。
+明示的なcapture Retryは、Controlが保持する終了済みの失敗taskを再試行し、全アプリの経路を強制再準備する。進行中・PENDINGの回収は共有し、旧ownerを再びrender可能にはしない。
 回収中の観測はその試行のcleanup結果を伝え、native snapshotの履歴診断と分ける。同じエラーの再発や、retired ACKに付随する現在のエラーは失敗のまま扱う。
 
 音声処理にはUI・保存・非リアルタイムの資源管理を持ち込まない。

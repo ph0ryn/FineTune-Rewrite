@@ -17,9 +17,9 @@ extension AudioController {
     }
   }
 
-  func reconcileAll(explicitRetry: Bool = false) {
+  func reconcileAll(force: Bool = false, explicitRetry: Bool = false) {
     for application in applications {
-      reconcile(application.identifier, explicitRetry: explicitRetry)
+      reconcile(application.identifier, force: force, explicitRetry: explicitRetry)
     }
   }
 

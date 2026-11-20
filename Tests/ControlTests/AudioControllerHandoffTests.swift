@@ -305,6 +305,36 @@ struct AudioControllerHandoffTests {
     #expect(runtime.handles.allSatisfy { $0.retired && !$0.ioRunning })
   }
 
+  @Test("Explicit retry force-reprepares every app's route without switching devices")
+  func explicitRetryForceRebuildsAllRoutes() async throws {
+    let (controller, settings, runtime) = makeController()
+    let pinned = AudioApplicationDescriptor(
+      identifier: "unit.pinned", processID: 102, processRevision: 1,
+      displayName: "Pinned", bundleID: "unit.pinned")
+    settings.setDeviceRouting(for: pinned.identifier, deviceUID: "B")
+    controller.observeOutputs([a, b], defaultUID: "A")
+    controller.observeApplications([application, pinned])
+    controller.perform(.requestCaptureStart)
+    await controller.waitForCurrentWork()
+    let following = try #require(runtime.handle("A"))
+    let fixed = try #require(runtime.handle("B"))
+    #expect(following.rendering && fixed.rendering)
+    #expect(runtime.requests.count == 2)
+
+    controller.perform(.requestCaptureStart)
+    await controller.waitForCurrentWork()
+
+    #expect(runtime.requests.count == 4)
+    #expect(following.retired && !following.ioRunning)
+    #expect(fixed.retired && !fixed.ioRunning)
+    #expect(runtime.handle("A") !== following)
+    #expect(runtime.handle("B") !== fixed)
+    #expect(controller.activeDeviceUIDs(for: application.identifier) == ["A"])
+    #expect(controller.activeDeviceUIDs(for: pinned.identifier) == ["B"])
+    #expect(controller.lastFailure == nil)
+    await controller.shutdown()
+  }
+
   @Test(
     "Repeated explicit retry joins PENDING cleanup and honors its current ACK",
     arguments: [false, true])
@@ -503,7 +533,7 @@ struct AudioControllerHandoffTests {
   }
 
   @Test(
-    "A failed same target retries through route/start while retaining usable multi outputs",
+    "A failed same target retries through route/start or an explicit Retry",
     arguments: [DeviceSelectionMode.single, .multi], [false, true])
   func failedSameTargetCanRetry(mode: DeviceSelectionMode, retryStart: Bool) async throws {
     let (controller, settings, runtime) = makeController()
@@ -528,8 +558,14 @@ struct AudioControllerHandoffTests {
     }
     await controller.waitForCurrentWork()
     #expect(controller.activeDeviceUIDs(for: application.identifier) == desired)
-    #expect(runtime.requests.count == 3)
-    #expect(original.retirementAttempts == (mode == .single ? 1 : 0))
+    if retryStart {
+      // Retry rebuilds every route, including a still-healthy output in a multi route.
+      #expect(runtime.requests.count == (mode == .multi ? 4 : 3))
+      #expect(original.retirementAttempts == 1)
+    } else {
+      #expect(runtime.requests.count == 3)
+      #expect(original.retirementAttempts == (mode == .single ? 1 : 0))
+    }
     #expect(settings.getSelectedDeviceUIDs(for: application.identifier) == desired)
     await controller.shutdown()
   }
