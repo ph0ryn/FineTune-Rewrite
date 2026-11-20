@@ -40,7 +40,7 @@ just test-native
 just check
 ```
 
-`just check`はformat lint、debug/releaseのpackage build、unit/component test、offline DSP、nativeの所有・levels・fake-HAL試験を実行する。描画test（`just test-ui`）とApp bundle buildは含めず、別のopt-in stepで実行する。
+`just check`はformat lint、unit/contract test、offline DSP、nativeの所有・levels・fake-HAL試験を実行する。contract testには実Appをbuild・起動せずにbuild CLIの成果物を検証する`just test-build-app`を含む。製品packageのbuild（`just build`）、描画test（`just test-ui`）、App bundle buildは含めず、別のstepで実行する。
 
 scratchとXcode出力先を分離する場合:
 
