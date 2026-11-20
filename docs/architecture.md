@@ -1,10 +1,8 @@
 # FineTune-Rewrite アーキテクチャ
 
-## 設計意図・現実装・未検証を分ける
+## この文書の範囲
 
-初期の設計案を出発点に、構成・責務・依存・実行時の所有権を整理する。
-初期の設計案を検証済み仕様とは扱わず、以下の責務境界、現在接続されている実装、実機で未確認の事項を区別する。
-実装状況と開発手順は[README](<../README.md>)、試験対象・証拠と確認条件は[検証方針](<validation.md>)、作業の前提は[開発ガイド](<../AGENTS.md>)で扱う。
+構成・責務・依存・実行時の所有権を扱う。観測可能な契約は[仕様](spec.md)、試験対象と確認条件は[検証方針](verification.md)、開発の手順は[開発手順](development.md)で扱う。
 
 ## 責務と依存の境界
 
@@ -76,32 +74,33 @@ C++の型や所有権をSwift側へ広げず、小さなC形式のAPIを公開�
 UI・キー操作・URLなどの入口をControlの共通の操作へ通し、各入口が独自に保存や音声実装への反映を行わない。
 UIの百分率、PCMの倍率、dB補正、機器側の音量を混同せず、保存値の意味を維持する。
 
-## 現在の製品組立
+## 製品の組立
 
 [ProductionRoot](<../App/Bootstrap/productionRoot.swift>)が一つのSettingsManager、機器/process producer、機器操作model、入出力policy、Native runtimeを保持し、
 [ApplicationGraph](<../App/Bootstrap/applicationGraph.swift>)へ同じ依存を渡す。EngineとControllerはその観測を使い、AutoEQ repository/cacheも共通である。
 Mixer・Settingsのread/action、キー操作、URLはこの同じControl/storeへ接続する。Settingsのread closureも同じ表示modelを参照し、Rootの別コピーを作らない。
 表示snapshotはpure projectionであり、Rootに第二の経路planner・設定集合・download registryを持たせない。
 
-- **希望と実観測:** default追従に使うpolicy承認済みUIDは、物理的に観測したOS default UIDと別である。復帰write失敗でもOS観測を偽装せず、固定先・追従の希望を維持する。
+- **希望と実観測:** default追従に使うpolicy承認済みUIDは、物理的に観測したOS default UIDと別の値として保持する。
 - **観測の健全性:** inventory未開始、discovery失敗、input/outputそれぞれのdefault読取失敗を扱う。last-good UIDをhealthy-currentへ補完しない。失敗中は新prepareやpolicy writeを抑え、利用可能な旧routeは保持できるが、Nativeでbinding無効が確定したrouteは閉じて回収する。
-- **非同期の適用:** prepare前のpayloadを有効化時まで固定しない。各await後に世代・binding・default追従先を確認し、start/commitでは現在の設定からstateを作り直す。request受理、armed、commit、first-appliedは別の観測である。
-- **Processの識別:** shared producerのprocess revision照合と、Nativeが行うCoreAudio process object→PID再検証は別である。revision一致だけでOS上の同一processを保証しない。
+- **非同期の適用:** prepare前のpayloadを有効化時まで固定しない。各await後に世代・binding・default追従先を確認し、start/commitでは現在の設定からstateを作り直す。request受理、armed、commit、first-appliedは別の観測として扱う。
+- **Processの識別:** shared producerのprocess revision照合と、Nativeが行うCoreAudio process object→PID再検証は別の経路である。revision一致だけでOS上の同一processを保証しない。
+
+外部から観測可能な契約は[仕様](spec.md)で管理する。
 
 ### Lifecycleと構築時の副作用
 
 [coordinator](<../App/Bootstrap/lifecycleCoordinator.swift>)がstart/stop・sleep/wake・session状態・終了時の入力停止/flushを所有する。
 [Host](<../App/Bootstrap/applicationHost.swift>)の終了通知で同期的に入力を止めて設定を保存し、RootはHUDも終了する。
-原作と同じ通常のAppKit終了に従い、`terminateLater`や非同期のroute回収完了は待たない。
-プロセス終了時のOS回収と、通常のstopが返すNative回収結果は別の契約であり、終了できたことを全資源のdrain成功とは扱わない。
+終了時の外部契約は[仕様](spec.md)で管理する。プロセス終了時のOS回収と、通常のstopが返すNative回収結果は別に扱う。
 one-shot observationはsuspended中も同じ世代で再登録するが、running時だけ通常のeffectを実行する。
 wakeでは現在のdefault読取healthとEngine観測を先に取り込み、policyをrebaseし、最後にcaptureを再開する。
 input停止はmedia keysだけでなくglobal shortcutsの登録解除とrepeat task取消に及び、suspend/stop中は保持されたRegistry callbackも効果を持たない。
-coordinatorの世代付き観測callbackはstop/restart後に旧世代を拒否する。Registry再start後のforeign retained callbackや、OSのqueued key-up順は未測定である。
+coordinatorの世代付き観測callbackはstop/restart後に旧世代を拒否する。Registry再start後のforeign retained callbackやOSのqueued key-up順は[検証方針](verification.md)の検証境界で扱う。
 
 製品Rootのconstructorはglobally OS-inertではない。設定のdisk load/不正file backupと、non-prompt Accessibility trust queryがある。
 profile repository/storeのconstructorは依存保存とURL検証のみで、local profileのdisk復元はservice開始時に行う。
-Graph/VMの注入portを使う0-call unitは、実Root起動の0 I/O保証やNSWindow解放の実測ではない。
+注入portを使うunitと実Root起動の副作用は別の検証対象であり、[検証方針](verification.md)で境界を定める。
 
 capture希望は新規・欠損設定でfalse、保存済みtrueはdurableな希望である。Controlは新sessionを作り、保存tokenを再使用しない。
 main executableのusage descriptionと保存希望はOS grantではなく、metadata欠損時はNative前にfail closedする。
@@ -145,19 +144,19 @@ tapなどの生成・停止・破棄やObjective-Cのオブジェクト操作は
 
 コールバック構成に応じて受け渡し方式を選び、実際の読み手の数に合わないqueueの共有をしない。
 単一の読み手を前提とした方式を、複数機器のコールバックでそのまま共有しない。
-現実装はcallback slotの参照終了を確認し、native-owned stateを非リアルタイム側で回収する。
+callback slotの参照終了を確認し、native-owned stateを非リアルタイム側で回収する。
 同期処理の正本は[Native runtime](<../Sources/NativeAudio/Runtime/>)に置き、ここへAPIやalgorithm全体を複製しない。
 
-### 現在のNative経路と回収結果
+### Native経路と回収結果
 
 app×outputの各routeがtap・private aggregate・IOProc・DSP資源を所有する。
-private aggregateのtap drift/qualityは作成後に変更せず、証明のたびにOSからCompositionを読み戻して、所有tap UIDとの一意対応・数値型・値を検証する。作成時の要求辞書や既定値を観測の代わりに使わない。期待するdrift値は出力のtransport typeから導き、tapと出力がクロックを共有するBluetooth/BLEではOFFを要求する（ONだとHALが周期的にサンプルを挿入・削除してクラックルが出る）。
+private aggregateのtap drift/qualityは作成後に変更せず、証明のたびにOSからCompositionを読み戻して、所有tap UIDとの一意対応・数値型・値を検証する。作成時の要求辞書や既定値を観測の代わりに使わない。期待するdrift値は出力のtransport typeから導き、tapと出力がクロックを共有するBluetooth/BLEではOFFを要求する。根拠は[調査記録](research.md)で扱う。
 SubTapListのIDはactive memberの同一性比較に使い、子objectのproperty読取・監視が可能とは仮定しない。aggregateのComposition・tap/subtap listと既存の物理機器・streamを監視し、start前にも再検証する。
-同一process内の外部コードが子drift/qualityを直接変更する方式は対応対象外とする。子設定の変更が必ず親Composition通知になる保証や、実機での通知・音声の正しさを確認したという意味ではない。
+同一process内の外部コードが子drift/qualityを直接変更する方式は対応対象外とする。子設定の変更が必ず親Composition通知になるという保証は持たない。
 初期対応は同じsample rateのFloat32 stereoと明示的なchannel/format certificateに制限し、未対応機器を黙示変換で隠さない。
 所有する単一tapだけのaggregate入力では、streamのdevice property用開始番号とIOProcのbuffer位置を分け、正の開始番号から連続するstereoと実際のbuffer構成を照合する。raw開始番号自体をRTのoffsetやcertificateの不変値にはしないが、変更通知の監視は続ける。
 物理/aggregate出力のchannel 1/2、入力の所有・構成・同一sample rateの検証は緩めず、tap入力の番号に合わせてサンプルのpointerやbuffer ordinalをずらさない。
-source appをtap中muteする方式を使うが、実機での音響的な連続性を確認したものではない。
+source appをtap中muteする方式を使う。音響的な連続性の確認は[検証方針](verification.md)の範囲で扱う。
 
 回収PENDINGは既存の20ms pollで実際のreader/aggregate条件を再確認する。FAILEDはownerをretainして報告し、自動failure retryを止める。
 所有aggregateへのstop・IOProc破棄・aggregate破棄が`!dev`を返しても、それだけで回収済みとは扱わない。別のpresence queryが成功して不在を確認できた場合だけ、そのdevice操作を完了扱いする。listener・tapは個別に回収し、確認に失敗した場合や別のcleanup errorは所有権とともに残す。
@@ -167,8 +166,4 @@ factoryは履歴の最新診断と、経路ごとの未解決cleanupを分けて
 明示的なcapture Retryは、prepared handleを返せずpoolへ移した失敗ownerにも届く。再試行はfactory単位で、進行中の回収は共有する。新しいprepareは対象の試行がretiredまたはFAILEDになるまで待つが、それをpool全体のdrainやcapture許可とは扱わない。
 この通知は新しいcapture・route操作・Rootの二重timerを開始せず、権限やglobal回収完了の証拠でもない。
 
-## 実機で未確認の事項
-
-上記の初期実装が存在することと、aggregate/channel対応・切替・初音・idle復帰が実機で十分かは別である。
-物理HALのsample rate/channel map、権限取消、sleep/wake、長時間稼働、callback deadline、実音声の正しさは未確認である。
-方式の適否を判断するための限定観測と安全条件は[検証方針](<validation.md>)で扱う。
+物理HALのsample rate/channel map、権限取消、sleep/wake、長時間稼働、callback deadline、実音声の正しさは自動ゲートの保証対象外であり、限定観測の条件を含めて[検証方針](verification.md)で扱う。
