@@ -78,6 +78,14 @@ open FineTune.xcodeproj
 
 Xcodeのbundle build自体がLaunchServices/execution-policyへ開発bundleを登録する場合がある。そのため実Appのbundle buildは通常の`just check`から外し、CIでも使い捨てrunnerの別stepへ分離する。`just check`には、実Appを起動せずにbuild CLIの成果物を検証する`just test-build-app`が含まれる。
 
+## リリース
+
+`v0.1.0`のようなタグをpushすると[release workflow](../.github/workflows/release.yml)が走り、`FineTuneRewrite.dmg`がGitHub Releaseへ添付される。release構成のbundleを`hdiutil`でDMGに包むだけで、証明書やsecretの設定は要らない。
+
+タグから`v`を除いた値が`MARKETING_VERSION`と一致しない場合は、xcodebuildの前に停止する。バージョンを上げるときはXcodeプロジェクトを先に更新する。成果物はrunnerのarm64向け単一bundleで、universalにはしない。
+
+ad-hoc署名のbundleを他環境で開くとGatekeeperに止められる。利用者側の対処は[README](../README.md#インストール)に置く。原作のrelease workflowが行うDeveloper ID署名・公証・appcast更新は含めない。[check workflow](../.github/workflows/check.yml)は同じタグpushで並走するが、release jobはその結果を待たない。
+
 ## 変更時のreview
 
 - 元の保証に対応する新unitの入力・期待値・許容差を確認し、分割・統合や非可搬な置換の理由を変更の根拠として説明する

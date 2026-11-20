@@ -1,0 +1,63 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: macos-26
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+    permissions:
+      contents: write
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify CI toolchain
+        run: |
+          version="$(xcodebuild -version)"
+          printf '%s\n' "$version"
+          test "$version" = $'Xcode 26.6\nBuild version 17F113'
+          test "$(uname -m)" = arm64
+          sdk_version="$(xcrun --sdk macosx --show-sdk-version)"
+          printf 'macOS SDK %s\n' "$sdk_version"
+          test "$sdk_version" = 26.5
+          printf 'SDKROOT=%s\n' "$(xcrun --sdk macosx --show-sdk-path)" >> "$GITHUB_ENV"
+      - name: Verify tag matches the app version
+        run: |
+          expected="v$(sed -n 's/.*MARKETING_VERSION = \([^;]*\);.*/\1/p' FineTune.xcodeproj/project.pbxproj | sort -u | tr -d '\n')"
+          printf 'tag=%s expected=%s\n' "$GITHUB_REF_NAME" "$expected"
+          test -n "$expected"
+          test "$GITHUB_REF_NAME" = "$expected"
+      - name: Install tools
+        run: brew install just git-cliff
+      - name: Generate release notes
+        run: |
+          # Exclude the tagged commit itself so release bookkeeping stays out of the notes.
+          git cliff --current --strip header --skip-commit "$(git rev-parse HEAD)" --output RELEASE_NOTES.md
+          test -s RELEASE_NOTES.md
+      - name: Build release app bundle
+        run: just build-app release
+      - name: Create DMG
+        run: |
+          app="$PWD/DerivedData/Build/Products/Release/FineTuneRewrite.app"
+          test -d "$app"
+          hdiutil create -volname FineTuneRewrite -srcfolder "$app" -ov -format UDZO FineTuneRewrite.dmg
+          hdiutil verify FineTuneRewrite.dmg
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$GITHUB_REF_NAME" \
+            --notes-file RELEASE_NOTES.md \
+            FineTuneRewrite.dmg

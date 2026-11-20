@@ -37,6 +37,16 @@ just check
 `just check`はformat lint・package build・unit/component・offline DSP・native契約試験を実行します。
 描画testとApp bundle buildは含まれません。
 
+## インストール
+
+[Releases](https://github.com/ph0ryn/FineTune-Rewrite/releases)の`FineTuneRewrite.dmg`をダウンロードし、`FineTuneRewrite.app`をApplicationsへコピーしてください。arm64（Apple Silicon）向けのビルドです。
+
+bundleはad-hoc署名で、Developer ID署名と公証は行っていません。Gatekeeperが起動を止める場合は、Finderで右クリックして「開く」を選ぶか、quarantine属性を外します。
+
+```bash
+xattr -dr com.apple.quarantine /Applications/FineTuneRewrite.app
+```
+
 ## 実音声と診断
 
 AudioProbeによる限定観測の安全条件は[検証方針](docs/verification.md#実音声を確認するときの安全条件)、
