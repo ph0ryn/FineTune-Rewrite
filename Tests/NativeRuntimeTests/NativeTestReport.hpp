@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: MIT
-// Shared test-only report writer for the six native/DSP executables.
 #pragma once
 
 #include <cmath>

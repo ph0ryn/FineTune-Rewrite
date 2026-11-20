@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MIT
 #pragma once
 #include <CoreAudio/AudioHardware.h>
 #include <CoreFoundation/CoreFoundation.h>

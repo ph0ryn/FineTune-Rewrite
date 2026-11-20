@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MIT
 #pragma once
 #include "HalAPI.hpp"
 #include <limits>

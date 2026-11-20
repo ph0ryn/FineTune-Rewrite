@@ -32,7 +32,7 @@ struct SettingsContractTests {
     #expect(copy.independentRewrite == "Independent rewrite · Original project by Ronit Singh")
     #expect(copy.starLabel == "Star on GitHub")
     #expect(copy.starURL == URL(string: "https://github.com/ronitsingh10/FineTune")!)
-    #expect(copy.licenseLabel == "GPL-3.0")
+    #expect(copy.licenseLabel == "GPL-3.0-only")
     #expect(copy.licenseURL == URL(string: "https://www.gnu.org/licenses/gpl-3.0.html")!)
   }
 

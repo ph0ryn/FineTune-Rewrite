@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: MIT
-// Actual native ownership units; no replacement DSP or test-only production ABI.
 #include "../../Sources/NativeAudio/PreparedPipelineStages.hpp"
 #include "../NativeRuntimeTests/NativeTestReport.hpp"
 #include <array>

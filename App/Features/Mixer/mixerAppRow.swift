@@ -1,10 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-only
-// Copyright (C) 2026 Ronit Singh
-// Derived from FineTune/Views/Rows/{AppRow,InactiveAppRow,AppRowControls,AppEditRow}.swift
-// and Views/Components/{ExpandableGlassRow,BoostChevrons,MuteButton}.swift at
-// 2285279d36d3f8115c1c2d4aecd904f1bdf96a51.
-// Modified 2026-11-05: existing common bindings/slider, native percentage editing and observed levels.
-
 import FineTuneDomain
 import Foundation
 import SwiftUI

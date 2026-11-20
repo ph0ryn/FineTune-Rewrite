@@ -1,9 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-only
-// This entire file is covered by GPL-3.0-only as a derived adaptation.
-// Derived GPL-covered adaptation of ronitsingh10/FineTune Audio/Engine/EchoTracker.swift:4–73.
-// Pinned revision 2285279d36d3f8115c1c2d4aecd904f1bdf96a51; see the upstream GPLv3 LICENSE.
-// Per-UID token acknowledgement/expiry semantics are adapted, not claimed as an ideas-only rewrite.
-
 @MainActor
 final class DeviceDefaultEchoes {
   private struct Entry {

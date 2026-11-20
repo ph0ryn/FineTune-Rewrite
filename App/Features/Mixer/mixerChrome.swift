@@ -1,9 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-only
-// Copyright (C) 2026 Ronit Singh
-// Derived from FineTune/Views/MenuBarPopupView.swift and Views/DesignSystem/ViewModifiers.swift
-// at 2285279d36d3f8115c1c2d4aecd904f1bdf96a51.
-// Modified 2026-11-05: snapshot inputs and explicit actions; preserve Rewrite's command-Q binding.
-
 import SwiftUI
 
 /// Copy rendered by the header. `MixerHeader` reads these values for its visible text and the

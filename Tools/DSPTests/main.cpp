@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: MIT
-// Independent boundary units and runner. Derived GPL units are in a separate translation unit.
 #include "../../Tests/NativeRuntimeTests/NativeTestReport.hpp"
 #include "AudioDSP/AudioDSP.hpp"
 #include "AudioDSP/Dynamics.hpp"

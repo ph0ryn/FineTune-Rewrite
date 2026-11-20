@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MIT
 #include "../../Sources/NativeAudio/Runtime/CoherentLevels.hpp"
 #include "NativeTestReport.hpp"
 #include <atomic>

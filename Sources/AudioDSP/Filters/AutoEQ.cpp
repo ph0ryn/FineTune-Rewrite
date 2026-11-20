@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MIT
 #include "AudioDSP/AutoEQ.hpp"
 
 #include <array>

@@ -4,11 +4,20 @@
 
 ## ライセンスと出典
 
-原作由来のtest/fixtureと派生物はGNU GPL version 3。独立した[MIT License](../LICENSE)部分を維持し、whole-file GPL区分と混同しない。原作のcopyright表示とGPL本文はアプリにバンドルする[THIRD_PARTY_NOTICES.txt](../App/Resources/THIRD_PARTY_NOTICES.txt)に一本化する。各テストの出典はファイル先頭のSPDXヘッダで示す。
+独立して書いた部分は[MIT License](../LICENSE)、原作由来のコンポーネントは`GPL-3.0-only`。ライセンス指定はファイルごとには行わず、下記のコンポーネント単位で[THIRD_PARTY_NOTICES.txt](../App/Resources/THIRD_PARTY_NOTICES.txt)に集約する。ファイルごとの由来はgit履歴で追える。
 
-下記の製品ファイルは各ファイル**全体**を`GPL-3.0-only`とし、productionすべてをMIT-onlyとは扱わない。全行が原作者のliteral copyではなく、機能語彙・規則自体の権利性も法的に断定しない。独立HTTP transport・App consumer等のMIT部分は維持する。外部AutoEqのINDEX/profile corpus自体は同梱せず、その取得dataを下記source codeと同一licenseへ再分類しない。GPL対象を含む製品binaryの配布時は、組合せ・対応source・通知とlicense提供等の条件を確認する必要がある。テストの隔離で製品のGPL条件が消えることはない。
+| コンポーネント | ライセンス |
+| --- | --- |
+| Profiles / AutoEQ | `GPL-3.0-only` |
+| DeviceIcons | `GPL-3.0-only` |
+| Mixer UI | `GPL-3.0-only` |
+| Device observation | `GPL-3.0-only` |
+| テスト / DSP | `GPL-3.0-only` |
+| その他 | MIT |
 
-### 製品側の派生codeとdata
+原作のcopyright表示とGPL本文はアプリにバンドルする[THIRD_PARTY_NOTICES.txt](../App/Resources/THIRD_PARTY_NOTICES.txt)に一本化する。機能語彙・規則自体の権利性は法的に断定しない。外部AutoEqのINDEX/profile corpus自体は同梱せず、その取得dataを下記source codeと同一licenseへ再分類しない。GPL対象を含む製品binaryの配布時は、組合せ・対応source・通知とlicense提供等の条件を確認する必要がある。テストの隔離で製品のGPL条件が消えることはない。
+
+### 原作由来の製品codeとdata（参照元）
 
 | 製品ファイル | 参照した境界 | 固定原作のsource |
 | --- | --- | --- |

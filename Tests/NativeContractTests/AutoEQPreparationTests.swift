@@ -1,6 +1,3 @@
-// SPDX-License-Identifier: MIT
-// Independent boundary units. Literal vectors captured from the original production Swift
-// AutoEQ facade before shared preparation; Debug/Release outputs matched exactly.
 import FineTuneDomain
 import FineTunePlatform
 import NativeAudio

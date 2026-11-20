@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MIT
 #pragma once
 
 #include "AudioDSP/AudioDSP.hpp"

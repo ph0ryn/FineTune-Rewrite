@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: MIT
-// Shared test-only harness for NativeHALContractTests translation units.
 #pragma once
 
 #include "../../Sources/NativeAudio/Runtime/AggregateTapPolicy.hpp"

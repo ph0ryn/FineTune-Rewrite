@@ -30,7 +30,7 @@ struct SettingsAboutCopy: Equatable {
   var independentRewrite = "Independent rewrite · Original project by Ronit Singh"
   var starLabel = "Star on GitHub"
   var starURL = URL(string: "https://github.com/ronitsingh10/FineTune")!
-  var licenseLabel = "GPL-3.0"
+  var licenseLabel = "GPL-3.0-only"
   var licenseURL = URL(string: "https://www.gnu.org/licenses/gpl-3.0.html")!
 }
 

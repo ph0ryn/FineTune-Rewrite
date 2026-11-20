@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MIT
 #include "AudioDSP/Dynamics.hpp"
 #include "CallbackSlots.hpp"
 #include "CallbackTiming.hpp"

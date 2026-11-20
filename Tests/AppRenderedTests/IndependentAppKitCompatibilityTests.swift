@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: MIT
-
 import AppKit
 import FineTuneDomain
 import FineTunePlatform

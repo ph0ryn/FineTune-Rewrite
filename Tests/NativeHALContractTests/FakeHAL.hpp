@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MIT
 #pragma once
 #include "../../Sources/NativeAudio/Runtime/HalAPI.hpp"
 #include "../../Sources/NativeAudio/Runtime/StreamLayout.hpp"

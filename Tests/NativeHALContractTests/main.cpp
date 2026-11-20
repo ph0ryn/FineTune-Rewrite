@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: MIT
-// Real C exports + real runtime/DSP, only the external OS provider is replaced.
 #include "HALContractHarness.hpp"
 
 #include <cstdlib>

@@ -1,8 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-only
-// Copyright (C) 2026 Ronit Singh
-// Derived from ronitsingh10/FineTune at upstream revision 2285279d36d3f8115c1c2d4aecd904f1bdf96a51.
-// Consolidated domain codable, defaults, and model compatibility contracts.
-
 import FineTuneDomain
 import Foundation
 import Testing

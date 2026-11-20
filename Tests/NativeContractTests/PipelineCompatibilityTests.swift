@@ -1,9 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-only
-// Copyright (C) 2026 Ronit Singh
-// Derived from ronitsingh10/FineTune (FineTuneTests/{CrossfadeStateAdversarialTests,
-// OutputGateTests,ProcessingPipelineTests,LoudnessEqualizerTests}.swift)
-// Upstream revision: 2285279d36d3f8115c1c2d4aecd904f1bdf96a51
-
 import CoreAudio
 import Foundation
 import NativeAudio

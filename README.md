@@ -54,7 +54,15 @@ AudioProbeによる限定観測の安全条件は[検証方針](docs/verificatio
 
 ## ライセンス
 
-複数licenseを含みます。独立MIT部分の[MIT License](LICENSE)を維持しますが、production全体や生成AppをMIT-onlyとは扱いません。
-原作由来のテスト・fixtureと派生code/dataはGNU GPL version 3の対象で、各ファイル全体を`GPL-3.0-only`とします。
-copyright表示とGPL本文は[THIRD_PARTY_NOTICES.txt](App/Resources/THIRD_PARTY_NOTICES.txt)に一本化しています。
-正確なファイル範囲・固定元・配布時の条件は[リファレンス](docs/reference.md)を参照してください。
+独立して書いた部分は[MIT License](LICENSE)、原作由来のコンポーネントは`GPL-3.0-only`です。ライセンス指定はファイルごとには行わず、コンポーネント単位で行います。
+
+| コンポーネント | ライセンス |
+| --- | --- |
+| Profiles / AutoEQ | `GPL-3.0-only` |
+| DeviceIcons | `GPL-3.0-only` |
+| Mixer UI | `GPL-3.0-only` |
+| Device observation | `GPL-3.0-only` |
+| テスト / DSP | `GPL-3.0-only` |
+| その他 | MIT |
+
+著作権表示・GPL本文・KeyboardShortcutsのライセンスは[THIRD_PARTY_NOTICES.txt](App/Resources/THIRD_PARTY_NOTICES.txt)にまとめています。ファイルごとの由来はgit履歴と[リファレンス](docs/reference.md)で追えます。

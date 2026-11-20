@@ -1,7 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-only
-// Copyright (C) 2026 Ronit Singh
-// Acquisition/cache behavior derived from FineTune AutoEQFetcher/AutoEQProfileManager.
-// Upstream revision: 2285279d36d3f8115c1c2d4aecd904f1bdf96a51
 import FineTuneDomain
 import Foundation
 import Observation

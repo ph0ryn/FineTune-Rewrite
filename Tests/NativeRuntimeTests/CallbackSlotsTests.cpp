@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: MIT
-// Synthetic callback admission/lifetime contracts. No HAL/TCC/device call is made.
 #include "../../Sources/NativeAudio/Runtime/CallbackSlots.hpp"
 #include "NativeTestReport.hpp"
 

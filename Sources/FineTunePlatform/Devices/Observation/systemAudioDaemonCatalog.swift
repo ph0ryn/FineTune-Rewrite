@@ -1,10 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-only
-// Compatibility daemon vocabulary derived from FineTune by Ronit Singh.
-// Source: FineTune/Audio/Monitors/AudioProcessMonitor.swift, revision
-// 2285279d36d3f8115c1c2d4aecd904f1bdf96a51, lines 20-58.
-// https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Audio/Monitors/AudioProcessMonitor.swift
-// This whole small data file is GPL-3.0-only; other files retain their own licenses.
-
 enum SystemAudioDaemonCatalog {
   private static let bundlePrefixes = [
     "com.apple.siri", "com.apple.Siri", "com.apple.assistant", "com.apple.audio",

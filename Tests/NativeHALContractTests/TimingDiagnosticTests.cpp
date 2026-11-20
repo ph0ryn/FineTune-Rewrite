@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MIT
 #include "HALContractHarness.hpp"
 
 namespace native_hal_contract {

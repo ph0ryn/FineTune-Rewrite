@@ -1,7 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-only
-// Copyright (C) 2026 Ronit Singh
-// URL grammar derived from FineTune Utilities/URLHandler.swift.
-// Upstream revision: 2285279d36d3f8115c1c2d4aecd904f1bdf96a51
 import Foundation
 
 public struct URLAutomationDiagnostic: Equatable, Sendable {

@@ -1,153 +1,26 @@
 FineTune Rewrite — license notices
 
-This development application contains components with different licenses.
-The application must not be described as MIT-only. The fourteen source files
-listed below are GPL-3.0-only derived components: device catalog and daemon data,
-URL grammar, profile parsing/search, acquisition/cache, file-store behavior,
-default-device echo tracking, and mixer slider/header/footer/device-badge/app-row
-and application-section/output-picker presentation.
-Their whole-file declarations cover derived code as well as data; they do not
-mean every newly written line was copied from or authored by Ronit Singh.
-Other independently written source files retain their stated licenses.
-These notices do not certify that a particular binary distribution has met
-every applicable license condition.
+This application contains components with different licenses. It must not be
+described as MIT-only.
 
-FineTune selected device badge
-  Source: FineTune/Views/Components/DeviceBadge.swift
-  Upstream: https://github.com/ronitsingh10/FineTune
-  Fixed revision: 2285279d36d3f8115c1c2d4aecd904f1bdf96a51
-  Local file: App/Design/deviceBadge.swift
-  License: GPL-3.0-only, complete text and attribution below.
+GPL-3.0-only components (derived from ronitsingh10/FineTune):
+  - Profiles / AutoEQ          : Sources/FineTunePlatform/Profiles/
+  - DeviceIcons                : App/DeviceIcons/
+  - Mixer UI                   : App/Design/, App/Features/Mixer/
+  - Device observation         : Sources/FineTunePlatform/Devices/Observation/
+  - Compatibility tests / DSP  : Tests/, Tools/DSPTests/
 
-FineTune device icon catalog
-  Source: FineTune/Models/DeviceIconCatalog.swift
-  Upstream: https://github.com/ronitsingh10/FineTune
-  Fixed revision: 2285279d36d3f8115c1c2d4aecd904f1bdf96a51
-  Local file: App/DeviceIcons/DeviceIconCatalog.swift
-  License: GPL-3.0-only, complete text and attribution below.
-  When distributing a combined application, comply with the applicable GPL
-  terms, including corresponding source obligations. Bundling notices alone is
-  not a substitute for those obligations. No application distribution is
-  performed by the source build/test instructions.
-
-FineTune URL automation grammar
-  Source: FineTune/Utilities/URLHandler.swift
-  Upstream: https://github.com/ronitsingh10/FineTune
-  Fixed revision: 2285279d36d3f8115c1c2d4aecd904f1bdf96a51
-  Local file: Sources/FineTuneControl/Automation/URLAutomationParser.swift
-  License: GPL-3.0-only, complete text and attribution below.
-
-FineTune system audio daemon vocabulary
-  Source: FineTune/Audio/Monitors/AudioProcessMonitor.swift, lines 20–58
-  Upstream: https://github.com/ronitsingh10/FineTune
-  Fixed revision: 2285279d36d3f8115c1c2d4aecd904f1bdf96a51
-  Local file: Sources/FineTunePlatform/Devices/Observation/systemAudioDaemonCatalog.swift
-  License: GPL-3.0-only, complete text and attribution below.
-
-FineTune AutoEQ catalog and search
-  Sources: FineTune/Audio/AutoEQ/AutoEQFetcher.swift and AutoEQProfileManager.swift
-  Upstream: https://github.com/ronitsingh10/FineTune
-  Fixed revision: 2285279d36d3f8115c1c2d4aecd904f1bdf96a51
-  Local file: Sources/FineTunePlatform/Profiles/AutoEQCatalog.swift
-  License: GPL-3.0-only, complete text and attribution below.
-
-FineTune parametric EQ text grammar and filter rules
-  Source: FineTune/Audio/AutoEQ/AutoEQParser.swift
-  Upstream: https://github.com/ronitsingh10/FineTune
-  Fixed revision: 2285279d36d3f8115c1c2d4aecd904f1bdf96a51
-  Local file: Sources/FineTunePlatform/Profiles/ParametricEQTextParser.swift
-  License: GPL-3.0-only, complete text and attribution below.
-
-FineTune AutoEQ acquisition, cache and import behavior
-  Sources: FineTune/Audio/AutoEQ/AutoEQFetcher.swift and AutoEQProfileManager.swift
-  Upstream: https://github.com/ronitsingh10/FineTune
-  Fixed revision: 2285279d36d3f8115c1c2d4aecd904f1bdf96a51
-  Local file: Sources/FineTunePlatform/Profiles/AutoEQProfileRepository.swift
-  License: GPL-3.0-only, complete text and attribution below.
-
-FineTune profile file schema, cache and modification-time behavior
-  Sources: FineTune/Audio/AutoEQ/AutoEQProfileLoader.swift and AutoEQFetcher.swift
-  Upstream: https://github.com/ronitsingh10/FineTune
-  Fixed revision: 2285279d36d3f8115c1c2d4aecd904f1bdf96a51
-  Local file: Sources/FineTunePlatform/Profiles/ProfileFileStore.swift
-  License: GPL-3.0-only, complete text and attribution below.
-
-FineTune default-device echo tracking
-  Source: FineTune/Audio/Engine/EchoTracker.swift, lines 4–73
-  Upstream: https://github.com/ronitsingh10/FineTune
-  Fixed revision: 2285279d36d3f8115c1c2d4aecd904f1bdf96a51
-  Local file: Sources/FineTuneControl/Routing/deviceDefaultEchoes.swift
-  License: GPL-3.0-only, complete text and attribution below.
-
-FineTune mixer volume slider presentation
-  Source: FineTune/Views/Components/LiquidGlassSlider.swift
-  Upstream: https://github.com/ronitsingh10/FineTune
-  Fixed revision: 2285279d36d3f8115c1c2d4aecd904f1bdf96a51
-  Local file: App/Design/mixerVolumeSlider.swift
-  License: GPL-3.0-only, complete text and attribution below.
-
-FineTune compact application row presentation
-  Sources: FineTune/Views/Rows/AppRow.swift, InactiveAppRow.swift, AppRowControls.swift,
-    AppEditRow.swift and Views/Components/ExpandableGlassRow.swift, BoostChevrons.swift,
-    MuteButton.swift
-  Upstream: https://github.com/ronitsingh10/FineTune
-  Fixed revision: 2285279d36d3f8115c1c2d4aecd904f1bdf96a51
-  Local file: App/Features/Mixer/mixerAppRow.swift
-  License: GPL-3.0-only, complete text and attribution below.
-
-FineTune application output-picker presentation
-  Sources: FineTune/Views/Components/DevicePicker.swift and ModeToggle.swift
-  Upstream: https://github.com/ronitsingh10/FineTune
-  Fixed revision: 2285279d36d3f8115c1c2d4aecd904f1bdf96a51
-  Local file: App/Features/Mixer/mixerAppRoutePicker.swift
-  License: GPL-3.0-only, complete text and attribution below.
-
-FineTune application section and two-column editing presentation
-  Source: FineTune/Views/MenuBarPopupView.swift, application section
-  Upstream: https://github.com/ronitsingh10/FineTune
-  Fixed revision: 2285279d36d3f8115c1c2d4aecd904f1bdf96a51
-  Local file: App/Features/Mixer/mixerView.swift
-  License: GPL-3.0-only, complete text and attribution below.
-
-FineTune mixer header and footer presentation
-  Sources: FineTune/Views/MenuBarPopupView.swift and Views/DesignSystem/ViewModifiers.swift
-  Upstream: https://github.com/ronitsingh10/FineTune
-  Fixed revision: 2285279d36d3f8115c1c2d4aecd904f1bdf96a51
-  Local file: App/Features/Mixer/mixerChrome.swift
-  License: GPL-3.0-only, complete text and attribution below.
-
-Independent FineTune Rewrite source
-  License: MIT, complete text below. This does not relicense GPL-derived code.
+These components are modified from the pinned upstream revision
+2285279d36d3f8115c1c2d4aecd904f1bdf96a51 (Copyright (C) 2026 Ronit Singh).
+Per-file provenance is recorded in git history and docs/reference.md. Bundling
+these notices alone does not satisfy the corresponding-source obligations for
+binary distribution; the matching source is available in the repository.
 
 KeyboardShortcuts
   Author: Sindre Sorhus
   Source: https://github.com/sindresorhus/KeyboardShortcuts
   Fixed revision: 1aef85578fdd4f9eaeeb8d53b7b4fc31bf08fe27
   License: MIT, complete text below.
-
---- Independent FineTune Rewrite source: MIT ---
-
-MIT License
-
-Copyright (c) 2026 Yuta Fudaba
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
 
 --- KeyboardShortcuts: MIT ---
 
