@@ -1,169 +1,168 @@
-# FineTune-Rewrite アーキテクチャ
+# FineTune-Rewrite Architecture
 
-## この文書の範囲
+## Scope
 
-構成・責務・依存・実行時の所有権を扱う。観測可能な契約は[仕様](spec.md)、試験対象と確認条件は[検証方針](verification.md)、開発の手順は[開発手順](development.md)で扱う。
+This document covers module structure, responsibilities, dependencies, and runtime ownership. Observable contracts live in the [specification](spec.md), test targets and acceptance criteria in the [verification policy](verification.md), and build/workflow steps in the [development guide](development.md).
 
-## 責務と依存の境界
+## Responsibility and Dependency Boundaries
 
-| 境界 | 担当する責務 | 持ち込まない責務・依存 |
+| Boundary | Responsibilities | Excluded Responsibilities / Dependencies |
 | --- | --- | --- |
-| App | SwiftUI／AppKitによる表示・操作受付と依存の組み立て | UI独自の経路判断・音量解釈 |
-| FineTuneDomain | OSに依存しない値・識別・音量の意味・経路選択ルール | OS・UI・native実装とOSの生のハンドル |
-| FineTuneControl | 操作の受付、状態更新、変更計画、要求の世代管理、外部操作のprotocol | 具体的な機器操作・保存方法・Platform実装 |
-| FineTunePlatform | macOS監視・明示directoryの永続化・機器操作・native実装へのadapter | 各adapterの責務を統括する巨大な管理層 |
-| NativeAudio | tap・aggregate・IOProc、音声経路の実行・交換・資源管理 | 出力優先順位などの製品仕様の判断 |
-| AudioDSP | 音声処理の計算と処理履歴 | Core Audioの機器操作・Foundation・UI |
+| `App` | SwiftUI/AppKit presentation, input intake, and dependency composition | UI-specific routing logic or volume interpretation |
+| `FineTuneDomain` | OS-independent values, identifiers, volume semantics, and route selection rules | OS, UI, native implementations, and raw OS handles |
+| `FineTuneControl` | Command intake, state updates, change planning, request generation tracking, external operation protocols | Concrete device manipulation, storage mechanisms, Platform implementations |
+| `FineTunePlatform` | macOS observation, explicit-directory persistence, device control, adapters to native implementation | A monolithic manager orchestrating all adapter responsibilities |
+| `NativeAudio` | Taps, aggregates, IOProcs, audio route execution, swapping, and resource management | Product-level policy decisions such as output priority |
+| `AudioDSP` | Audio signal processing math and filter state history | Core Audio device operations, Foundation, UI |
 
-コード上の依存方向を次に示す。ライブラリの具体的な宣言は[ビルド設定](<../Package.swift>)を正本とする。
+Code-level dependency directions are shown below. Concrete library declarations are authoritative in [Package.swift](<../Package.swift>).
 
 ```text
-App             → FineTuneControl, FineTunePlatform
-FineTuneControl → FineTuneDomain
+App              → FineTuneControl, FineTunePlatform
+FineTuneControl  → FineTuneDomain
 FineTunePlatform → FineTuneControl, FineTuneDomain, NativeAudio
-NativeAudio     → AudioDSP
+NativeAudio      → AudioDSP
 ```
 
-Controlが必要な操作のprotocolを定義し、Platformが実装し、Appが組み立てる。
-Controlから具体的なPlatform実装への依存を避け、制御ロジックをOS・実機から独立させる。
-PlatformはOS固有の情報をDomainの値へ変換し、機器監視・保存・DDC・音声実行のadapterを分離する。
+Control defines protocols for the operations it needs, Platform implements them, and App wires them together.
+Avoiding dependencies from Control on concrete Platform implementations keeps control logic independent of macOS and real hardware.
+Platform translates OS-specific data into Domain values and keeps device observation, persistence, DDC, and audio execution in separate adapters.
 
-NativeAudioとAudioDSPを分けるのは、機器接続や資源の寿命の問題と、入力波形に対する計算・処理履歴の問題を別々に検証するためである。
-aggregateやコールバックの構成はDomain・保存設定・UIの前提にせず、音声経路の方式を変えてもユーザーの希望を表すモデルを維持する。
+`NativeAudio` and `AudioDSP` are separated so device connectivity and resource lifetime issues can be verified independently from waveform math and processing state.
+Aggregate and callback layouts are never assumptions in Domain, persisted settings, or UI, allowing the audio routing mechanism to change without altering the model of user intent.
 
-## 言語とビルドの分担
+## Language and Build Split
 
-| 領域 | 言語・管理単位 |
+| Area | Language / Management Unit |
 | --- | --- |
-| UI・仕様判断・制御 | Swift 6 |
-| macOSとの接続 | Swift中心。native側で必要なOS API接続だけObjective-C++ |
-| 音声コールバック・DSP・音声資源の寿命管理 | C++20 |
-| アプリのbundle・main metadata・リソース、署名・配布の設定 | Xcodeアプリプロジェクト |
-| ライブラリの依存・テスト・検証用プログラム | ローカルSwift Package |
+| UI, specification logic, control | Swift 6 |
+| macOS integration | Primarily Swift; Objective-C++ only where native OS API bridging is required |
+| Audio callbacks, DSP, audio resource lifetimes | C++20 |
+| App bundle, main metadata, resources, signing/distribution config | Xcode app project |
+| Library dependencies, tests, verification tools | Local Swift Package |
 
-フォルダ分けだけでなくbuild targetで依存方向を表し、SwiftとC-familyのtargetを分けて所有権と依存を明示する。
-C++を選ぶ意図は、音声処理中に触れるメモリと実行する処理を限定しやすくすることであり、言語変更だけで性能改善や不具合解消を保証するものではない。
+Dependency directions are enforced by build targets rather than directory layout alone, separating Swift and C-family targets to make ownership and dependencies explicit.
+C++ is chosen to constrain the memory touched and work performed during audio callbacks; changing languages alone does not guarantee performance gains or bug elimination.
 
-## Swiftとnativeの公開境界
+## Swift and Native Public Boundary
 
-C++の型や所有権をSwift側へ広げず、小さなC形式のAPIを公開境界とする。
+Expose a small C-style API at the boundary instead of leaking C++ types or ownership into Swift.
 
-- 公開する値はopaque handle、固定幅の数値、単純な構造体、ポインタと要素数、明示的な結果コードを基本とする。
-- C++のクラス・STLコンテナ・Objective-Cオブジェクトを公開せず、C++例外を境界の外へ出さない。
-- AudioDSPのC++ヘッダーはnative実装内で扱い、Swift向けの公開ヘッダーから露出させない。
-- Swiftの一時的な配列・文字列へのポインタを呼び出し後まで保持しない。必要なデータは呼び出し中にnative側の所有へ移すかコピーする。
-- 音声バッファごとの処理はHALのコールバックからNativeAudio、AudioDSPへ進み、Swiftを経由しない。Swiftは設定変更と状態取得を担う。
+- Prefer opaque handles, fixed-width integers, plain structs, pointer-plus-count spans, and explicit status codes.
+- Never expose C++ classes, STL containers, or Objective-C objects across the boundary, and never let C++ exceptions escape it.
+- Keep `AudioDSP` C++ headers internal to the native implementation; do not expose them in Swift-facing public headers.
+- Never retain pointers to transient Swift arrays or strings beyond the call; transfer or copy required data into native ownership during the call.
+- Per-buffer audio processing flows from the HAL callback through `NativeAudio` and `AudioDSP` without crossing into Swift. Swift handles configuration changes and state queries only.
 
-ここでは公開境界の契約を示し、個別APIの名前や型は規定しない。
+This section defines the boundary contract and does not prescribe individual API names or types.
 
-## 状態の所有と操作経路
+## State Ownership and Control Paths
 
-| 状態・資源 | 所有する境界 |
+| State / Resource | Owning Boundary |
 | --- | --- |
-| ユーザーの希望、観測したOS状態、変更要求の世代 | SwiftのControl |
-| UI表示用snapshot | MainActor上の表示モデル |
-| tap・aggregate・IOProcの生成、停止、破棄 | NativeAudioの非リアルタイム制御経路 |
-| フィルター係数などの完成済み設定 | 非リアルタイム側で構築し、リアルタイム側へ公開 |
-| フィルター履歴、ramp、limiterの内部状態 | その経路を実行するコールバック |
-| メーター、処理回数、適用済み世代 | リアルタイム側で記録し、非リアルタイム側が回収 |
+| User preferences, observed OS state, change-request generations | Swift Control |
+| UI presentation snapshots | View model on `MainActor` |
+| Creation, stopping, and destruction of taps, aggregates, and IOProcs | Non-real-time control path in `NativeAudio` |
+| Precomputed configurations such as filter coefficients | Built on the non-real-time side and published to the real-time side |
+| Filter history, ramps, and limiter internal state | The callback executing that route |
+| Level meters, callback counts, and applied generation | Recorded on the real-time side and read by the non-real-time side |
 
-保存するユーザーの希望、OSからの観測状態、実行中の経路を分離する。
-機器切断時の一時的な代替で保存済みの希望を失わず、再接続時の復元に使えるようにする。
-永続的なアプリの識別と、現在のプロセス・OSの実行時オブジェクトも区別する。
+Keep persisted user intent, observed OS state, and active execution routes separate.
+Temporary fallbacks during device disconnects must not overwrite saved preferences so they can be restored on reconnect.
+Distinguish persistent app identity from live processes and runtime OS objects.
 
-UI・キー操作・URLなどの入口をControlの共通の操作へ通し、各入口が独自に保存や音声実装への反映を行わない。
-UIの百分率、PCMの倍率、dB補正、機器側の音量を混同せず、保存値の意味を維持する。
+Route UI, keyboard, and URL entry points through shared Control operations so no entry point writes to storage or mutates audio backends directly.
+Do not conflate UI percentages, PCM gain multipliers, dB adjustments, and hardware device volumes; preserve the meaning of each persisted value.
 
-## 製品の組立
+## Product Composition
 
-[ProductionRoot](<../App/Bootstrap/productionRoot.swift>)が一つのSettingsManager、機器/process producer、機器操作model、入出力policy、Native runtimeを保持し、
-[ApplicationGraph](<../App/Bootstrap/applicationGraph.swift>)へ同じ依存を渡す。EngineとControllerはその観測を使い、AutoEQ repository/cacheも共通である。
-Mixer・Settingsのread/action、キー操作、URLはこの同じControl/storeへ接続する。Settingsのread closureも同じ表示modelを参照し、Rootの別コピーを作らない。
-表示snapshotはpure projectionであり、Rootに第二の経路planner・設定集合・download registryを持たせない。
+[ProductionRoot](<../App/Bootstrap/productionRoot.swift>) owns a single `SettingsManager`, device/process producer, device control model, input/output policy, and Native runtime, passing the same dependencies into [ApplicationGraph](<../App/Bootstrap/applicationGraph.swift>). The Engine and Controller share these observations, as well as the AutoEQ repository and cache.
+Mixer and Settings reads/actions, keyboard input, and URL handling all connect to this same Control and store. Settings read closures reference the same presentation model rather than creating a second copy in Root.
+Presentation snapshots are pure projections; Root must not hold a second route planner, settings collection, or download registry.
 
-- **希望と実観測:** default追従に使うpolicy承認済みUIDは、物理的に観測したOS default UIDと別の値として保持する。
-- **観測の健全性:** inventory未開始、discovery失敗、input/outputそれぞれのdefault読取失敗を扱う。last-good UIDをhealthy-currentへ補完しない。失敗中は新prepareやpolicy writeを抑え、利用可能な旧routeは保持できるが、Nativeでbinding無効が確定したrouteは閉じて回収する。
-- **非同期の適用:** prepare前のpayloadを有効化時まで固定しない。各await後に世代・binding・default追従先を確認し、start/commitでは現在の設定からstateを作り直す。request受理、armed、commit、first-appliedは別の観測として扱う。
-- **Processの識別:** shared producerのprocess revision照合と、Nativeが行うCoreAudio process object→PID再検証は別の経路である。revision一致だけでOS上の同一processを保証しない。
+- **Intent vs. Observation:** The policy-approved UID used for follow-default routing is stored separately from the physically observed OS default UID.
+- **Observation Health:** Explicitly track unstarted inventory, discovery failures, and independent input/output default-read failures. Never backfill a last-good UID as healthy-current. While unhealthy, suppress new route preparations and policy writes; usable existing routes may stay alive, but routes whose bindings are confirmed invalid by Native are closed and reclaimed.
+- **Asynchronous Application:** Never freeze pre-prepare payloads until activation. After every `await`, re-check generation, binding, and follow-default target, and rebuild state from current settings at start/commit. Treat request acceptance, armed, commit, and first-applied as distinct observations.
+- **Process Identity:** Shared-producer process revision matching and Native's Core Audio process-object-to-PID re-verification are separate paths. A matching revision alone does not guarantee the same live OS process.
 
-外部から観測可能な契約は[仕様](spec.md)で管理する。
+Externally observable contracts are maintained in the [specification](spec.md).
 
-### Lifecycleと構築時の副作用
+### Lifecycle and Construction Side Effects
 
-[coordinator](<../App/Bootstrap/lifecycleCoordinator.swift>)がstart/stop・sleep/wake・session状態・終了時の入力停止/flushを所有する。
-[Host](<../App/Bootstrap/applicationHost.swift>)の終了通知で同期的に入力を止めて設定を保存し、RootはHUDも終了する。
-終了時の外部契約は[仕様](spec.md)で管理する。プロセス終了時のOS回収と、通常のstopが返すNative回収結果は別に扱う。
-one-shot observationはsuspended中も同じ世代で再登録するが、running時だけ通常のeffectを実行する。
-wakeでは現在のdefault読取healthとEngine観測を先に取り込み、policyをrebaseし、最後にcaptureを再開する。
-input停止はmedia keysだけでなくglobal shortcutsの登録解除とrepeat task取消に及び、suspend/stop中は保持されたRegistry callbackも効果を持たない。
-coordinatorの世代付き観測callbackはstop/restart後に旧世代を拒否する。Registry再start後のforeign retained callbackやOSのqueued key-up順は[検証方針](verification.md)の検証境界で扱う。
+[LifecycleCoordinator](<../App/Bootstrap/lifecycleCoordinator.swift>) owns start/stop, sleep/wake, session state, and shutdown input stop/flush.
+On termination notification from [ApplicationHost](<../App/Bootstrap/applicationHost.swift>), input monitoring stops and settings flush synchronously, and Root dismisses the HUD.
+External termination contracts live in the [specification](spec.md). Treat OS process-exit reclamation separately from the Native reclamation results returned by normal stop.
+One-shot observations re-register under the same generation while suspended, but run normal effects only while running.
+On wake, ingest current default-read health and Engine observations first, rebase policy, and resume capture last.
+Stopping input covers not only media keys but also unregistering global shortcuts and cancelling repeat tasks; retained Registry callbacks have no effect while suspended or stopped.
+Generation-tagged observation callbacks in the coordinator reject stale generations after stop/restart. Foreign retained callbacks after Registry restart and OS queued key-up ordering are handled at the verification boundary in the [verification policy](verification.md).
 
-製品Rootのconstructorはglobally OS-inertではない。設定のdisk load/不正file backupと、non-prompt Accessibility trust queryがある。
-profile repository/storeのconstructorは依存保存とURL検証のみで、local profileのdisk復元はservice開始時に行う。
-注入portを使うunitと実Root起動の副作用は別の検証対象であり、[検証方針](verification.md)で境界を定める。
+The production Root constructor is not globally OS-inert: it performs settings disk load (including corrupt-file backup) and a non-prompting Accessibility trust query.
+Profile repository/store constructors only store dependencies and validate URLs; disk restoration of local profiles happens when the service starts.
+Unit tests with injected ports and real Root startup side effects are distinct verification targets, bounded in the [verification policy](verification.md).
 
-capture希望は新規・欠損設定でfalse、保存済みtrueはdurableな希望である。Controlは新sessionを作り、保存tokenを再使用しない。
-main executableのusage descriptionと保存希望はOS grantではなく、metadata欠損時はNative前にfail closedする。
-SwiftPM版App、Xcode App、独立Probeのmain metadataは区別する。
+Capture intent defaults to `false` for new or missing settings; a persisted `true` represents durable user intent. Control creates a new session and never reuses saved tokens.
+Main executable usage descriptions and persisted intent are not OS permission grants; missing metadata fails closed before touching Native.
+Distinguish main metadata across the SwiftPM App, Xcode App, and standalone Probe binaries.
 
-## 経路変更と音声資源の寿命
+## Route Transitions and Audio Resource Lifetimes
 
-### 準備・交換・回収を分ける
+### Separate Preparation, Swap, and Reclamation
 
-新しい経路には必要な音量・補正・フォーマットを適用してから有効化する。
-変更要求の世代を管理し、準備完了時と有効化時に要求が最新か確認して、古い非同期処理が新しい希望を上書きしないようにする。
-actorを使うことだけで、非同期の経路変更全体が不可分になるとは扱わない。
-要求の受理と実際の適用を区別し、失敗や復旧の成否を観測できるようにする。
+Apply required volume, correction, and format settings to a new route before activating it.
+Track change-request generations and verify that a request is still current upon preparation completion and activation so stale async work never overwrites newer intent.
+Do not assume an `actor` makes an entire asynchronous route transition atomic.
+Distinguish request acceptance from actual application so failures and recovery outcomes remain observable.
 
-交換先のarmedは、証明済みのbuffer構成・一致する正のframe数を持つ出力callbackによるtransportの準備完了を表す。
-入力のデータpointerだけが欠けた通常idleでも成立するが、権限許可・音声取得成功・first-appliedの証拠ではない。
-idleではDSP履歴と適用済みrevisionを進めず、破損したmetadata・欠けた出力・frame数0ではarmedにしない。
-これにより、旧物理出力の停止を、無音のsource appが次に再生する時刻へ依存させない。
+A replacement route's `armed` state indicates transport readiness confirmed by an output callback with a certified buffer configuration and matching positive frame count.
+It can succeed during normal idle when only the input data pointer is absent, but it is not proof of permission grant, audio capture success, or `first-applied`.
+During idle, do not advance DSP history or applied revision; never arm on corrupted metadata, missing output, or zero frames.
+This avoids tying teardown of the old physical output to whenever a silent source app next plays audio.
 
-取消済みcandidateはcallbackの受付を閉じても、OSのIOとsource muteが自動で止まるわけではない。
-継続用のread ownerとして保持せず、次のcandidateのarmedを待たずに非リアルタイムの回収を開始する。
-Controlの取消はownerごとに一度だけ通知し、遅れて終了した旧処理から再通知してPENDING回収の監視を止めない。
-資源の解放は引き続き実際のreader-zeroとretired ACKを待つ。回収失敗の結果はownerとともに保持し、後のhandoffから自動再試行しない。
-明示的なcapture Retryは、Controlが保持する終了済みの失敗taskを再試行し、全アプリの経路を強制再準備する。進行中・PENDINGの回収は共有し、旧ownerを再びrender可能にはしない。
-回収中の観測はその試行のcleanup結果を伝え、native snapshotの履歴診断と分ける。同じエラーの再発や、retired ACKに付随する現在のエラーは失敗のまま扱う。
+Closing callback intake on a cancelled candidate does not automatically stop OS IO or clear source mute.
+Do not retain it as a read owner for continued playback; begin non-real-time reclamation without waiting for the next candidate to arm.
+Notify Control of cancellation at most once per owner so late completion of old work does not stop monitoring of `PENDING` reclamation.
+Resource release still waits for actual reader-zero and a retired ACK. Retain failed reclamation results with the owner and do not auto-retry them from subsequent handoffs.
+Explicit capture Retry retries completed failed tasks retained by Control and forces re-preparation of all app routes. Share in-flight and `PENDING` reclamations, and never make an old owner renderable again.
+Reclamation observations report that attempt's cleanup result separately from historical diagnostics in native snapshots. Recurring errors or current errors attached to a retired ACK remain failures.
 
-音声処理にはUI・保存・非リアルタイムの資源管理を持ち込まない。
-tapなどの生成・停止・破棄やObjective-Cのオブジェクト操作は非リアルタイム側が担う。
-旧経路の回収で新経路が利用する資源を破棄しないよう、所有と参照の終了を区別する。
+Keep UI, persistence, and non-real-time resource management out of audio processing.
+Creation, stopping, and destruction of taps and Objective-C object operations belong on the non-real-time side.
+Separate ownership from reference completion so reclaiming an old route never destroys resources used by a new route.
 
-### DSPの可変状態を実行経路ごとに持つ
+### Keep Mutable DSP State per Execution Route
 
-論理的な処理単位はアプリ×出力機器とし、機器別の補正と処理履歴を独立させる。
-切り替えで旧経路と新経路が重なる場合も、同じアプリ・同じ機器だからという理由で可変状態を共有しない。
-不変の設定・係数の共有と、コールバックが更新する処理履歴の共有は区別する。
+The logical processing unit is `app × output device`, keeping per-device correction and filter history independent.
+Even when an old route and a new route overlap during a transition for the same app and device, do not share mutable state.
+Distinguish sharing immutable settings/coefficients from sharing callback-mutated processing history.
 
-### 設定の公開と旧資源の回収を分ける
+### Separate Configuration Publication from Resource Reclamation
 
-完成済みの設定を公開することと、古い設定・経路を解放できることは別の条件である。
-コールバックの参照終了を確認してから非リアルタイム側で回収し、固定時間の待機やatomicなポインタ交換だけを参照終了の根拠にしない。
+Publishing a ready configuration and being allowed to free an old configuration or route are distinct conditions.
+Confirm that callbacks have finished referencing old state before reclaiming it on the non-real-time side; never rely on fixed sleeps or atomic pointer swaps alone as proof of reference completion.
 
-コールバック構成に応じて受け渡し方式を選び、実際の読み手の数に合わないqueueの共有をしない。
-単一の読み手を前提とした方式を、複数機器のコールバックでそのまま共有しない。
-callback slotの参照終了を確認し、native-owned stateを非リアルタイム側で回収する。
-同期処理の正本は[Native runtime](<../Sources/NativeAudio/Runtime/>)に置き、ここへAPIやalgorithm全体を複製しない。
+Choose handoff primitives to match the callback topology and never share a queue across more readers than it supports.
+Do not share a single-reader scheme directly across callbacks for multiple devices.
+Verify callback-slot reference completion before reclaiming native-owned state on the non-real-time side.
+The authoritative synchronization implementation lives in the [Native runtime](<../Sources/NativeAudio/Runtime/>); do not duplicate its APIs or full algorithms here.
 
-### Native経路と回収結果
+### Native Routes and Reclamation Results
 
-app×outputの各routeがtap・private aggregate・IOProc・DSP資源を所有する。
-private aggregateのtap drift/qualityは作成後に変更せず、証明のたびにOSからCompositionを読み戻して、所有tap UIDとの一意対応・数値型・値を検証する。作成時の要求辞書や既定値を観測の代わりに使わない。期待するdrift値は出力のtransport typeから導き、tapと出力がクロックを共有するBluetooth/BLEではOFFを要求する。根拠は[調査記録](research.md)で扱う。
-SubTapListのIDはactive memberの同一性比較に使い、子objectのproperty読取・監視が可能とは仮定しない。aggregateのComposition・tap/subtap listと既存の物理機器・streamを監視し、start前にも再検証する。
-同一process内の外部コードが子drift/qualityを直接変更する方式は対応対象外とする。子設定の変更が必ず親Composition通知になるという保証は持たない。
-初期対応は同じsample rateのFloat32 stereoと明示的なchannel/format certificateに制限し、未対応機器を黙示変換で隠さない。
-所有する単一tapだけのaggregate入力では、streamのdevice property用開始番号とIOProcのbuffer位置を分け、正の開始番号から連続するstereoと実際のbuffer構成を照合する。raw開始番号自体をRTのoffsetやcertificateの不変値にはしないが、変更通知の監視は続ける。
-物理/aggregate出力のchannel 1/2、入力の所有・構成・同一sample rateの検証は緩めず、tap入力の番号に合わせてサンプルのpointerやbuffer ordinalをずらさない。
-source appをtap中muteする方式を使う。音響的な連続性の確認は[検証方針](verification.md)の範囲で扱う。
+Each `app × output` route owns its tap, private aggregate, IOProc, and DSP resources.
+Never mutate a private aggregate's tap drift/quality after creation; on every certification, read `Composition` back from the OS and verify a unique match with the owned tap UID, numeric types, and values. Do not substitute creation-time request dictionaries or defaults for observation. Derive the expected drift value from the output's transport type, requiring OFF for Bluetooth/BLE where tap and output share a clock. See [research notes](research.md) for rationale.
+Use `SubTapList` IDs for active-member identity checks without assuming child object properties are readable or observable. Observe the aggregate's `Composition`, tap/subtap lists, and underlying physical devices/streams, and re-verify before start.
+Direct mutation of child drift/quality by external code in the same process is unsupported; there is no guarantee that child mutations emit parent `Composition` notifications.
+Initial support is restricted to Float32 stereo at matching sample rates with an explicit channel/format certificate; do not hide unsupported devices behind implicit conversion.
+For aggregate inputs containing only a single owned tap, distinguish the stream's device-property starting channel from IOProc buffer positions, matching contiguous stereo starting from a positive channel number against the actual buffer layout. Do not use the raw starting channel as a real-time offset or certificate invariant, while continuing to observe change notifications.
+Keep strict validation for physical/aggregate output channels 1/2 and input ownership, layout, and matching sample rate; never shift sample pointers or buffer ordinals to match tap input channel numbers.
+Mute the source app while tapping. Audible continuity verification is scoped in the [verification policy](verification.md).
 
-回収PENDINGは既存の20ms pollで実際のreader/aggregate条件を再確認する。FAILEDはownerをretainして報告し、自動failure retryを止める。
-所有aggregateへのstop・IOProc破棄・aggregate破棄が`!dev`を返しても、それだけで回収済みとは扱わない。別のpresence queryが成功して不在を確認できた場合だけ、そのdevice操作を完了扱いする。listener・tapは個別に回収し、確認に失敗した場合や別のcleanup errorは所有権とともに残す。
-20ms経過による安全freeではない。あるrouteのretired ACKや残ったhistory diagnosticから、private pool全体のdrainやglobal orphan0を推論しない。
-通常のOS/input observerは停止するが、single factoryのweakなpassive cleanup変更通知はstop後も表示modelへ残す。
-factoryは履歴の最新診断と、経路ごとの未解決cleanupを分けて保持する。poolは該当ownerのnative release成功時だけ完了を通知し、その経路の警告を解除する。
-明示的なcapture Retryは、prepared handleを返せずpoolへ移した失敗ownerにも届く。再試行はfactory単位で、進行中の回収は共有する。新しいprepareは対象の試行がretiredまたはFAILEDになるまで待つが、それをpool全体のdrainやcapture許可とは扱わない。
-この通知は新しいcapture・route操作・Rootの二重timerを開始せず、権限やglobal回収完了の証拠でもない。
+`PENDING` reclamation re-checks actual reader and aggregate conditions on the existing 20ms poll. `FAILED` retains the owner, reports the failure, and halts automatic failure retries.
+If stop, IOProc destruction, or aggregate destruction on an owned aggregate returns `!dev`, do not treat that alone as reclaimed; mark that device operation complete only when a separate presence query succeeds and confirms absence. Reclaim listeners and taps individually, retaining ownership on confirmation failure or any other cleanup error.
+Elapsed 20ms intervals are not a safe-free timer. Never infer full private-pool drain or global zero-orphan state from one route's retired ACK or leftover historical diagnostics.
+Normal OS and input observers stop on shutdown/stop, while the single factory's weak passive cleanup change notification stays connected to the presentation model.
+The factory tracks latest historical diagnostics separately from per-route unresolved cleanups. The pool notifies completion only when native release succeeds for that owner, clearing that route's warning.
+Explicit capture Retry also reaches failed owners moved into the pool without returning a prepared handle. Retries are scoped per factory and share in-flight reclamation. A new prepare waits until the target attempt reaches retired or `FAILED`, without treating that as full pool drain or capture permission.
+Passive cleanup notifications never start new capture, route operations, or a duplicate Root timer, nor are they proof of permission or global reclamation completion.
 
-物理HALのsample rate/channel map、権限取消、sleep/wake、長時間稼働、callback deadline、実音声の正しさは自動ゲートの保証対象外であり、限定観測の条件を含めて[検証方針](verification.md)で扱う。
+Physical HAL sample-rate/channel-map behavior, permission revocation, sleep/wake, long-running stability, callback deadlines, and live audio correctness are outside automated gates and are scoped under bounded observation in the [verification policy](verification.md).

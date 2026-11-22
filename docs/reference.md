@@ -1,75 +1,75 @@
-# リファレンス
+# Reference
 
-下記の固定元 URL に含まれる revision は[仕様](spec.md)で管理する比較元と同じである。
+All pinned upstream URLs below reference the same comparison revision tracked in the [specification](spec.md).
 
-## ライセンスと出典
+## Licensing and Provenance
 
-独立して書いた部分は[MIT License](../LICENSE)、原作由来のコンポーネントは`GPL-3.0-only`。ライセンス指定はファイルごとには行わず、下記のコンポーネント単位で[THIRD_PARTY_NOTICES.txt](../App/Resources/THIRD_PARTY_NOTICES.txt)に集約する。ファイルごとの由来はgit履歴で追える。
+Independently written code is licensed under the [MIT License](../LICENSE); components derived from upstream FineTune are licensed under `GPL-3.0-only`. Licensing is tracked at the component level in [THIRD_PARTY_NOTICES.txt](../App/Resources/THIRD_PARTY_NOTICES.txt) rather than per file. Per-file provenance can be traced through git history.
 
-| コンポーネント | ライセンス |
+| Component | License |
 | --- | --- |
 | Profiles / AutoEQ | `GPL-3.0-only` |
 | DeviceIcons | `GPL-3.0-only` |
 | Mixer UI | `GPL-3.0-only` |
 | Device observation | `GPL-3.0-only` |
-| テスト / DSP | `GPL-3.0-only` |
-| その他 | MIT |
+| Tests / DSP | `GPL-3.0-only` |
+| Other | MIT |
 
-原作のcopyright表示とGPL本文はアプリにバンドルする[THIRD_PARTY_NOTICES.txt](../App/Resources/THIRD_PARTY_NOTICES.txt)に一本化する。機能語彙・規則自体の権利性は法的に断定しない。外部AutoEqのINDEX/profile corpus自体は同梱せず、その取得dataを下記source codeと同一licenseへ再分類しない。GPL対象を含む製品binaryの配布時は、組合せ・対応source・通知とlicense提供等の条件を確認する必要がある。テストの隔離で製品のGPL条件が消えることはない。
+Upstream copyright notices and the GPL license text are consolidated in the bundled [THIRD_PARTY_NOTICES.txt](../App/Resources/THIRD_PARTY_NOTICES.txt). No legal claim is made regarding the copyrightability of feature vocabularies or rules themselves. External AutoEq INDEX/profile corpora are not bundled, and fetched data is not reclassified under the same license as the source code below. When distributing product binaries containing GPL-covered components, verify combined-work, corresponding-source, notice, and license-delivery obligations; isolating tests does not remove GPL obligations on product code.
 
-### 原作由来の製品codeとdata（参照元）
+### Upstream-Derived Product Code and Data (References)
 
-| 製品ファイル | 参照した境界 | 固定原作のsource |
+| Product File | Referenced Boundary | Pinned Upstream Source |
 | --- | --- | --- |
-| [DeviceIconCatalog](../App/DeviceIcons/DeviceIconCatalog.swift) | 85項目・順序・category/keyword data | [DeviceIconCatalog](https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Models/DeviceIconCatalog.swift) |
-| [systemAudioDaemonCatalog](../Sources/FineTunePlatform/Devices/Observation/systemAudioDaemonCatalog.swift) | bundle/name prefix語彙 | [AudioProcessMonitor:20–58](https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Audio/Monitors/AudioProcessMonitor.swift#L20-L58) |
-| [URLAutomationParser](../Sources/FineTuneControl/Automation/URLAutomationParser.swift) | URL grammar・値変換規則 | [URLHandler](https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Utilities/URLHandler.swift) |
-| [deviceDefaultEchoes](../Sources/FineTuneControl/Routing/deviceDefaultEchoes.swift) | UID別の複数echo token・各2秒失効・消費規則 | [EchoTracker:4–73](https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Audio/Engine/EchoTracker.swift#L4-L73) |
-| [deviceBadge](../App/Design/deviceBadge.swift) | 選択中の28ptアクセント色gradientと未選択monoの円形バッジ | [DeviceBadge](https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Views/Components/DeviceBadge.swift) |
-| [mixerVolumeSlider](../App/Design/mixerVolumeSlider.swift) | 4pt軌道・native mini thumbのhover/drag表示 | [LiquidGlassSlider](https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Views/Components/LiquidGlassSlider.swift) |
-| [mixerChrome](../App/Features/Mixer/mixerChrome.swift) | icon header・tabs・Quit capsuleの表示 | [MenuBarPopupView](https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Views/MenuBarPopupView.swift)・[ViewModifiers](https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Views/DesignSystem/ViewModifiers.swift) |
-| [mixerView](../App/Features/Mixer/mixerView.swift) | APPS section・2列編集grid・Ignored/empty表示 | [MenuBarPopupView](https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Views/MenuBarPopupView.swift) |
-| [mixerAppRow](../App/Features/Mixer/mixerAppRow.swift) | 40pt行・icon controls・boost chevrons・hover/展開背景 | [AppRow](https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Views/Rows/AppRow.swift)・[AppRowControls](https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Views/Rows/AppRowControls.swift)・[AppEditRow](https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Views/Rows/AppEditRow.swift) |
-| [mixerAppRoutePicker](../App/Features/Mixer/mixerAppRoutePicker.swift) | icon trigger・route subtitle・Single/Multi/check/checkbox表示 | [DevicePicker](https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Views/Components/DevicePicker.swift)・[ModeToggle](https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Views/Components/ModeToggle.swift) |
-| [AutoEQCatalog](../Sources/FineTunePlatform/Profiles/AutoEQCatalog.swift) | INDEX解析・検索順位 | [AutoEQFetcher](https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Audio/AutoEQ/AutoEQFetcher.swift)・[AutoEQProfileManager](https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Audio/AutoEQ/AutoEQProfileManager.swift) |
-| [ParametricEQTextParser](../Sources/FineTunePlatform/Profiles/ParametricEQTextParser.swift) | APO grammar・filter規則 | [AutoEQParser](https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Audio/AutoEQ/AutoEQParser.swift) |
-| [AutoEQProfileRepository](../Sources/FineTunePlatform/Profiles/AutoEQProfileRepository.swift) | 取得/cache/importの振る舞い | [AutoEQFetcher](https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Audio/AutoEQ/AutoEQFetcher.swift)・[AutoEQProfileManager](https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Audio/AutoEQ/AutoEQProfileManager.swift) |
-| [ProfileFileStore](../Sources/FineTunePlatform/Profiles/ProfileFileStore.swift) | cache file/schema/mtime操作 | [AutoEQProfileLoader](https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Audio/AutoEQ/AutoEQProfileLoader.swift)・[AutoEQFetcher](https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Audio/AutoEQ/AutoEQFetcher.swift) |
+| [DeviceIconCatalog](../App/DeviceIcons/DeviceIconCatalog.swift) | 85 entries, ordering, category/keyword data | [DeviceIconCatalog](https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Models/DeviceIconCatalog.swift) |
+| [systemAudioDaemonCatalog](../Sources/FineTunePlatform/Devices/Observation/systemAudioDaemonCatalog.swift) | Bundle/name prefix vocabulary | [AudioProcessMonitor:20–58](https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Audio/Monitors/AudioProcessMonitor.swift#L20-L58) |
+| [URLAutomationParser](../Sources/FineTuneControl/Automation/URLAutomationParser.swift) | URL grammar and value conversion rules | [URLHandler](https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Utilities/URLHandler.swift) |
+| [deviceDefaultEchoes](../Sources/FineTuneControl/Routing/deviceDefaultEchoes.swift) | Per-UID echo tokens, 2s expiry each, consumption rules | [EchoTracker:4–73](https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Audio/Engine/EchoTracker.swift#L4-L73) |
+| [deviceBadge](../App/Design/deviceBadge.swift) | Selected 28pt accent-gradient badge and unselected monochrome circular badge | [DeviceBadge](https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Views/Components/DeviceBadge.swift) |
+| [mixerVolumeSlider](../App/Design/mixerVolumeSlider.swift) | 4pt track and native mini thumb on hover/drag | [LiquidGlassSlider](https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Views/Components/LiquidGlassSlider.swift) |
+| [mixerChrome](../App/Features/Mixer/mixerChrome.swift) | Icon header, tabs, and Quit capsule presentation | [MenuBarPopupView](https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Views/MenuBarPopupView.swift), [ViewModifiers](https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Views/DesignSystem/ViewModifiers.swift) |
+| [mixerView](../App/Features/Mixer/mixerView.swift) | `APPS` section, 2-column edit grid, Ignored/empty views | [MenuBarPopupView](https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Views/MenuBarPopupView.swift) |
+| [mixerAppRow](../App/Features/Mixer/mixerAppRow.swift) | 40pt row, icon controls, boost chevrons, hover/expanded surface | [AppRow](https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Views/Rows/AppRow.swift), [AppRowControls](https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Views/Rows/AppRowControls.swift), [AppEditRow](https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Views/Rows/AppEditRow.swift) |
+| [mixerAppRoutePicker](../App/Features/Mixer/mixerAppRoutePicker.swift) | Icon trigger, route subtitle, Single/Multi/check/checkbox presentation | [DevicePicker](https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Views/Components/DevicePicker.swift), [ModeToggle](https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Views/Components/ModeToggle.swift) |
+| [AutoEQCatalog](../Sources/FineTunePlatform/Profiles/AutoEQCatalog.swift) | INDEX parsing and search ranking | [AutoEQFetcher](https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Audio/AutoEQ/AutoEQFetcher.swift), [AutoEQProfileManager](https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Audio/AutoEQ/AutoEQProfileManager.swift) |
+| [ParametricEQTextParser](../Sources/FineTunePlatform/Profiles/ParametricEQTextParser.swift) | APO grammar and filter rules | [AutoEQParser](https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Audio/AutoEQ/AutoEQParser.swift) |
+| [AutoEQProfileRepository](../Sources/FineTunePlatform/Profiles/AutoEQProfileRepository.swift) | Fetch/cache/import behavior | [AutoEQFetcher](https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Audio/AutoEQ/AutoEQFetcher.swift), [AutoEQProfileManager](https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Audio/AutoEQ/AutoEQProfileManager.swift) |
+| [ProfileFileStore](../Sources/FineTunePlatform/Profiles/ProfileFileStore.swift) | Cache file, schema, and mtime handling | [AutoEQProfileLoader](https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Audio/AutoEQ/AutoEQProfileLoader.swift), [AutoEQFetcher](https://github.com/ronitsingh10/FineTune/blob/2285279d36d3f8115c1c2d4aecd904f1bdf96a51/FineTune/Audio/AutoEQ/AutoEQFetcher.swift) |
 
-## 音声経路の診断フィールド
+## Audio Route Diagnostic Fields
 
-`FINETUNE_AUDIO_DIAGNOSTICS=1`で起動すると、既存のnative snapshotから経路の状態・callback数・適用済みrevision・出力peakを`AudioRoute`ログへ記録する。ログは既定で無効。音声サンプル・buffer pointer・property配列は記録せず、HAL callback内ではログ出力とHAL呼出しを行わない。時刻変換の準備とログ出力は非リアルタイム側で行う。出力UID・app識別子は診断のためOSログへ記録する。
+When launched with `FINETUNE_AUDIO_DIAGNOSTICS=1`, route state, callback counts, applied revision, and output peaks from the existing native snapshot are emitted to the `AudioRoute` log (disabled by default). Audio samples, buffer pointers, and property arrays are never logged, and neither logging nor HAL calls run inside HAL callbacks. Timebase conversion setup and log emission occur on the non-real-time side. Output UIDs and app identifiers are logged to the OS log for diagnostic purposes.
 
-| フィールド | 意味 |
+| Field | Meaning |
 | --- | --- |
-| `inputJumps` / `outputJumps` | 前回のframe数から期待するsample時刻との差が1 frameを超えた回数。異常音やdropoutの確定ではない |
-| `hostGapsOver2Periods` | HALのhost時刻間隔が、直前の出力bufferの公称2周期を超えた回数。実際のunderrunを検知したものではない |
-| `maxEntryGapNs` / `maxProcessingNs` | 計測地点間隔と処理時間の累積最大値（ns）。計測区間はcallbackの受付・format検証後から復帰直前までで、HAL全体の所要時間ではない |
-| `validMask` | 直近の有効時刻（1=HAL host、2=入力sample、4=出力sample）。欠損・非有限値で比較の基準を切り、復帰時に飛びを捏造しない |
-| `lastIOOffsetFrames` | 出力sample時刻−入力sample時刻。異なる時刻原点を含むため、物理的な可聴遅延とはみなさない |
-| `maxOutputDelta` / `outputDiscontinuities` | 生成した出力の同一チャンネル内で連続frame間のSample値の差の累積最大値と、それが全尺度の0.2を超えた回数。サンプル抜けやクリックを検出するための量で、音質やBluetooth伝送の是否正常は表さない |
+| `inputJumps` / `outputJumps` | Number of times sample time differed from the expected value (based on previous frame count) by more than 1 frame; does not confirm audible artifacts or dropouts |
+| `hostGapsOver2Periods` | Number of times the HAL host-time interval exceeded 2 nominal periods of the previous output buffer; not a direct underrun detector |
+| `maxEntryGapNs` / `maxProcessingNs` | Cumulative maximums (in ns) of entry-to-entry gap and processing duration, measured from after callback intake/format validation until right before return (not total HAL callback time) |
+| `validMask` | Most recent valid timestamps (`1` = HAL host, `2` = input sample, `4` = output sample). Missing or non-finite values reset the comparison baseline so recovery does not fabricate jumps |
+| `lastIOOffsetFrames` | Output sample time minus input sample time. Because origins may differ, do not interpret this as physical audible latency |
+| `maxOutputDelta` / `outputDiscontinuities` | Cumulative maximum sample-to-sample delta within the same output channel, and count of deltas exceeding `0.2` full scale. Used to detect dropped samples or clicks; does not indicate overall audio quality or Bluetooth link health |
 
-統計は経路の世代ごとに累積し、回収後も保持する。独立atomicの近似snapshotであり、隣接callbackの値が混ざることがある。時刻欠損中のsample値・offsetは最後に観測した値のままで、`validMask`と併せて読む。位相変化はすぐに、継続中の統計は約1秒に1回出力する。これらの診断から権限・音声の正しさ・復旧成功を推定したり、経路を自動変更したりしない。
+Statistics accumulate per route generation and persist after reclamation. Snapshots are approximate reads of independent atomics and may mix values from adjacent callbacks. While timestamps are missing, sample values and offsets retain their last observed values and should be read alongside `validMask`. Phase transitions are logged immediately; ongoing statistics are logged roughly once per second. Never use these diagnostics to infer permissions, audio correctness, or recovery success, or to trigger automatic route changes.
 
 ```bash
 open -n --env FINETUNE_AUDIO_DIAGNOSTICS=1 DerivedData/Build/Products/Debug/FineTuneRewrite.app
 log show --last 5m --style compact --predicate 'subsystem == "com.finetune-rewrite" AND category == "AudioRoute"'
 ```
 
-## 外部依存の固定revision
+## Pinned External Dependency Revisions
 
-| 依存 | revision |
+| Dependency | Revision |
 | --- | --- |
 | [KeyboardShortcuts](https://github.com/sindresorhus/KeyboardShortcuts) | `1aef85578fdd4f9eaeeb8d53b7b4fc31bf08fe27` |
 
-## 原作の棚卸し母数
+## Upstream Test Inventory Baseline
 
-上記の固定revisionに対する参照値。実装のtarget件数ではない（原則は[検証方針](verification.md)）。
+Reference counts for the pinned upstream revision above. These are not target counts for the rewrite (see [verification policy](verification.md)).
 
-| 棚卸し項目 | 件数 | 意味 |
+| Inventory Item | Count | Meaning |
 | --- | --- | --- |
-| Swift source | 54 | 固定版のtestファイル。UI test targetはあるがUI test sourceはない |
-| `@Test`宣言 | 758 | 元の保証シナリオを識別する母数 |
-| parameterized宣言 | 44 | literal入力43件と`VolumeHotkeyStep.allCases`1件 |
-| 静的展開呼出し | 966 | 714 singletonと上記入力の展開。実行成功数ではない |
-| JSON fixture | 3 | 原作ではruntime参照のない資料も含む |
+| Swift source files | 54 | Test files in the pinned revision (UI test target exists but contains no UI test sources) |
+| `@Test` declarations | 758 | Baseline count identifying upstream guarantee scenarios |
+| Parameterized declarations | 44 | 43 literal input lists and 1 `VolumeHotkeyStep.allCases` |
+| Static expanded invocations | 966 | 714 singletons plus expanded parameterized inputs (not a pass count) |
+| JSON fixtures | 3 | Includes fixtures unreferenced at runtime upstream |

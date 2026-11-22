@@ -1,94 +1,94 @@
-# 互換仕様
+# Compatibility Specification
 
-この文書は、FineTune-Rewrite が外部から観測できる形で満たすべき契約を規定する。内部の構造・処理順序・所有権は[設計案](architecture.md)、判断の根拠と原作との比較は[調査記録](research.md)、契約の確認方法は[検証方針](verification.md)に置く。
+This document defines the externally observable contract that FineTune-Rewrite must satisfy. Internal structure, call ordering, and ownership belong in the [architecture](architecture.md); rationale and upstream comparisons belong in [research notes](research.md); verification methods belong in the [verification policy](verification.md).
 
-比較元は[FineTune の固定 revision](https://github.com/ronitsingh10/FineTune/commit/2285279d36d3f8115c1c2d4aecd904f1bdf96a51)である。機能・UI・操作体系・設定・外部連携の基本用途を対象とし、内部の class 構造や旧実装の制約まで複製しない。意図的な差異は本文で契約として示し、理由は[調査記録](research.md)に譲る。
+The comparison baseline is the [pinned FineTune revision](https://github.com/ronitsingh10/FineTune/commit/2285279d36d3f8115c1c2d4aecd904f1bdf96a51). Compatibility covers core usage across features, UI, interaction model, settings, and external integrations, without replicating internal class hierarchies or constraints of the original implementation. Intentional divergences are specified here as part of the contract; their rationale is documented in [research notes](research.md).
 
-## 保持する意味
+## Preserved Semantics
 
-- アプリ・機器の volume/mute/boost、software slider の意味、経路選択と保存した希望を保持する。
-- 一時的な機器切断や適用失敗で、ユーザーが保存した希望を破壊しない。
-- 表示設定・ショートカット・HUD・アイコン・EQ preset などの保存値と選択の意味を保持する。
-- UI・キー・URL など入口が異なっても、Control の共通操作へ合流し、音量の意味や状態更新経路を入口ごとに分けない。
-- route/channel ごとに独立した DSP 可変状態を持ち、初音・無音区間後の再開を失わない。
+- Preserve per-app and per-device volume, mute, and boost semantics, software slider behavior, route selection, and saved user intent.
+- Do not destroy saved user preferences due to transient device disconnects or apply failures.
+- Preserve persisted values and selection semantics for display settings, shortcuts, HUD, icons, EQ presets, and related preferences.
+- Route all entry points (UI, keyboard, URL scheme, etc.) through shared Control operations; do not split volume semantics or state update paths by entry point.
+- Maintain independent mutable DSP state per route and channel so initial audio onset and resume after silence are not lost.
 
-## Mixer の表示
+## Mixer Presentation
 
-- 音量スライダーは 4pt の軌道を持ち、hover/drag 時に native mini thumb を表示する。
-- 上部・下部の操作は speaker/mic 切替、鉛筆/checkmark、塗りの歯車、下部の `Quit ⌘Q` を含む。
-- デバイス行は、名前の隙間と上下の余白を含む行の非操作部分から default を切り替える。ミュート・音量・パーセント入力は行の切り替えを伴わず、すでに default の行を再選択しても再書込しない。
-- 選択バッジは原作の 28pt 円形・アクセント色 gradient・白い glyph とし、未選択時は mono 表示にする。選択は OS の観測 default に従い、既存 checkmark も残す。クリック直後の先行表示や切替中の表示は出さない。
-- 音量の binding・未知値/読み取り専用表示・共通 command・現行の ⌘Q 操作・全行の非スクロール表示を維持する。
-- ミュートの dim 表示と native 待機時の opacity は分離する。合成 opacity が hit-test 閾値を下回って音量操作を失うことはない。
-- アプリ行は 28pt header と上下 6pt・左右 8pt padding の 40pt 行とし、VU・24pt app icon・名前・mute・共通 140pt slider・40pt percentage 枠・boost chevrons・出力先 icon・EQ icon を 1 行に並べる。
-- 名前や余白には action を付けない。active app の icon だけが既存 activate action を呼ぶ。停止中の装飾は dim にするが、slider の祖先 opacity は下げず音量操作を維持する。
-- 通常は背景を透明とし、hover・focus・EQ 展開時に共通 hover surface を使う。EQ panel の内部操作は変更しない。
-- 出力先 picker は 28pt icon trigger と Single/Multi・check/checkbox の 210pt menu を使う。popover の外側クリック・dismiss・window 所有は native SwiftUI に委ねる。mode/UID の先行状態は持たず、選択は観測値に従う。
-- 通常の follow-default は名前の下に表示せず、明示経路・multi の要約だけを 9pt subtitle にする。機器がなくなった UID の Unavailable 表示、明示 routeStatus、観測 level 欠損と実測 0 の区別を隠さない。
-- アプリ section は APPS 見出し・通常 0pt 行間・編集時 2 列/4pt 間隔・独立した Ignored grid・中央の空表示を使う。
-- 表示順は pinned active→pinned inactive→unpinned active を基本とし、各 group 内を locale-aware な case-insensitive 名順にする。同名は永続 ID で決定する。編集時のみ出す unpinned inactive metadata と ignored は末尾の別 group で維持する。
-- 表示と keyboard navigation は同じ projection 順に従う。保存済みの pin/ignore 値や経路の所有は変更しない。
-- 原作の Donate、0% クリック時の gain 1.0 復元、機器の欠損値 fallback は本契約に含めない。全 Mixer の pixel 単位の一致は保証しない。
+- Volume sliders use a 4pt track and display a native mini thumb on hover or drag.
+- Top and bottom chrome include the speaker/mic switcher, pencil/checkmark edit toggle, filled gear icon, and bottom `Quit ⌘Q` control.
+- Device rows switch the default device when clicking non-control areas of the row, including the gap after the name and vertical padding. Mute, volume, and percentage input do not trigger row switching, and re-selecting an already-default row does not rewrite the default.
+- The selection badge uses the upstream 28pt circular accent-color gradient with a white glyph when selected, and monochrome styling when unselected. Selection follows the OS-observed default, while keeping the existing checkmark. Do not show optimistic pre-click states or in-flight switching indicators.
+- Preserve volume bindings, unknown/read-only displays, shared commands, existing `⌘Q` behavior, and non-scrolling display of all rows.
+- Keep mute dimming separate from native idle opacity so combined opacity never drops below the hit-test threshold and disables volume interaction.
+- App rows are 40pt tall (28pt header with 6pt vertical and 8pt horizontal padding), laying out VU meter, 24pt app icon, name, mute button, shared 140pt slider, 40pt percentage field, boost chevrons, output route icon, and EQ icon on a single line.
+- Attach no actions to the app name or row padding; only an active app's icon invokes the existing activate action. Dim decorations for inactive apps without lowering ancestor opacity on the slider so volume control remains interactive.
+- Row backgrounds are transparent by default and use the shared hover surface on hover, focus, or when the EQ panel is expanded. Internal EQ panel interactions remain unchanged.
+- The output route picker uses a 28pt icon trigger and a 210pt menu with Single/Multi mode and check/checkbox indicators. Delegate outside-click dismissal and popover window ownership to native SwiftUI. Hold no optimistic mode or UID state; selection reflects observed values.
+- Do not show a subtitle for standard follow-default routing; render a 9pt subtitle only for explicit routes or multi-output summaries. Do not hide `Unavailable` indicators for missing device UIDs, explicit `routeStatus`, or the distinction between missing observed levels and measured zero.
+- The app section uses an `APPS` header, 0pt row spacing in normal mode, a 2-column grid with 4pt spacing in edit mode, a separate Ignored grid, and a centered empty state.
+- Base ordering is pinned active → pinned inactive → unpinned active, sorted within each group by locale-aware case-insensitive name with persistent ID as tiebreaker. Unpinned inactive metadata (shown only in edit mode) and ignored apps remain in separate trailing groups.
+- Visual order and keyboard navigation follow the same projection order. Do not alter saved pin/ignore values or route ownership.
+- Upstream Donate links, restoring gain to `1.0` on clicking `0%`, and fallback values for missing device properties are outside this contract. Pixel-for-pixel parity across the entire Mixer is not guaranteed.
 
-## デバイス切り替えと失敗からの復帰
+## Device Switching and Failure Recovery
 
-- 出力デバイスの明示選択が成功したとき、default 追従中のアプリの失敗した経路を再試行する。入力の選択・失敗した default 書込・固定先を持つアプリへは再試行を広げない。
-- 経路先は policy が承認した UID を使い、非同期の OS 観測を待つ間に旧 default へ再取得しない。観測された default UID と policy 承認先は分けたままとし、受動的な補正では既存の健全なアプリ経路を強制作り直さない。明示的な `Retry Audio` はデバイス切替と同じ復旧を全アプリへ広げ、ローカル上健全な経路も作り直す（一時的な音の途切れを許容する）。
-- 受動的な機器・process 通知だけで失敗した取得を繰り返さない。既知の権限拒否は明示的な `Retry Audio` まで解除しない。
-- FineTune からの明示選択が成功した直後の 2 秒間は、健全な UID・Bluetooth 構成が変わらない場合に限り、別の Bluetooth 出力への巻き戻りを 1 回だけ補正する。この期限は補正や確認通知で延長せず、新しい明示操作・機器構成や観測の健全性の変化・suspend で古い補正権限を失効させる。
-- OS 通知には操作元の情報がないため、この区間内の Control Center からの Bluetooth 選択は区別できない。FineTune からの再選択は常に最新の操作として扱う。
-- 期限後の新しい外部選択は尊重し、古い書込の確認待ちや timeout で元へ戻さない。未解消の失敗は時間経過や同じ UID の再通知だけでは消えない。
-- 補正後も選択を維持できない場合や確認が期限切れになった場合は、無限に書き戻さず、Mixer・Settings へ失敗を表示する。要求先の健全な観測または新しい選択で解消する。
-- Bluetooth の所有権を永続的に固定する機能ではない。実機での補正効果と可聴連続性は本契約の保証対象外で、別途の確認に委ねる（[検証方針](verification.md)）。
+- When an explicit output device selection succeeds, retry failed routes for apps following the default output. Do not expand retries to input selection, failed default writes, or apps with pinned explicit routes.
+- Route targets use the policy-approved UID rather than reacquiring the old default while waiting for asynchronous OS observation. Keep observed default UID separate from the policy-approved target, and do not force-rebuild existing healthy app routes during passive corrections. Explicit `Retry Audio` extends the same recovery as a device switch to all apps, including rebuilding locally healthy routes (temporary audio interruption is acceptable).
+- Do not retry failed capture solely on passive device or process notifications. Known permission denials remain active until an explicit `Retry Audio`.
+- For 2 seconds immediately following a successful explicit selection from FineTune, perform at most one corrective rewrite if the output reverts to another Bluetooth device, provided the healthy UID and Bluetooth topology have not changed. Do not extend this window on correction or confirmation notifications; invalidate stale correction authority on any new explicit action, topology or observation-health change, or suspend.
+- Because OS notifications do not identify the actor, Bluetooth selections made from Control Center during this window cannot be distinguished. A re-selection from FineTune is always treated as the latest action.
+- Respect new external selections after the window expires, and never revert them due to a pending confirmation or timeout from an older write. Unresolved failures do not clear merely from elapsed time or duplicate notifications for the same UID.
+- If selection still cannot be maintained after correction or confirmation times out, stop rewriting and surface the failure in Mixer and Settings. Clear it only upon healthy observation of the requested target or a new selection.
+- This mechanism is not permanent Bluetooth ownership locking. Real-hardware correction effectiveness and audible continuity are outside this contract and subject to separate verification ([verification policy](verification.md)).
 
-### 観測 default への再書込は接続エピソード 1 回まで
+### Limit Observed Default Rewrites to Once per Connection Episode
 
-- 観測 default への書き戻しは、接続バッチ開始・切断フォールバック・明示選択・設定変更の各 1 回に限る。同じ接続エピソード内で OS が再適用した transient（装着検出の transient を含む）には書き返さず受容する。
-- 入力ロックも同じ契機でのみ適用する。Settings での入力変更は尊重し、原作の「lock は Settings 変更にも保持する」挙動から外れる。
-- 優先度機能（上位デバイス接続時の 1 回の切替、切断時の次点フォールバック）は維持する。
-- 原作の echo timeout 時における再書込（書込の確認が戻らなかった場合の再試行）は行わない。
+- Limit rewrites of the observed default to at most once per event: connection batch start, disconnect fallback, explicit selection, or settings change. Accept transients reapplied by the OS within the same connection episode (including ear-detection transients) without writing back.
+- Apply input lock on the same triggers only. Respect input changes made in Settings, diverging from the upstream behavior where input lock overrides Settings changes.
+- Preserve priority behavior (one-time switch on higher-priority device connection, fallback to next-highest on disconnect).
+- Do not perform upstream's echo-timeout rewrite (retrying when write confirmation does not return).
 
-## 経路の受け渡し・取消・失敗表示
+## Route Handoff, Cancellation, and Failure Reporting
 
-- 取消済みの経路は、callback の受付を閉じたまま継続用として残さない。取消は OS の IO 停止や source mute 解除そのものではないため、実際の終了確認まで所有権を維持し、次の経路の準備完了を待たずに回収を始める。
-- 進行中・回収待ちの作業を二重実行しない。旧経路の終了確認までは新しい経路を commit しない。
-- 明示的な capture Retry では、全アプリの経路を強制再準備し、完了済みの回収失敗と、準備済み handle を返せず残った失敗を再試行する。ローカル上健全な経路も再確立するため、一時的な音の途切れは許容する。再試行に成功しても、過去の cleanup failure を現在の失敗として再送しない。同じ失敗が再発した場合は表示と commit 阻止を維持する。
-- 旧経路の既知の primary failure は回収後も診断履歴に残す。成功した回収を失敗扱いして新経路の commit を妨げない。終了開始後に遅れて記録される `cancelled` も回収失敗とは区別する。終了を指示していない現行経路の `cancelled` は失敗として扱い、旧経路の遅延更新による `cancelled` は現行の失敗表示を作成・上書きしない。
-- 診断はアプリ単位で保持する。別アプリの取得成功・旧経路の回収開始・新しい経路の準備だけでは消えない。そのアプリ自身の commit 後、要求経路すべてが健全な場合に解除し、複数出力の一方の成功だけで残す経路の障害を消さない。
-- Mixer・Settings は診断履歴と現在の警告を分ける。処理を希望している現在のアプリの失敗は、そのアプリ自身が復旧するまで表示する。停止・アプリの終了・Ignore 後は過去の経路失敗を警告しないが、診断履歴は保持する。
-- Mixer で表示中のアプリに属する失敗は通常モードの行だけに出し、上部へ重複させない。並べ替え中は行内の警告を表示せず、通常モードへ戻ったときに現在の状態を表示する。
-- 権限拒否は共通の案内で示し、保存・機器操作などの独立した失敗は隠さない。
-- cleanup の警告は世代の新旧ではなく、資源をまだ所有しているかで判断する。未完了の回収と、準備済み handle を返す前に失敗した経路の回収は、停止後やアプリ行がない場合も表示する。終了確認または resource release の成功が確認できた警告だけを外し、別経路の成功や新しい準備では解除しない。
-- 最新診断は履歴として残し、未解決の cleanup は経路ごとに追跡する。この集合が空でも、すべての資源が回収済みであることを意味しない。
-- 物理/aggregate 出力は channel 1/2 を要求する。余分な入力・不連続な番号・不一致の format/buffer 構成は拒否する。
+- Never keep a cancelled route alive for continued use with its callback intake closed. Because cancellation does not by itself stop OS IO or clear source mute, retain ownership until actual termination is confirmed, and begin reclamation without waiting for the next route to become ready.
+- Never run duplicate in-flight or pending-reclamation work. Do not commit a new route until termination of the old route is confirmed.
+- Explicit capture Retry forces re-preparation of all app routes and retries completed reclamation failures as well as failures that never returned a prepared handle. Because locally healthy routes are also re-established, brief audio interruption is acceptable. A successful retry must not re-emit historical cleanup failures as current failures; if the same failure recurs, keep displaying it and blocking commit.
+- Keep known primary failures of old routes in diagnostic history after reclamation. Do not treat a successful reclamation as a failure that blocks committing a new route. Distinguish late `cancelled` records arriving after teardown starts from reclamation failures. Treat `cancelled` on an active route that was not told to stop as a failure, but do not let a late `cancelled` update from an old route create or overwrite current failure displays.
+- Maintain diagnostics per app. They must not clear merely because another app succeeded, an old route began reclamation, or a new route started preparing. Clear an app's failure only after that app commits and all requested routes are healthy; success on one output in a multi-output configuration must not hide a fault on another remaining output.
+- Mixer and Settings separate diagnostic history from active warnings. Display failures for active apps desiring processing until those apps recover. Do not warn about past route failures after stop, app exit, or Ignore, while preserving diagnostic history.
+- Show failures belonging to visible Mixer apps only on their normal-mode row; do not duplicate them in the top banner. Hide per-row warnings during reorder/edit mode and display current state again upon returning to normal mode.
+- Present permission denials with shared guidance without hiding independent failures such as persistence or device operation errors.
+- Determine cleanup warnings by whether resources are still owned, not by generation age. Keep showing incomplete reclamations and reclamations of routes that failed before returning a prepared handle even after stop or when no app row is present. Clear a warning only after confirmed termination or successful resource release; never clear it due to another route succeeding or a new preparation starting.
+- Keep the latest diagnostic as history and track unresolved cleanups per route. An empty unresolved set does not prove all resources have been reclaimed.
+- Physical and aggregate outputs require channels 1 and 2. Reject extra inputs, non-contiguous channel numbers, and mismatched format or buffer configurations.
 
 ## Quit
 
-- Quit ボタン・⌘Q・アプリメニューは同じ終了処理へ通す。
-- 終了通知では、入力監視の停止・HUD の終了・設定の flush を同期的に行う。独自の遅延終了・非同期の音声回収待ち・保存失敗時の再試行/取消ダイアログは設けない。
-- 保存失敗は store に残すが、終了を取り消さない。音声資源はプロセス終了時の OS 回収に従い、通常の cooperative stop の契約は変更しない。
-- 実音声中の終了や最低対応 OS での動作は保証しない（[検証方針](verification.md)）。
+- Route the Quit button, `⌘Q`, and the application menu item through the same termination path.
+- On termination notification, synchronously stop input monitoring, dismiss the HUD, and flush settings. Do not add custom delayed termination, asynchronous audio reclamation waits, or retry/cancel dialogs on save failure.
+- Record save failures in the store without cancelling termination. Rely on OS reclamation of audio resources at process exit, without changing the normal cooperative-stop contract.
+- Behavior during active live audio shutdown or on the minimum supported OS version is not guaranteed by this contract ([verification policy](verification.md)).
 
-## 保存設定
+## Persisted Settings
 
-- 新規作成時は version 12 とし、version が欠落/null の decode は 9 とする。未知の整数 version を勝手に移行拒否しない。
-- 欠落/null と型不一致を区別する。既知 key の default・gain 正規化・enum decode の意味を維持する。
-- CRUD・直接 binding・debounce・明示 flush・reset・preset 名検証は、保存結果と観測可能な副作用で扱う。
-- login service は注入可能とし、読み込みだけで実ログイン項目を登録しない。
-- 不正 JSON は backup して再開する。backup 自体に失敗した場合はその manager の書込を抑止し、load/save error を観測可能にする。
-- 保存 directory は必須の明示引数とする。原作の Application Support 名前空間を暗黙に開かず、原作設定の import はユーザーが明示的に選ぶ操作として設計する。
+- Newly created settings use version 12; decode missing or `null` version fields as version 9. Do not reject unknown integer versions during migration.
+- Distinguish missing/`null` fields from type mismatches. Preserve defaults for known keys, gain normalization, and enum decoding semantics.
+- Define CRUD, direct bindings, debounce, explicit flush, reset, and preset name validation by their persisted results and observable side effects.
+- Keep the login service injectable, and never register a real login item merely by loading settings.
+- Back up corrupted JSON before resuming. If backup itself fails, suppress writes for that manager and surface observable load/save errors.
+- Require an explicit storage directory argument. Never implicitly open the upstream Application Support namespace; importing upstream settings must be an explicit user-initiated action.
 
-## システムアラートの消音連動
+## System Alert Mute Synchronization
 
-原作にない独自動作である。理由と原作との比較は[調査記録](research.md)に置く。
+This is an intentional behavior not present upstream. Rationale and upstream comparison are recorded in [research notes](research.md).
 
-- System Sounds の出力先デバイスが software tier でミュートされている間だけ、OS のアラート音量を 0 にする。
-- 解除時はミュート前のアラート音量へ戻す。hardware/DDC tier と、System Sounds に出ていないデバイスのミュートでは何もしない。
-- 終了通知でも同期的に戻す。保存した復元値は次回起動時に確認してから現在のミュートを評価し、終了と復元が競合しても値の取り違えを残さない。
-- 復元値は保存 schema の `alertVolumeBeforeMuteSilencing` にだけ置き、アプリ設定の Alert Volume とは別に扱う。silencing 中は Settings の Alert Volume 操作を無効化する。
+- Set the OS alert volume to `0` only while the System Sounds output device is muted via the software tier.
+- Restore the pre-mute alert volume when unmuted. Do nothing for hardware/DDC tier mutes or mutes on devices not serving System Sounds.
+- Restore synchronously on termination notification. Check any persisted restore value on next launch before evaluating current mute state so races between termination and restore do not leave mismatched values.
+- Store the restore value exclusively in the `alertVolumeBeforeMuteSilencing` schema field, separate from the app's `Alert Volume` setting. Disable the `Alert Volume` control in Settings while silencing is active.
 
-## URL・外部操作
+## URL Scheme and External Control
 
-- `finetune://` actions・query 順序・validation・保存対象は、固定版の原作を基準にする。
-- parser・共通 Control 操作・App event/bundle 登録は異なる保証であり、parser だけでは製品連携の完成としない。
-- 原作 guide と実装が異なる百分率表現についても原作の現行処理を基準とし、変更案は[調査記録](research.md)の延期事項で扱う。
+- `finetune://` actions, query parameter ordering, validation, and persistence targets follow the pinned upstream revision.
+- Parsing, shared Control operations, and App event/bundle registration are distinct guarantees; a passing parser does not by itself verify full product integration.
+- Where the upstream guide and implementation disagree on percentage representation, follow the upstream implementation; proposed changes are tracked as deferred items in [research notes](research.md).

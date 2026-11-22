@@ -1,40 +1,40 @@
-# 調査記録
+# Research Notes
 
-この文書は、比較元との調査から得た結果と、意図的な差異の根拠を記録する。満たすべき契約は[仕様](spec.md)、構成上の判断は[設計案](architecture.md)、確認の範囲は[検証方針](verification.md)に置く。
+This document records findings from investigating the comparison baseline and the rationale behind intentional divergences. Observable contracts live in the [specification](spec.md), structural decisions in the [architecture](architecture.md), and verification scope in the [verification policy](verification.md).
 
-## macOS 26 の AirPods 装着検出と transient 再適用
+## macOS 26 AirPods Ear Detection and Transient Reapplication
 
-原作は接続直後の猶予中、macOS が既定を接続デバイスへ切り替えるたびに確認済み default へ書き戻し、上書きから 1 秒超の間隔が空いたときだけユーザー操作として受け入れる。macOS 26 の AirPods 装着検出は 0.5 秒周期で transient を再適用する。この周期では 1 秒の idle 条件が永久に成立せず、書き戻しと OS の再適用が繰り返される。原作コードに同じ弱点があり、切り替えロジックを忠実に移植しても解消しない。
+During its post-connect grace window, upstream FineTune rewrites the default back to the confirmed device whenever macOS switches to a newly connected device, accepting a switch as a user action only after more than 1 second elapses without an override. On macOS 26, AirPods Automatic Ear Detection reapplies transients on a 0.5-second cadence. At that cadence, the 1-second idle condition is never satisfied, causing an endless loop of rewrites and OS reapplications. This weakness exists in upstream code itself and is not resolved by a faithful port of the switching logic.
 
-原作は troubleshooting ガイドで Automatic Ear Detection に干渉しないことを明示する。原作コードがこの条件で満たせていない仕様をコード側で満たすため、再書込の契機を接続バッチ開始・切断フォールバック・明示選択・設定変更の各 1 回に限定する。同じ接続エピソード内で OS が再適用した transient は受容し、書き返さない。入力ロックも同じ契機だけに適用し、Settings での入力変更を尊重する。優先度機能は維持するが、原作の echo timeout 時における再書込はこの方針では追試行になるため行わない。契約は[仕様](spec.md)に置く。
+Upstream's troubleshooting guide explicitly states that it should not interfere with Automatic Ear Detection. To satisfy in code a requirement upstream failed to meet under this condition, we limit observed-default rewrites to at most once per trigger: connection batch start, disconnect fallback, explicit selection, or settings change. Transients reapplied by the OS within the same connection episode are accepted without writing back. Input lock applies on the same triggers only, respecting input changes made in Settings. Priority behavior is preserved, while upstream's echo-timeout rewrite is omitted because it would act as an extra retry under this policy. See [specification](spec.md) for the contract.
 
-## 重複 tap と資源の寿命
+## Duplicate Taps and Resource Lifetimes
 
-default の補正回数や capture の再試行は増やさない。重複 tap とコード上の寿命問題は機械的に切り分ける。Bluetooth への巻き戻りや可聴音の解消はこの調査の結論ではなく、別途の実機確認対象である（[検証方針](verification.md)）。
+Do not increase default-correction retry counts or capture retry counts. Separate duplicate taps from code-level lifetime bugs mechanically. Eliminating Bluetooth revert behavior or audible glitches is not a conclusion of this investigation and remains a separate real-hardware check ([verification policy](verification.md)).
 
-## 入力 stream の開始チャンネル番号
+## Input Stream Starting Channel Number
 
-所有する単一 stereo tap と意図した物理機器だけの構成を読み戻した場合に限り、stream の開始チャンネル番号が 1 より大きくても、連続した 2ch なら IOProc の buffer 構成と照合して扱う。開始番号が 5 で stereo buffer が 1 個の構成を、未対応 format や buffer 内の 4ch offset として解釈しない。
+Only when read-back confirms a single owned stereo tap paired with the intended physical output device, accept a stream starting channel number greater than `1` as long as it represents 2 contiguous channels matching the IOProc buffer layout. Do not misinterpret a starting channel of `5` with a single stereo buffer as an unsupported format or a 4-channel offset into the buffer.
 
-[StartingChannel](https://developer.apple.com/documentation/coreaudio/kaudiostreampropertystartingchannel) は device の property element 番号であり、[StreamConfiguration](https://developer.apple.com/documentation/coreaudio/kaudiodevicepropertystreamconfiguration) が IOProc の buffer 構成に対応する。両者を混同すると、開始番号をリアルタイム側の offset や certificate の不変値へ持ち込み、連続 2ch を誤って拒否する。物理/aggregate 出力は channel 1/2 を要求し、余分な入力・不連続な番号・不一致の format/buffer 構成は拒否する。音出しと切り替えの可聴連続性は別の検証対象である（[検証方針](verification.md)）。
+[StartingChannel](https://developer.apple.com/documentation/coreaudio/kaudiostreampropertystartingchannel) identifies the device property element number, whereas [StreamConfiguration](https://developer.apple.com/documentation/coreaudio/kaudiodevicepropertystreamconfiguration) describes the IOProc buffer layout. Conflating the two leaks the starting channel number into real-time offsets or certificate invariants and falsely rejects valid contiguous stereo streams. Physical and aggregate outputs still require channels 1 and 2, and extra inputs, non-contiguous channel numbers, or mismatched format/buffer layouts are rejected. Playback and audible continuity across switches are verified separately ([verification policy](verification.md)).
 
-## software ミュートとシステムアラートの差
+## Difference Between Software Mute and System Alerts
 
-原作の software tier ミュートは tap 内のゲインだけを扱い、tap 外のシステムアラート音は消えない。hardware/DDC tier は機器側のミュートでアラートも消えるが、HDMI など hardware ミュートを持たない出力では「デバイス無音」でも未処理キーのビープが鳴る。この差を受け入れ条件の違いとして扱い、System Sounds の出力先が software tier でミュートされている間だけ OS のアラート音量を 0 にする独自動作を採る。復元値をアプリ設定の Alert Volume と分けるのも、この差に起因する。契約は[仕様](spec.md)に置く。
+Upstream's software-tier mute attenuates only gain inside the tap, leaving system alert sounds outside the tap audible. Hardware and DDC tiers mute at the device level, which silences alerts as well—so on outputs without hardware mute such as HDMI, unhandled-key beeps still play even when the device is "muted". Treating this gap as an acceptance-criteria difference, we adopt an intentional divergence: set OS alert volume to `0` only while the System Sounds output device is muted via the software tier. Keeping the restore value separate from the app's `Alert Volume` setting stems from this same distinction. See [specification](spec.md) for the contract.
 
-## テストの適応と延期事項
+## Test Adaptation and Deferred Items
 
-純粋な入力・出力契約は直接保持できる。一方、旧 private API・未使用 engine を抱える fixture・旧 vDSP setup の所有・mock 自身の default 値・実 OS への無 assert 投稿は、新しい境界へ置き換える。元の保証を弱めずに unit へ分割・統合できるなら、旧 class を復元した巨大な互換 facade は追加しない。
+Pure input/output contracts can be carried over directly. By contrast, legacy private APIs, fixtures holding unused engines, legacy vDSP setup ownership, mock self-defaults, and unasserted posts to the real OS are replaced with tests against the new boundaries. Whenever upstream guarantees can be preserved via split or merged units, do not add a large compatibility facade recreating legacy classes.
 
-- aggregate/tap の初期設定は新しい planner と注入可能な route port で確認し、legacy の呼出名や設定時刻を固定しない。
-- media key の handler/watchdog は actual monitor と Control を使い、OS tap・clock・HUD 表示だけを隔離する。
-- メニュー操作の event 構築・dispatch は poster seam で確認し、test runner の実 event pump へ投げるだけの smoke test にしない。
-- signal helper は native-owned 係数 copy へ適応する。旧検出位置や poisoned vDSP state だけを要求するシナリオは、理由と有限出力・明示 error・state reset の代替保証として個別に記録する。数式・出典・offline 検証の限界は[数値互換記録](<../Tools/DSPTests/Compatibility.md>)に置く。
+- Verify initial aggregate/tap setup via the new planner and an injectable route port without pinning legacy method names or exact scheduling timestamps.
+- Verify media-key handlers and watchdogs using the real monitor and Control, isolating only the OS tap, clock, and HUD presentation.
+- Verify menu-action event construction and dispatch through a poster seam rather than smoke-testing by posting directly to the test runner's real event pump.
+- Adapt signal helpers to native-owned coefficient copies. Scenarios that only asserted legacy detection points or poisoned vDSP state are recorded individually with their rationale and replacement guarantees (finite output, explicit errors, state reset). Formulas, provenance, and offline verification limits live in [Compatibility.md](<../Tools/DSPTests/Compatibility.md>).
 
-延期事項として、URL 値を `s²` へ変更する案と boost 拡張を保持する。原作の現行処理・既知の問題・将来採用する変更を分けて扱い、無断で互換修正に含めない。idle・初音・切替・再接続・長時間稼働などの issue/PR 案も、再現条件と別の受入条件を定めて扱う。
+Deferred items include changing URL volume values to `s²` and boost extensions. Keep upstream's current behavior, known defects, and future enhancements separate, and never fold future changes into compatibility fixes silently. Upstream issue/PR proposals around idle, first-audio onset, switching, reconnect, and long-running stability are likewise handled with explicit reproduction and acceptance criteria.
 
-## private aggregate の tap drift/quality と SubTapList
+## Private Aggregate Tap Drift/Quality and SubTapList
 
-private aggregate の tap drift/quality は作成後に変更せず、証明のたびに OS から Composition を読み戻して、所有 tap UID との一意対応・数値型・値を検証する。作成時の要求辞書や既定値を観測の代わりに使わない。期待する drift 値は出力の transport type から導き、tap と出力がクロックを共有する Bluetooth/BLE では OFF を要求する。ON だと HAL が周期的にサンプルを挿入・削除してクラックルが出る。
+Never modify a private aggregate's tap drift or quality after creation. On every certification, read `Composition` back from the OS and verify a unique match with the owned tap UID, numeric types, and values—never substitute creation-time request dictionaries or defaults for observation. Derive expected drift from the output's transport type, requiring OFF for Bluetooth/BLE where the tap and output share a clock; leaving it ON causes the HAL to periodically insert or drop samples, producing crackles.
 
-SubTapList の ID は active member の同一性比較に使う。子 object の property 読取・監視が可能であるとは仮定しない。aggregate の Composition・tap/subtap list と既存の物理機器・stream を監視し、start 前にも再検証する。同一 process 内の外部コードが子 drift/quality を直接変更する方式は対応対象外で、子設定の変更が必ず親 Composition 通知になるという保証はない。構成上の扱いは[設計案](architecture.md)に置く。
+Use `SubTapList` IDs only for active-member identity comparison, without assuming child object properties can be read or observed. Observe the aggregate's `Composition`, tap/subtap lists, and underlying physical devices/streams, and re-verify before start. Direct mutation of child drift/quality by external code in the same process is unsupported, as there is no guarantee child mutations emit parent `Composition` notifications. Architectural handling lives in the [architecture](architecture.md).

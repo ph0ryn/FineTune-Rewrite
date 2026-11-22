@@ -1,115 +1,115 @@
-# 検証方針
+# Verification Policy
 
-この文書は、成果物の正しさをどう判断するかを規定する。検証する契約は[仕様](spec.md)、実行手順は[開発手順](development.md)を正本とし、ここでは不変条件・判定基準・試験範囲・既知の限界だけを扱う。
+This document defines how artifact correctness is judged. The contracts under test live in the [specification](spec.md) and execution procedures live in the [development guide](development.md); this document covers invariants, evaluation criteria, test scope, and known limits only.
 
-**unit/componentの成功、製品consumerの接続、実機の音声、配布可能性は別の判定である。** 一つの成功を別の合格へ読み替えない。
+**Unit/component passes, product consumer wiring, live hardware audio, and distributability are distinct verdicts.** Never reinterpret a pass in one category as a pass in another.
 
-## 保証の範囲
+## Scope of Guarantees
 
-### 試験のpyramid
+### Test Pyramid
 
-**Pure unit。** 外部I/Oを必要とせず、入力と出力を直接確かめる。
+**Pure unit tests.** Require no external I/O and assert outputs directly from inputs.
 
-- Domain: 音量の単位・slider mapping・識別・設定値・EQ model
-- Control: volume/mute/boost・target選択・保存希望と観測/実行状態の分離・変更計画
-- UI: 純粋なtoken・表示値・icon選択・focus/scroll計算
-- DSP: 数式・係数・検出器・gain/smoothing。内部kernelはC++で直接検証し、test専用のSwift/C ABIを増やさない
+- Domain: volume units, slider mapping, identifiers, setting values, EQ models
+- Control: volume/mute/boost, target selection, separation of saved intent from observed/active state, change planning
+- UI: pure tokens, display values, icon selection, focus/scroll calculations
+- DSP: math, coefficients, detectors, gain/smoothing; verify internal kernels directly in C++ without expanding test-only Swift/C ABI surface
 
-**少数のcomponent/contract。** 新しい境界の誤配線を検出する範囲へ絞る。
+**Small component/contract tests.** Focused on catching miswiring across new boundaries.
 
-- temporary directoryと注入login serviceを使う保存・flush・debounce・backup失敗
-- 実Appのoperation/monitor/registryからControl・store・device portへの接続
-- AppKitのoffscreen view/windowとevent poster seam。AppKit import自体はE2Eではない
-- 注入したproperty reader・device能力・通知・clock・tap installerを使うOS adapterの選択・失敗・回収契約
-- production nativeのC ABI・所有/寿命・route/channel独立性・synthetic信号
+- Persistence, flush, debounce, and backup failure using temporary directories and an injected login service
+- Wiring from real App operations, monitors, and registries into Control, store, and device ports
+- Offscreen AppKit views/windows and event-poster seams (importing AppKit does not make a test E2E)
+- OS adapter selection, failure, and reclamation contracts using injected property readers, device capabilities, notifications, clocks, and tap installers
+- Production native C ABI, ownership/lifetimes, route/channel independence, and synthetic signals
 
-全アプリ起動や実機へ拡大しない。privateな呼出列だけを固定する巨大mockではなく、公開結果・保存結果・portへ渡した意味を観測する。構成と所有権の出発点は[設計案](architecture.md)を参照する。
+Do not expand these into full-app launches or real-hardware tests. Observe public outputs, persisted results, and semantic calls passed to ports rather than brittle mocks locking private call sequences. See the [architecture](architecture.md) for structure and ownership boundaries.
 
-#### UI表示leafのoracle
+#### Oracles for UI Presentation Leaves
 
-copy・format・静的な表示mappingは、View・window・bitmapを作らない`AppPresentationContractTests`でproductionのsemantic projectionを検証する。対象はSettings各tab・Mixer header/footer・route menu・keyboard/AutoEQ bindings・device row actionsである。ここでは意味値だけを確認し、glyphの可視性や実際のcontrol接続は証明しない。
+Copy, formatting, and static presentation mappings are verified in `AppPresentationContractTests` against production semantic projections without creating views, windows, or bitmaps. Coverage includes Settings tabs, Mixer header/footer, route menu, keyboard/AutoEQ bindings, and device row actions. This verifies semantic values only; it does not prove glyph visibility or live control wiring.
 
-実AppKitの描画を伴う検証は`AppRenderedTests`に集約する。production Viewをoffscreenの`NSHostingView`へ描画し、実`NSWindow`のconfigured size、native bridge（`NSSwitch`・`NSSegmentedControl`・`NSButton`）、SwiftUI buttonの描画bounds、status itemのactionを確認する。OCR・pixel probe・ScreenCaptureKit・pointer event loop・private SwiftUI proxyは使わない（[renderedTestSupport.swift](<../Tests/AppRenderedTests/renderedTestSupport.swift>)）。表示文字の認識はVisionの結果が環境に依存するため自動ゲートのoracleにせず、選択badgeのfill/glyphやslider trackの寸法もsemantic projectionの値で確認する。bitmap全体の一致や実際に描画されたpixelは保証しない。
+Verification involving real AppKit rendering is consolidated in `AppRenderedTests`. Production views are rendered into an offscreen `NSHostingView` to check configured `NSWindow` sizes, native bridges (`NSSwitch`, `NSSegmentedControl`, `NSButton`), rendered SwiftUI button bounds, and status-item actions. Do not use OCR, pixel probes, ScreenCaptureKit, pointer event loops, or private SwiftUI proxies ([renderedTestSupport.swift](<../Tests/AppRenderedTests/renderedTestSupport.swift>)). Because Vision text recognition is environment-dependent, it is not an automated gate oracle; selection badge fills/glyphs and slider track dimensions are verified via semantic projections. Whole-bitmap equality and rendered pixels are not guaranteed.
 
-status-item testは実`NSStatusItem`の探索・所有actionを検証するため`NSStatusBar.system`へ一時的にitemを作り、test内の`defer`で除去する。popoverは開かず、mouse eventもOSへ送らない。
+Status-item tests temporarily add an item to `NSStatusBar.system` to verify real `NSStatusItem` discovery and owned actions, removing it in `defer`. They do not open popovers or post OS mouse events.
 
-非描画のrouting・Root・policy suiteは`AppCompositionTests`に置き、共有routing fixtureを`AppTestSupport`経由で参照する。両bundleは製品App module（FineTune）を参照するためAppKit/SwiftUIへのlink依存を持ち得るが、test自身が描画経路を実行しないことを境界とする。
+Non-rendering routing, Root, and policy suites live in `AppCompositionTests` and share routing fixtures via `AppTestSupport`. Both bundles reference the product App module (`FineTune`) and may link AppKit/SwiftUI, with the boundary being that tests themselves do not execute rendering paths.
 
-視覚的な回帰は自動ゲート外で、代表状態のスクリーンショットと人間によるレビューで確認する。描画時間や撮影成功率の改善は主張しない。
+Visual regression checks stay outside automated gates via representative screenshots and human review. No claims are made about improved render time or screenshot capture reliability.
 
-### 限定した実機観測
+### Bounded Hardware Observation
 
-権限・hardware・OS固有の仮説を確認する必要がある場合だけ、事前に対象と安全条件を決めて実行する。通常CIのunit/componentを成立させるために実機・録音・権限承認を必須にせず、optionalなhardware/E2E証拠をunitのpassへ合算しない。
+Run hardware observation only when validating permission-, hardware-, or OS-specific hypotheses, with explicit targets and safety conditions defined upfront. Never require real hardware, audio recording, or permission grants for standard CI unit/component gates, and never fold optional hardware/E2E evidence into unit pass counts.
 
-実装が存在することと、aggregate/channel対応・切替・初音・idle復帰が実機で十分かは別の判断である。物理HALのsample rate/channel map、権限取消、sleep/wake、長時間稼働、callback deadline、実音声の正しさは自動ゲートの保証対象外で、方式の適否を判断する限定観測の対象とする。仮説ごとの確認条件は「実音声を確認するときの安全条件」を参照する。
+Having an implementation in place is separate from proving that aggregate/channel support, switching, first-audio onset, and idle recovery are adequate on real hardware. Physical HAL sample rates/channel maps, permission revocation, sleep/wake, long-running stability, callback deadlines, and live audio correctness are outside automated gates and belong to bounded observation. See "Safety Conditions for Live Audio Verification" for per-hypothesis checks.
 
-## ゲートの判定原則
+## Gate Evaluation Principles
 
-- 各runnerの非ゼロ終了は失敗である。成功件数の合計や過去のreportで覆わない
-- parameterized declaration一つと実行row複数は別で、宣言数を実行数と混ぜない
-- SwiftとC++の成功を加算して総成功数を作らない
-- 元の静的呼出し数を固定比較の基準にせず、欠落を覆う総数だけの比較もしない
-- sourceを変更したら同じconfigurationで再実行する。過去の結果は現在の証拠にならない
-- 同じconfigurationの結果だけを比較する。debugとrelease、ローカルとCIは環境が異なり、別OS/configurationのpassを代替証拠にしない
-- CI設定が存在することとCIがpassしたことは別の事実である
+- Any non-zero exit code from a runner is a failure; never mask it with aggregate pass counts or stale reports.
+- One parameterized declaration and multiple executed rows are distinct; never mix declaration counts with execution counts.
+- Never sum Swift and C++ pass counts into a single combined pass total.
+- Never use upstream static invocation counts as a fixed target, nor use total-count comparisons that hide missing coverage.
+- Re-run tests in the same configuration after any source change; prior results are not evidence for the current tree.
+- Compare results only within the same configuration; debug vs. release and local vs. CI differ, so passes from another OS or configuration do not substitute as evidence.
+- The existence of a CI workflow is not evidence that CI passed.
 
-## DSPとnative境界
+## DSP and Native Boundary
 
-[offline DSP executable](<../Tools/DSPTests/main.cpp>)はproductionと同じ実装を合成信号で動かし、次を確認する。
+The [offline DSP executable](<../Tools/DSPTests/main.cpp>) runs production implementations against synthetic signals to verify:
 
-- 初音・短い片側入力・無音中のfilter tail・無音後の再開
-- 任意buffer分割での同一結果、route/channelごとの履歴独立
-- bypass/再有効化・configuration交換・不正設定と非有限信号の明示errorと復帰
-- C形式のbuffer契約・native-owned係数・停止後回収の前提・C++ heap allocationの検出
+- First-audio onset, short single-channel impulses, filter tails in silence, and resume after silence
+- Bit-equivalent results across arbitrary buffer splits and independent per-route/per-channel history
+- Bypass/re-enable, configuration swaps, and explicit errors plus recovery for invalid configs and non-finite signals
+- C buffer contracts, native-owned coefficients, post-stop reclamation assumptions, and C++ heap allocation detection
 
-C++ named unitへ移した原作シナリオは、Swiftのreportとは別のnative機械reportで対応付ける。元Swift methodが消えたことだけで欠落と判定せず、入力・許容差・新unitの実行結果をreviewする。
+Upstream scenarios migrated to named C++ units are mapped via separate native machine reports rather than Swift test reports. Do not judge a removed Swift method as missing coverage without reviewing inputs, tolerances, and execution results of the replacement unit.
 
-debug・release・sanitizerなど複数のconfigurationを別の証拠として実行する。一つのconfigurationのpassは別のconfigurationの証拠にならない。数式の出典と検証の限界は[数値互換記録](<../Tools/DSPTests/Compatibility.md>)を参照する。
+Run multiple configurations (debug, release, sanitizers) as separate pieces of evidence; passing in one configuration does not prove another. See [Compatibility.md](<../Tools/DSPTests/Compatibility.md>) for formula provenance and verification limits.
 
-allocationの検証は、Stage/HAL callbackで計測したordinary/aligned C++ new/deleteとowned fake OS resourceのcounterに限る。他suiteで公開していないcounterを0と補完せず、全C malloc/free・CF/OS allocationの不在を主張しない。allocation検出やASan/UBSanの成功は、実機callbackのdeadline・lock/wait・ARC・全concurrent handoff・PACを証明しない。停止/quiescent前提の所有契約を、稼働中の交換安全性へ読み替えない。
+Allocation checks cover only ordinary/aligned C++ `new`/`delete` measured during Stage/HAL callbacks and owned fake OS resource counters. Do not backfill unexposed counters in other suites as zero, and do not claim the absence of all C `malloc`/`free` or CF/OS allocations. Passing allocation checks or ASan/UBSan does not prove real-hardware callback deadlines, lock/wait freedom, ARC behavior, all concurrent handoffs, or PAC safety. Do not reinterpret stop/quiescent ownership contracts as live-swap safety.
 
-## 実音声を確認するときの安全条件
+## Safety Conditions for Live Audio Verification
 
-実行前に、source app・output device・音量上限・開始/停止・録音保存の有無・失敗時の復帰を明示する。ユーザーの許可なしに音声を取得/再生したり、システム音量・default device・権限設定を変更しない。この観測は通常のゲートに含めない。
+Before running live audio checks, explicitly state the source app, output device, volume ceiling, start/stop steps, whether recordings are saved, and failure recovery. Never capture or play audio or modify system volume, default devices, or permissions without user consent. Keep these observations outside standard gates.
 
-必要な仮説に応じて次を分けて確認する。
+Verify hypotheses separately as needed:
 
-- 1 app → 1 outputの開始/停止と、部分失敗時のsilence・資源回収
-- format/sample rate/channel map・aggregate・default変更・切断/再接続
-- 初音・idle後の短音・長時間稼働・sleep/wakeと権限の取消/復帰
-- software/hardware/DDC/Bluetoothなどbackend別のvolume/muteと保存復元
+- `1 app → 1 output` start/stop, plus silence and resource reclamation on partial failure
+- Format, sample rate, channel map, aggregate handling, default switching, and disconnect/reconnect
+- First-audio onset, short sounds after idle, long-running sessions, sleep/wake, and permission revocation/restoration
+- Per-backend volume/mute and persistence/restore across software, hardware, DDC, and Bluetooth
 
-### AudioProbeの操作範囲
+### AudioProbe Operational Scope
 
-[AudioProbe](<../Tools/AudioProbe/main.swift>)は同じproduction Nativeを使うconsumerで、検証専用の音声実装ではない。起動方法は[開発手順](development.md)に譲り、ここでは観測範囲と安全条件を扱う。
+[AudioProbe](<../Tools/AudioProbe/main.swift>) is a consumer of the same production Native layer, not a test-only audio implementation. Invocation commands live in the [development guide](development.md); this section defines observation scope and safety constraints.
 
-`--help`と不正引数の処理はproducer構築前である。引数省略と`--list`は実device/processのread-only discovery、`--describe`は指定outputのmetadata読取である。これらはcaptureしないが、OSへ触れないunitとは区別する。`--capture`では`--app`・`--process-revision`・`--output`・`--seconds`を明示し、現在のapp/process bindingを使う。時間は(0,30]秒でprepareを含むdeadlineがあり、cleanup待ちの上限は追加2秒である。blocked OSやPENDINGを安全解放済みとは扱わない。source appはtap中mute、EQ/AutoEQ/loudnessは無効、`--gain`は0…1で既定unityである。音量の安全確認を省略しない。main usage description・armed・first-appliedは権限許可の証明ではなく、失敗時は診断と終了結果を確認する。
+`--help` and invalid-argument handling run before constructing the producer. No arguments and `--list` perform read-only discovery of real devices/processes, and `--describe` reads metadata for a specified output. None of these capture audio, though they remain distinct from OS-inert unit tests. `--capture` requires explicit `--app`, `--process-revision`, `--output`, and `--seconds`, binding to the current app/process. Duration is bounded to `(0, 30]` seconds with an overall deadline including preparation, plus up to 2 additional seconds for cleanup wait. Never treat blocked OS calls or `PENDING` reclamation as safely released. The source app is muted while tapped, EQ/AutoEQ/loudness are disabled, and `--gain` is in `0…1` (default unity). Never skip volume safety checks. Main usage descriptions, `armed`, and `first-applied` do not prove OS permission grants; inspect diagnostics and exit status on failure.
 
-事前許可を得た限定観測であり、機能ごとに巨大E2Eを追加する要件にはしない。
+This is a pre-authorized bounded observation tool and must not be turned into a requirement for large per-feature E2E tests.
 
-### 経路無効化の診断
+### Route Invalidation Diagnostics
 
-`bindingChanged / certifyFormat / -5101`はローカルの経路無効化コードで、HALの個別エラーやproperty selectorを表すものではない。`resolveOutput`の拒否もHALのOSStatusではなく条件別のローカルコードを返す（-5110 identity、-5111 input channels、-5112 aggregate、-5113 stereo order、-5114 layout、-5115 sample-rate disagreement）。いずれも`unsupported`のまま条件を区別する。表示は条件別の説明を出し、汎用の「unsupported format」で原因を隠さない。rate disagreementはデバイスがformat遷移中の一時状態でも成立するが、この区別は再試行可否の判断ではなく、失敗後に状態が戻っても原因を特定できるようにするためである。
+`bindingChanged / certifyFormat / -5101` is a local route-invalidation code and does not represent an individual HAL error or property selector. `resolveOutput` rejections likewise return condition-specific local codes rather than HAL `OSStatus` values (`-5110` identity, `-5111` input channels, `-5112` aggregate, `-5113` stereo order, `-5114` layout, `-5115` sample-rate disagreement). All remain `unsupported` while distinguishing conditions. UI surfaces condition-specific explanations rather than masking causes behind a generic "unsupported format" message. Rate disagreement can occur transiently while a device transitions formats; this distinction exists to preserve root-cause visibility after state settles, not to decide retry policy.
 
-nativeは無効化時に最初に記録権を得たイベントだけを保持する。property通知のobject・件数・最初のaddressと、IO callbackのdevice・入力構成・出力構成・出力データ欠損・frame不一致を区別する。この記録はイベント全体の発生順や根本原因の証明ではなく、既存の証明条件を緩めない。通常idle・DSPエラー・無効化前の状態から理由を推測して埋めない。
+Native retains only the first event that wins the recording slot upon invalidation. It distinguishes property notifications (object, count, first address) from IO callbacks (device, input layout, output layout, missing output data, frame mismatch). This record is not a complete event timeline or root-cause proof and does not relax existing certification requirements. Never infer or backfill reasons from normal idle, DSP errors, or pre-invalidation state.
 
-`FINETUNE_AUDIO_DIAGNOSTICS=1`で起動した場合、Swiftの非リアルタイム側がこの記録を既存の`AudioRoute`ログへ出す。音声サンプル・buffer pointer・property配列は記録せず、callback内ではログやHAL呼出しを行わない。[production C境界とfake HALのテスト](<../Tests/NativeHALContractTests/main.cpp>)は理由の区別・同時通知・reader-zero後の履歴・遅延callbackを検証するが、実際に報告された無効化の原因を再現した証拠ではない。実機の再起動・captureは、対象アプリ・出力・時間・音量と復元条件を確認してから行う。
+When launched with `FINETUNE_AUDIO_DIAGNOSTICS=1`, the Swift non-real-time layer logs this record to the existing `AudioRoute` log. Audio samples, buffer pointers, and property arrays are never recorded, and no logging or HAL calls occur inside callbacks. The [production C boundary and fake-HAL tests](<../Tests/NativeHALContractTests/main.cpp>) verify reason differentiation, concurrent notifications, post-reader-zero history, and late callbacks, but do not prove reproduction of real-world invalidation causes. Before restarting or capturing on real hardware, confirm target app, output, duration, volume, and restore conditions.
 
-## 製品組立と配布
+## Product Composition and Distribution
 
-composition testは実Graph/表示model/Host/lifecycleと外部portを使い、同じControl・store・nativeへの接続を確かめる。観測health・default policy・await後の最新payload・early URL・input停止・repeat取消・stop/flushは公開結果として検証する。Quitは終了通知で同期的に入力停止・HUD終了・設定flushを行い、非同期の音声回収を終了条件にしない。Hostの公開delegate capabilityと、入力停止・保存結果をcomponentで確認する。
+Composition tests use real Graph, presentation model, Host, lifecycle, and external ports to verify shared wiring into Control, store, and Native. Observation health, default policy, post-`await` latest payloads, early URLs, input stop, repeat cancellation, and stop/flush are verified via public outcomes. Quit synchronously stops input, dismisses the HUD, and flushes settings on termination notification without making async audio reclamation a termination condition. Component tests verify Host's public delegate capabilities alongside input stop and persistence results.
 
-fake-portの呼出0は実Root起動がglobally OS-inertである証拠ではない。Root constructorの構築時副作用、capture希望とmain metadataの扱い、plistの分離の仕組みは[設計案](architecture.md)を参照し、ここでは検証の境界だけを扱う。
+Zero calls on a fake port do not prove that real Root startup is globally OS-inert. Refer to the [architecture](architecture.md) for Root constructor side effects, capture intent, main metadata handling, and plist separation; this document defines only the verification boundaries.
 
-配布では、対象OS/architecture・entitlements・usage description・bundle identity・署名・公証・更新/アンインストールを別の確認として扱う。原作のユーザー設定のimportはユーザーが明示的に選ぶ操作でなければならず、テスト実行で本物の設定を移行・変更しない。
+Distribution verifies target OS/architecture, entitlements, usage descriptions, bundle identity, signing, notarization, and update/uninstall separately. Importing upstream user settings must be an explicit user action; test runs must never migrate or modify real user settings.
 
-## 保証対応の対応関係
+## Guarantee Mapping
 
-原作の保証シナリオと新unit/componentはmany-to-manyで対応する。unitで十分ならE2Eへ拡大せず、保証が保たれるなら分割・統合・fixture置換を許容する。理由のない削除・入力削減・許容差緩和・skip・known-issue隠蔽でpassを作らない。
+Upstream guarantee scenarios map many-to-many onto new unit and component tests. When a unit test suffices, do not inflate it to E2E; splitting, merging, and fixture replacement are allowed as long as the guarantee holds. Never manufacture passes by unjustified deletion, input reduction, loosened tolerances, skips, or hiding known issues.
 
-対応は次のとおりである。構成の詳細は[設計案](architecture.md)を参照する。
+The mapping is as follows (see [architecture](architecture.md) for structural details):
 
-- copy・format・静的な表示mappingは`AppPresentationContractTests`、実AppKitの構造・幾何・native bridgeは`AppRenderedTests`、非描画のwiringは`AppCompositionTests`に分ける。OCR・pixel probeは使わず（前節参照）、描画時間や撮影成功率の改善は主張しない
-- 物理default出力・入力のpolicy契約は`ControlTests`がclock/writer portを注入して確認する。deadline付きの保証と、default追従中の再試行も同じsuiteで扱う
-- test専用の共通helperは`AppTestSupport`に置き、製品targetの一部にしない
-- 注入したclock/transportは登録数・event・task完了を同期点とし、固定delayを同期点にしない。deadline超過・cancel時はtaskをcancelし、fixtureを解放してから別の期限内で終了を確認する。解放後も終了しないtaskを成功扱いしない
+- Split copy, formatting, and static presentation mapping into `AppPresentationContractTests`; real AppKit structure, geometry, and native bridges into `AppRenderedTests`; and non-rendering wiring into `AppCompositionTests`. Avoid OCR and pixel probes (see above) and make no claims about render speed or screenshot reliability.
+- Verify physical default output/input policy contracts in `ControlTests` with injected clock and writer ports, including deadline-bounded guarantees and follow-default retries.
+- Place shared test-only helpers in `AppTestSupport` rather than in product targets.
+- Use registration counts, events, and task completion—never fixed delays—as synchronization points for injected clocks and transports. On deadline expiry or cancellation, cancel the task, release fixtures, and verify termination within a bounded timeout; never treat a task that outlives fixture release as passing.

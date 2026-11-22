@@ -1,32 +1,32 @@
-# FineTune-Rewrite 開発ガイド
+# FineTune-Rewrite Development Guide
 
-## 目的と作業範囲
+## Purpose and Scope
 
-macOS向けFineTuneを、機能・UI・操作体系・設定・外部連携の基本互換を目指して再設計・再実装する。
-既存の用途を置き換えられることを目標とし、不具合を自分たちで再現・修正・保守できる構造にする。
-既知の不具合まで再現することは互換性の目的に含めず、意図された機能と不具合を区別する。
+Redesign and reimplement FineTune for macOS, targeting baseline compatibility in features, UI, interaction model, settings, and external integrations.
+The goal is to replace existing workflows with a structure where defects can be reproduced, fixed, and maintained independently.
+Compatibility does not include reproducing known bugs; distinguish intended behavior from defects.
 
-## 参照基準
+## Reference Baseline
 
-- [元のFineTune](https://github.com/ronitsingh10/FineTune)を比較元とする。比較対象の版とrevisionは[仕様](docs/spec.md)で管理し、作業のたびに最新mainへ比較対象を変えない。
-- 元のissue・PR・修正履歴は、再現条件と受入れ条件を作る材料として[調査記録](docs/research.md)に整理する。修正履歴があることだけで症状が解決済みとは判断しない。
-- 現行挙動と不具合修正後の期待結果が異なる場合は、その差を[仕様](docs/spec.md)と受入れ条件に明示する。
+- Use the [original FineTune](https://github.com/ronitsingh10/FineTune) as the comparison baseline. Track the pinned version and revision in the [specification](docs/spec.md); do not drift the baseline to latest `main` on every task.
+- Record upstream issues, PRs, and fix history in [research notes](docs/research.md) as source material for reproduction steps and acceptance criteria. Do not assume a symptom is resolved solely because a fix commit exists.
+- Whenever expected post-fix behavior differs from upstream behavior, document the difference explicitly in the [specification](docs/spec.md) and acceptance criteria.
 
-## 設計の前提
+## Design Assumptions
 
-責務境界、状態と音声資源の所有、リアルタイム境界は[設計案](docs/architecture.md)を正本とする。
-aggregate・チャンネル対応・切り替え方式・初音とidleの扱いは実機検証で判断し、ビルド成功を音声の正しさやリアルタイム安全性の証拠にしない。
+The [architecture](docs/architecture.md) document is the source of truth for responsibility boundaries, state and audio resource ownership, and real-time boundaries.
+Validate aggregate handling, channel mapping, switching strategies, first-audio behavior, and idle handling on real hardware; never treat a passing build as proof of audio correctness or real-time safety.
 
-## 文書の役割
+## Document Roles
 
-| 文書 | 答える問い |
+| Document | Question It Answers |
 | --- | --- |
-| [仕様](docs/spec.md) | 何をすべきか（観測可能な契約） |
-| [設計案](docs/architecture.md) | どう設計されているか |
-| [検証方針](docs/verification.md) | どうやって正しさを確かめるか |
-| [開発手順](docs/development.md) | どう開発・ビルド・テストするか |
-| [リファレンス](docs/reference.md) | 正確な一覧（ライセンス由来・診断フィールド） |
-| [調査記録](docs/research.md) | 何を調査し、なぜ差異を選んだか |
+| [Specification](docs/spec.md) | What it must do (observable contract) |
+| [Architecture](docs/architecture.md) | How it is designed |
+| [Verification Policy](docs/verification.md) | How correctness is verified |
+| [Development Guide](docs/development.md) | How to develop, build, and test |
+| [Reference](docs/reference.md) | Exact inventories (license provenance, diagnostic fields) |
+| [Research Notes](docs/research.md) | What was investigated and why divergences were chosen |
 
-この文書は、着手前の判断を変える前提が変わったときに更新する。
-APIの一覧、処理順序、ツールのバージョン値はここへ複製しない。
+Update this document only when assumptions that affect pre-implementation decisions change.
+Do not duplicate API listings, call sequences, or tool version numbers here.
