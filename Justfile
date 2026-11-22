@@ -1,16 +1,31 @@
+# Development and CI task entry points.
+# CI calls recipes by name and parameters; keep them in sync with
+# .github/workflows/check.yml and .github/workflows/release.yml.
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
+# Build inputs and paths.
 swift_paths := "Package.swift Sources App Tests"
 swift_scratch_path := env("SWIFT_SCRATCH_PATH", ".build")
 app_derived_data := env("APP_DERIVED_DATA", "DerivedData")
 build_jobs := env("BUILD_JOBS", "2")
+
+# Native formatting. The version is pinned so lint results stay reproducible.
+# The quotes are part of the value: it is interpolated straight into shell
+# commands that forward the patterns to git ls-files.
 native_patterns := "'*.h' '*.hpp' '*.cpp' '*.mm'"
 clang_format := env("CLANG_FORMAT", "clang-format")
 clang_format_version := "21.1.8"
+
+# Shared native test inputs: common_flags, dsp_sources, and verify_fake_hal.
 native_test_support := "Tools/NativeTests/nativeTestSupport.sh"
 
 # Check formatting, packaging contracts, Swift unit/contract tests, DSP, and native boundaries.
-check configuration="debug": lint (test-unit configuration) (test-contract configuration) (test-dsp configuration) (test-native configuration)
+check configuration="debug": \
+  lint \
+  (test-unit configuration) \
+  (test-contract configuration) \
+  (test-dsp configuration) \
+  (test-native configuration)
 
 # Show the selected Xcode, Swift, Clang, macOS SDK, and native formatter.
 toolchain:
@@ -29,7 +44,8 @@ lint-swift:
 
 # Check tracked and non-ignored untracked native source formatting.
 lint-native: _check-clang-format
-  git ls-files --cached --others --exclude-standard -z -- {{ native_patterns }} | xargs -0 {{ quote(clang_format) }} --style=file:.clang-format --dry-run --Werror --
+  git ls-files --cached --others --exclude-standard -z -- {{ native_patterns }} \
+    | xargs -0 {{ quote(clang_format) }} --style=file:.clang-format --dry-run --Werror --
 
 # Format Swift and native sources in place.
 format: _check-clang-format format-swift format-native
@@ -40,11 +56,14 @@ format-swift:
 
 # Format tracked and non-ignored untracked native sources in place.
 format-native: _check-clang-format
-  git ls-files --cached --others --exclude-standard -z -- {{ native_patterns }} | xargs -0 {{ quote(clang_format) }} --style=file:.clang-format -i --
+  git ls-files --cached --others --exclude-standard -z -- {{ native_patterns }} \
+    | xargs -0 {{ quote(clang_format) }} --style=file:.clang-format -i --
 
 # Build the package in debug or release configuration.
 build configuration="debug":
-  xcrun swift build --scratch-path {{ quote(swift_scratch_path) }} --jobs {{ quote(build_jobs) }} --configuration {{ quote(configuration) }}
+  xcrun swift build --scratch-path {{ quote(swift_scratch_path) }} \
+    --jobs {{ quote(build_jobs) }} \
+    --configuration {{ quote(configuration) }}
 
 # Run isolated Swift test suites in order (unit, contract, then serialized UI).
 test configuration="debug": (test-unit configuration) (test-contract configuration) (test-ui configuration)
@@ -62,6 +81,7 @@ _swift_test configuration filter serialized="false":
   if [[ {{ quote(serialized) }} == "true" ]]; then
     args+=(--no-parallel)
   fi
+  # swift test exits 0 when a filter matches nothing, so inspect the output.
   set +e
   output="$(xcrun swift test "${args[@]}" 2>&1)"
   status=$?
@@ -86,19 +106,23 @@ test-ui configuration="debug": (_swift_test configuration "AppRenderedTests" "tr
 
 # Run offline DSP and public C ABI scenarios without audio devices.
 test-dsp configuration="debug":
-  xcrun swift run --scratch-path {{ quote(swift_scratch_path) }} --jobs {{ quote(build_jobs) }} --configuration {{ quote(configuration) }} DSPTests
+  xcrun swift run --scratch-path {{ quote(swift_scratch_path) }} \
+    --jobs {{ quote(build_jobs) }} \
+    --configuration {{ quote(configuration) }} \
+    DSPTests
 
 # Run native stage/slot/levels ownership tests and fake-HAL C boundary tests.
 test-native configuration="debug": (test-native-hal configuration)
   #!/usr/bin/env bash
   set -euo pipefail
   scratch={{ quote(swift_scratch_path) }}
-  config={{ quote(configuration) }}
+  configuration={{ quote(configuration) }}
   jobs={{ quote(build_jobs) }}
   for product in NativeStageTests NativeSlotTests NativeLevelsTests; do
-    xcrun swift build --scratch-path "$scratch" --jobs "$jobs" --configuration "$config" --product "$product"
+    xcrun swift build --scratch-path "$scratch" --jobs "$jobs" \
+      --configuration "$configuration" --product "$product"
   done
-  bin_dir="$(xcrun swift build --scratch-path "$scratch" --configuration "$config" --show-bin-path)"
+  bin_dir="$(xcrun swift build --scratch-path "$scratch" --configuration "$configuration" --show-bin-path)"
   "$bin_dir/NativeStageTests"
   "$bin_dir/NativeSlotTests"
   "$bin_dir/NativeLevelsTests"
@@ -130,6 +154,7 @@ test-native-hal configuration="debug":
 test-native-sanitizers:
   #!/usr/bin/env bash
   set -euo pipefail
+  # Sanitizer flags are fixed, so this recipe takes no configuration parameter.
   source {{ quote(native_test_support) }}
   directory={{ quote(swift_scratch_path) }}/native-sanitizers
   mkdir -p "$directory"
@@ -165,6 +190,7 @@ test-build-app:
 build-app configuration="debug":
   bash build.sh {{ quote(configuration) }} {{ quote(app_derived_data) }}
 
+# Fail early when clang-format is missing or not the pinned version.
 _check-clang-format:
   #!/usr/bin/env bash
   set -euo pipefail

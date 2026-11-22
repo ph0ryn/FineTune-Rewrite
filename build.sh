@@ -17,10 +17,6 @@ project="$(dirname "${BASH_SOURCE[0]}")/FineTune.xcodeproj"
 
 # Keep Xcode account-based signing disabled; finalize the whole local bundle below.
 # Never launch the app, request permissions, or update signing accounts here.
-printf '%s\n' \
-  'This Xcode build registers the output with LaunchServices and execution policy.' \
-  'It locally ad-hoc signs the completed bundle but never launches it or requests permissions.' \
-  'Use just check to validate without building or registering the product app.' >&2
 xcodebuild build \
   -project "$project" \
   -scheme FineTuneRewrite \
