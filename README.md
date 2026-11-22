@@ -9,6 +9,13 @@ A macOS menu bar app for controlling per-app volume, output routing, equalizer s
 
 A reimplementation targeting the core functionality of [FineTune](https://github.com/ronitsingh10/FineTune), supporting per-app volume, boost, 10-band EQ, headphone correction (AutoEQ), device priority ordering, global hotkeys, and URL scheme automation.
 
+<p align="center">
+  <img src="docs/assets/screenshot-main.png" alt="FineTune popup showing device-level volume sliders, per-app volume control, and a multi-device output route picker" width="625">
+</p>
+<p align="center">
+  <img src="docs/assets/screenshot-eq.png" alt="FineTune showing the Safari app row expanded with the 10-band EQ panel open" width="582">
+</p>
+
 ## Requirements
 
 - macOS 15.4 or later
