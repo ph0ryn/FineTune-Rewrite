@@ -1,78 +1,115 @@
 # FineTune-Rewrite
 
-macOS向け[FineTune](https://github.com/ronitsingh10/FineTune)の基本用途を置き換えることを目指す再実装です。
-UI・操作・保存設定・外部連携の基本互換を保ち、不具合を再現・修正・保守できる責務分離を重視します。
+[![Release](https://img.shields.io/github/v/release/ph0ryn/FineTune-Rewrite?style=flat)](https://github.com/ph0ryn/FineTune-Rewrite/releases)
+[![CI](https://img.shields.io/github/actions/workflow/status/ph0ryn/FineTune-Rewrite/check.yml?label=CI&style=flat)](https://github.com/ph0ryn/FineTune-Rewrite/actions/workflows/check.yml)
+![macOS 15.4+](https://img.shields.io/badge/macOS-15.4%2B-blue?style=flat)
+[![License](https://img.shields.io/badge/license-MIT%20%2F%20GPL--3.0--only-lightgrey?style=flat)](LICENSE)
 
-比較元の固定revisionは[仕様](docs/spec.md)で管理します。最新mainや将来のissue/PR対応を、移植条件へ混ぜません。
+A macOS menu bar app for controlling per-app volume, output routing, equalizer settings, and audio devices.
 
-## 範囲
+A reimplementation targeting the core functionality of [FineTune](https://github.com/ronitsingh10/FineTune), supporting per-app volume, boost, 10-band EQ, headphone correction (AutoEQ), device priority ordering, global hotkeys, and URL scheme automation.
 
-Mixer・Settings・キー操作・`finetune:` URLを、同じControlと設定storeへ接続しています。
-製品Rootが機器・processの監視、入出力policy、機器操作、Native音声runtime、AutoEQ repository/cacheを組み立て、
-UIは同じ状態のsnapshotと共通commandを使います。
+## Requirements
 
-| 区分 | 範囲 |
-| --- | --- |
-| 実装・接続 | 製品Appの組立、表示と操作、保存、OS adapter、C ABI越しのtap/aggregate/IOProcと経路別DSP |
-| 自動検証 | 原作由来のunit/component、新境界の独自テスト、実production DSP/C ABIとfake HALの契約試験 |
-| 別途確認が必要 | 実音声・権限・物理機器、最小対応OS、callback deadline、署名・公証・配布 |
+- macOS 15.4 or later
 
-元と同じ件数やテスト構造の再現は目的ではありません。元の保証と新unitの対応関係は[検証方針](docs/verification.md)で扱います。
-テストの成功は、原作用途をすべて置き換えられる製品、実機音声経路、リアルタイム安全性、署名・公証の完成を意味しません。
+## Install
 
-## 構成
+### GitHub Releases
 
-App / FineTuneDomain / FineTuneControl / FineTunePlatform / NativeAudio / AudioDSP の六層に分かれます。
-Swiftとnativeの公開境界はC形式で、C++型や所有権をSwift側へ広げません。
-責務・依存・所有権は[設計案](docs/architecture.md)、依存の宣言は[Package.swift](Package.swift)を参照してください。
+Download `FineTuneRewrite.dmg` from [Releases](https://github.com/ph0ryn/FineTune-Rewrite/releases) and copy `FineTuneRewrite.app` into your `Applications` folder. Builds target Apple Silicon (`arm64`).
 
-## 開発
-
-環境構築、ビルド、テスト、macOS Appのbundle buildは[開発手順](docs/development.md)にまとめています。
-
-```bash
-just check
-```
-
-`just check`はformat lint・package build・unit/component・offline DSP・native契約試験を実行します。
-描画testとApp bundle buildは含まれません。
-
-## インストール
-
-[Releases](https://github.com/ph0ryn/FineTune-Rewrite/releases)の`FineTuneRewrite.dmg`をダウンロードし、`FineTuneRewrite.app`をApplicationsへコピーしてください。arm64（Apple Silicon）向けのビルドです。
-
-bundleはad-hoc署名で、Developer ID署名と公証は行っていません。Gatekeeperが起動を止める場合は、Finderで右クリックして「開く」を選ぶか、quarantine属性を外します。
+Because the bundle is ad-hoc signed, Gatekeeper may block the first launch. Right-click the app in Finder and choose **Open**, or remove the quarantine attribute:
 
 ```bash
 xattr -dr com.apple.quarantine /Applications/FineTuneRewrite.app
 ```
 
-## 実音声と診断
+### Build from Source
 
-AudioProbeによる限定観測の安全条件は[検証方針](docs/verification.md#実音声を確認するときの安全条件)、
-`FINETUNE_AUDIO_DIAGNOSTICS`の記録フィールドと有効化方法は[リファレンス](docs/reference.md)を参照してください。
+Requires Xcode, Xcode Command Line Tools, and [just](https://just.systems/).
 
-## 文書
+```bash
+just build-app release
+```
 
-- [仕様](docs/spec.md): 外部から観測可能な互換契約
-- [設計案](docs/architecture.md): 層分離・所有権・リアルタイム境界
-- [検証方針](docs/verification.md): 保証境界・判定原則・限定実機観測
-- [開発手順](docs/development.md): 環境構築・ビルド・テスト・review手順
-- [リファレンス](docs/reference.md): GPL由来ファイル一覧・診断フィールド・固定revision
-- [調査記録](docs/research.md): 原作比較・意図的な差異の根拠
-- [開発ガイド](AGENTS.md): 作業の前提と参照基準
+This produces `DerivedData/Build/Products/Release/FineTuneRewrite.app`.
 
-## ライセンス
+## Features
 
-独立して書いた部分は[MIT License](LICENSE)、原作由来のコンポーネントは`GPL-3.0-only`です。ライセンス指定はファイルごとには行わず、コンポーネント単位で行います。
+### Per-App Audio Control
 
-| コンポーネント | ライセンス |
-| --- | --- |
-| Profiles / AutoEQ | `GPL-3.0-only` |
-| DeviceIcons | `GPL-3.0-only` |
-| Mixer UI | `GPL-3.0-only` |
-| Device observation | `GPL-3.0-only` |
-| テスト / DSP | `GPL-3.0-only` |
-| その他 | MIT |
+- **Volume, Mute, and Boost** — Adjust volume sliders, type exact percentages, mute, and apply volume boost for each active app, with live level meters.
+- **Output Routing** — Choose between **Single** (system default or a specific output device) and **Multi** (simultaneous output to multiple devices) per app.
+- **10-Band Equalizer** — Tune 10 frequency bands (32 Hz to 16 kHz) per app with built-in presets and custom saved presets.
+- **Pin and Ignore** — Pin apps to keep them visible or hide them with **Ignore App** from edit mode or the context menu.
 
-著作権表示・GPL本文・KeyboardShortcutsのライセンスは[THIRD_PARTY_NOTICES.txt](App/Resources/THIRD_PARTY_NOTICES.txt)にまとめています。ファイルごとの由来はgit履歴と[リファレンス](docs/reference.md)で追えます。
+### Audio Device Management
+
+- **Output and Input Switching** — Switch between **Output Devices** and **Input Devices** from the header tabs to change default devices and control device volume and mute.
+- **Priority and Visibility** — Reorder device priority in edit mode by dragging or typing a number, hide unused devices, and customize device icons.
+- **Bluetooth Connection** — Connect to paired Bluetooth audio devices from edit mode under **Output Devices**.
+- **Headphone Correction (AutoEQ)** — Open **AutoEQ** on supported output devices to search, favorite, and apply headphone profiles, or import a `ParametricEQ.txt` file.
+
+### Keyboard Navigation
+
+- **Popup Controls** — Navigate rows with Up/Down arrows, adjust volume with Left/Right arrows, type digits to set a percentage, press `M` to toggle mute, and press `Tab` to switch between output and input tabs.
+
+## Configuration
+
+Open **Settings** from the gear icon in the top-right corner of the menu bar popup.
+
+- **General** — Configure launch at login, theme, menu bar **Icon Style**, **Popup Size**, and **Reset** all settings.
+- **Audio** — Configure **Live Audio Processing** (enable or disable per-app audio processing), **Default Volume** for new apps, **Loudness Compensation**, **Lock Input Device**, **System Sounds** output, and **Alert Volume**.
+- **Shortcuts** — Configure **Volume Step**, **Media Keys Control** (volume key integration and **HUD Style**), and global hotkeys for toggling the popup or controlling the active app.
+
+## Integrations
+
+Automate per-app audio from scripts or external tools using the `finetune://` URL scheme.
+
+| Action | Format | Description |
+| --- | --- | --- |
+| Set volume | `finetune://set-volumes?app=<id>&volume=<0-100>` | Set volume for one or more apps (repeatable pairs). |
+| Set mute | `finetune://set-mute?app=<id>&muted=<true\|false>` | Set mute state for one or more apps (repeatable pairs). |
+| Toggle mute | `finetune://toggle-mute?app=<id>` | Toggle mute state for an app. |
+| Step volume | `finetune://step-volume?app=<id>&direction=<up\|down>` | Step volume up or down (`+` / `-` also accepted). |
+| Set output device | `finetune://set-device?app=<id>&device=<uid>` | Route an app to the specified output device UID. |
+| Reset | `finetune://reset` / `finetune://reset?app=<id>` | Reset volume and mute for all apps or a specific app. |
+
+```bash
+open "finetune://set-volumes?app=com.spotify.client&volume=50"
+```
+
+## Troubleshooting
+
+- **Per-app volume control has no effect or shows a permission warning** — When **Allow System Audio** or **Open System Settings** appears at the top of the popup, grant System Audio Recording permission and click **Retry Audio** in the header. Also check that **Live Audio Processing** is enabled under **Settings** → **Audio**.
+- **Media keys do not respond (`Media key control is offline.`)** — Grant Accessibility permission via **Allow Access** under **Settings** → **Shortcuts**. If the offline banner appears, click **Try Again** in the same tab.
+- **Inspect audio route diagnostics** — Launch the app with `FINETUNE_AUDIO_DIAGNOSTICS=1` to record diagnostic events to the unified log under subsystem `com.finetune-rewrite` and category `AudioRoute`. See [reference.md](docs/reference.md) for field definitions.
+
+## Documentation
+
+- [spec.md](docs/spec.md)
+- [architecture.md](docs/architecture.md)
+- [verification.md](docs/verification.md)
+- [development.md](docs/development.md)
+- [reference.md](docs/reference.md)
+
+## Development
+
+Format checks require `clang-format` 21.1.8.
+
+```bash
+just check
+```
+
+Common tasks:
+
+- `just check` — Run format lint, unit and contract tests, offline DSP tests, and native boundary tests.
+- `just build` — Build the Swift package.
+- `just test-ui` — Run rendered UI tests.
+- `just build-app` — Build the debug macOS app bundle.
+- `just format` — Format Swift and C/C++/Objective-C++ sources.
+
+## License
+
+Original code is licensed under the [MIT License](LICENSE); components derived from FineTune are licensed under `GPL-3.0-only`. See [THIRD_PARTY_NOTICES.txt](App/Resources/THIRD_PARTY_NOTICES.txt) for component details, copyright notices, and license texts.
