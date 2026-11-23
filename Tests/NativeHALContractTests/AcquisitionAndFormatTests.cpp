@@ -367,9 +367,44 @@ void bluetoothTapPolicy() {
     auto wired = prepare(request(state()));
     REQUIRE(wired);
     CHECK(hal.requestedDrift == 1);
+    wired.reset();
+    CHECK(hal.resources() == 0);
+
+    // Virtual and unresolvable transports fail closed: sharing an unknown clock domain must not
+    // silently enable sample insertion/deletion.
+    for (const UInt32 transport : {UInt32{kAudioDeviceTransportTypeVirtual}, UInt32{0}}) {
+        resetFixture();
+        hal.customTransport = true;
+        hal.transportType = transport;
+        hal.driftCompensation = 0;
+        auto fallback = prepare(request(state()));
+        REQUIRE(fallback);
+        CHECK(hal.requestedDrift == 0);
+        fallback.reset();
+        CHECK(hal.resources() == 0);
+    }
 }
 
-constexpr std::array<CaseUnit, 9> cases{{
+void clockDeviceCertificate() {
+    inputs = 2;
+    resetFixture();
+    auto matching = prepare(request(state()));
+    REQUIRE(matching);
+    matching.reset();
+    CHECK(hal.resources() == 0);
+
+    // A composition claiming a different clock device is not a valid route binding.
+    resetFixture();
+    hal.wrongClock = true;
+    FTNativeRoute *p = nullptr;
+    FTNativeError error{};
+    const auto r = request(state());
+    CHECK(ft_native_route_prepare(&r, &p, &error) == FT_NATIVE_FAILED);
+    CHECK(p == nullptr && hal.starts == 0 && hal.resources() == 0);
+    CHECK(error.kind == FT_NATIVE_UNSUPPORTED && error.operation == FT_NATIVE_CERTIFY_FORMAT);
+}
+
+constexpr std::array<CaseUnit, 10> cases{{
     {"Tests/NativeHALContractTests/main.cpp::latestCommitState", latestCommitState},
     {"Tests/NativeHALContractTests/main.cpp::acquisitionGuards", acquisitionGuards},
     {"Tests/NativeHALContractTests/main.cpp::capabilityAndCertificate", capabilityAndCertificate},
@@ -382,6 +417,7 @@ constexpr std::array<CaseUnit, 9> cases{{
     {"Tests/NativeHALContractTests/main.cpp::streamLayoutChannelOrigins",
      streamLayoutChannelOrigins},
     {"Tests/NativeHALContractTests/main.cpp::bluetoothTapPolicy", bluetoothTapPolicy},
+    {"Tests/NativeHALContractTests/main.cpp::clockDeviceCertificate", clockDeviceCertificate},
 }};
 
 } // namespace

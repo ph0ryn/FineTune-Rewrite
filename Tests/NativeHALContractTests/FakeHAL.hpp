@@ -52,6 +52,8 @@ struct FakeHAL {
     bool mismatchedOutputUID = false, aggregateOutput = false;
     bool wrongTapFormat = false, wrongRate = false, wrongCertificate = false, planar = false;
     bool wrongPhysicalOutput = false, bluetooth = false, wrongDrift = false;
+    bool customTransport = false, wrongClock = false;
+    UInt32 transportType = 0;
     UInt32 requestedDrift = 99; // Sentinel: createAggregate observed a physical device policy.
     bool partial = true, holdAggregate = false;
     Fault fault = Fault::none, cleanupFault = Fault::none;
@@ -129,8 +131,10 @@ struct FakeHAL {
             out.aggregate = f.aggregateOutput;
             out.outputChannels = 2;
             out.nominalSampleRate = f.nominalRate;
-            out.transportType =
-                f.bluetooth ? kAudioDeviceTransportTypeBluetooth : kAudioDeviceTransportTypeBuiltIn;
+            out.transportType = f.customTransport
+                                    ? f.transportType
+                                    : (f.bluetooth ? kAudioDeviceTransportTypeBluetooth
+                                                   : kAudioDeviceTransportTypeBuiltIn);
             out.output = stereo(f.planar);
             out.output.nativePackedFloat32 = !f.unsupportedOutput;
             out.stereoOrderKnown = f.preferredStereo;
@@ -265,6 +269,7 @@ struct FakeHAL {
             out.subTapDriftCompensation =
                 f.wrongDrift ? 1 - expectedDriftCompensation(physical) : f.driftCompensation;
             out.subTapDriftQuality = f.driftQuality;
+            out.clockDeviceUID = f.wrongClock ? "unrelated-clock" : physical.uid;
             out.hasVariableBufferFrames = f.variableFrames;
             out.ioStreamsEnabled = !f.disabledStreams;
             out.inputStreams = {device + 1000};

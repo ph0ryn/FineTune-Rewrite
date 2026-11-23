@@ -17,14 +17,16 @@ struct AudioObservationTarget: Hashable {
 
 struct AudioStreamRecord {
   let id: AudioStreamID
-  let format: AudioStreamBasicDescription
+  /// Mutable only while the observer holds a rate revision until a BT transition settles.
+  var format: AudioStreamBasicDescription
 }
 
 struct AudioDeviceRecord {
   let device: AudioDevice
-  let outputStreams: [AudioStreamRecord]
-  let inputStreams: [AudioStreamRecord]
-  let sampleRate: Double?
+  var outputStreams: [AudioStreamRecord]
+  var inputStreams: [AudioStreamRecord]
+  /// Mutable only so the observation can hold a rate revision until a BT transition settles.
+  var sampleRate: Double?
 }
 
 struct AudioDeviceInventory {

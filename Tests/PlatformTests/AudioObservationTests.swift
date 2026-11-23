@@ -96,9 +96,10 @@ struct AudioObservationTests {
     }
   }
 
-  @Test("Complete new inventory is visible in every connection, rate and observation callback")
-  func publicationOrder() {
+  @Test("A rate change is published only after the settling window, then fires once")
+  func publicationOrder() async throws {
     let source = DeviceObservationFixture()
+    let settled = CountSignal()
     source.monitor.onDeviceConnected = { uid, _ in
       #expect(source.monitor.outputDevices.contains { $0.uid == uid })
       #expect(source.monitor.observation.health == .healthy)
@@ -111,20 +112,50 @@ struct AudioObservationTests {
       #expect(uid == "device")
       #expect(rate == 96_000)
       #expect(source.monitor.outputDevices[0].formatRevision > 1)
+      settled.emit()
     }
     var revisions: [UInt64] = []
     source.monitor.onObservationChanged = { revisions.append(source.monitor.observation.revision) }
     source.monitor.refresh()
     source.reader.inventory = observationDevices([observationDevice(rate: 96_000)])
     source.monitor.refresh()
+    let held = try #require(source.monitor.outputDevices.first)
+    #expect(held.formatRevision == 1)
+    #expect(revisions == [1])
+    try await source.settleRateChange()
+    try await settled.wait(forCount: 1, waitedFor: "the settled rate callback")
+    #expect(revisions == [1, 2])
     source.reader.inventory = observationDevices([])
     source.monitor.refresh()
     #expect(revisions == [1, 2, 3])
     #expect(source.monitor.outputDevices.isEmpty)
   }
 
+  @Test("A rate that reverts before settling keeps later transitions observable")
+  func rateRevertKeepsLaterTransitionsObservable() async throws {
+    let source = DeviceObservationFixture()
+    source.monitor.refresh()
+    let settled = CountSignal()
+    source.monitor.onSampleRateChanged = { _, _ in settled.emit() }
+
+    source.reader.inventory = observationDevices([observationDevice(rate: 96_000)])
+    source.monitor.refresh()
+    #expect(source.monitor.outputDevices.first?.formatRevision == 1)
+    source.reader.inventory = observationDevices([observationDevice(rate: 48_000)])
+    source.monitor.refresh()
+    #expect(source.monitor.outputDevices.first?.formatRevision == 1)
+
+    source.reader.inventory = observationDevices([observationDevice(rate: 44_100)])
+    source.monitor.refresh()
+    // Let the newly armed settling task register its sleeper before driving the virtual clock.
+    for _ in 0..<20 { await Task.yield() }
+    await source.clock.advance(by: AudioDeviceMonitor.rateSettlingInterval)
+    try await settled.wait(forCount: 1, waitedFor: "the later settled rate callback")
+    #expect(source.monitor.outputDevices.first?.formatRevision == 2)
+  }
+
   @Test("Same UID name/AutoEQ metadata publishes without pretending that the device reconnected")
-  func metadataAndBindingRevisions() throws {
+  func metadataAndBindingRevisions() async throws {
     let source = DeviceObservationFixture()
     var connections = 0
     source.monitor.onDeviceConnected = { _, _ in connections += 1 }
@@ -152,6 +183,10 @@ struct AudioObservationTests {
     #expect(rebound.formatRevision == metadata.formatRevision)
     source.reader.inventory = observationDevices([observationDevice(id: 12, rate: 96_000)])
     source.monitor.refresh()
+    let settledSignal = CountSignal()
+    source.monitor.onSampleRateChanged = { _, _ in settledSignal.emit() }
+    try await source.settleRateChange()
+    try await settledSignal.wait(forCount: 1, waitedFor: "the settled rate callback")
     let formatted = try #require(source.monitor.outputDevices.first)
     #expect(formatted.bindingRevision != rebound.bindingRevision)
     #expect(formatted.formatRevision != rebound.formatRevision)
@@ -312,6 +347,17 @@ final class ObservationTestDeviceReader: AudioDeviceInventoryReading {
 final class DeviceObservationFixture {
   let reader = ObservationTestDeviceReader()
   let observer = ObservationTestObserver()
+  let clock = ManualTestClock()
   let monitor: AudioDeviceMonitor
-  init() { monitor = AudioDeviceMonitor(inventory: reader, observer: observer) }
+  init() {
+    let clock = self.clock
+    monitor = AudioDeviceMonitor(
+      inventory: reader, observer: observer,
+      rateClock: DeviceBackendClock { duration in try await clock.sleep(for: duration) })
+  }
+
+  func settleRateChange() async throws {
+    try await clock.waitForSleepCount(1)
+    await clock.advance(by: AudioDeviceMonitor.rateSettlingInterval)
+  }
 }

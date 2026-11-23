@@ -111,8 +111,19 @@ struct ProcessObservationProjection {
   mutating func project(_ grouped: [AudioApp], previous: [AudioApp]) -> [AudioApp] {
     grouped.map { app in
       let old = previous.first { $0.id == app.id }
+      // AppKit metadata can briefly lose a bundle ID. The process identity is the live PID plus its
+      // HAL objects, so reuse the last confirmed bundle ID for that same owner: changing the
+      // persistence identifier here would stop and rebuild every route of a healthy app.
+      let bundleID: String? = {
+        guard app.bundleID == nil, let old, old.name == app.name, let confirmed = old.bundleID,
+          !confirmed.isEmpty,
+          !Set(old.processObjectIDs).isDisjoint(with: app.processObjectIDs)
+        else { return app.bundleID }
+        return confirmed
+      }()
+      let identifier = bundleID ?? "name:\(app.name)"
       let revision: UInt64
-      if let old, old.processRevision > 0, old.persistenceIdentifier == app.persistenceIdentifier,
+      if let old, old.processRevision > 0, old.persistenceIdentifier == identifier,
         old.processObjectIDs == app.processObjectIDs
       {
         revision = old.processRevision
@@ -122,7 +133,7 @@ struct ProcessObservationProjection {
       }
       return AudioApp(
         id: app.id, processObjectIDs: app.processObjectIDs, name: app.name, icon: app.icon,
-        bundleID: app.bundleID, isHelperBacked: app.isHelperBacked, processRevision: revision)
+        bundleID: bundleID, isHelperBacked: app.isHelperBacked, processRevision: revision)
     }
   }
 }

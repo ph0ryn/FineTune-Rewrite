@@ -359,6 +359,11 @@ OSStatus certify(void *, AudioObjectID aggregate, AudioDeviceIOProcID io,
     CFGuard uidGuard(expectedUID);
     if (!expectedUID)
         return kAudioHardwareUnspecifiedError;
+    const auto clock =
+        CFDictionaryGetValue(composition, CFSTR(kAudioAggregateDeviceClockDeviceKey));
+    if (!clock || CFGetTypeID(clock) != CFStringGetTypeID() ||
+        copyString(static_cast<CFStringRef>(clock), output.clockDeviceUID) != noErr)
+        return kAudioHardwareUnsupportedOperationError;
     AggregateTapPolicy policy{};
     if (!decodeAggregateTapPolicy(composition, expectedUID, policy))
         return kAudioHardwareUnsupportedOperationError;

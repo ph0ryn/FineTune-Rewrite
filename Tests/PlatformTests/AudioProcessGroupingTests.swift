@@ -22,6 +22,19 @@ struct AudioProcessGroupingTests {
         .persistenceIdentifier == "name:Exact Case")
   }
 
+  @Test("A transient missing bundle ID keeps the saved identifier of the same live process")
+  func transientBundleIDDoesNotChangeIdentifier() {
+    var projection = ProcessObservationProjection()
+    let previous = AudioApp(
+      id: 101, processObjectIDs: [20, 21], name: "Player", icon: NSImage(),
+      bundleID: "com.player", processRevision: 3)
+    let current = AudioApp(
+      id: 101, processObjectIDs: [20, 21], name: "Player", icon: NSImage(), bundleID: nil)
+    let projected = projection.project([current], previous: [previous])
+    #expect(projected.first?.bundleID == "com.player")
+    #expect(projected.first?.persistenceIdentifier == "com.player")
+  }
+
   @Test("Unobserved resolution and constructor IO are rejected independently")
   func coldAndUnobserved() {
     let source = ProcessObservationFixture()
