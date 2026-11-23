@@ -3,7 +3,7 @@ import SwiftUI
 /// Copy rendered by the header. `MixerHeader` reads these values for its visible text and the
 /// accessibility/help labels of its icon-only actions.
 struct MixerHeaderCopy: Equatable {
-  var dragHint = "Drag or type a number to set priority"
+  var dragHint = "Drag to set priority"
   var reorder = "Reorder devices"
   var doneReordering = "Done reordering"
   var retryAudio = "Retry Audio"

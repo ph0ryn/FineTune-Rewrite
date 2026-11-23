@@ -131,6 +131,18 @@ struct MixerBindings {
     self.readFresh = readFresh ?? { snapshot }
   }
 
+  /// Live drag exchange: the dragged row and the row under the pointer trade places immediately.
+  nonisolated static func swappedPriority(_ uids: [String], dragged: String, target: String)
+    -> [String]
+  {
+    var result = uids
+    guard let source = result.firstIndex(of: dragged),
+      let destination = result.firstIndex(of: target), source != destination
+    else { return result }
+    result.swapAt(source, destination)
+    return result
+  }
+
   func current(_ app: MixerAppPresentation) -> MixerAppPresentation {
     snapshot.apps.first { $0.id == app.id } ?? app
   }

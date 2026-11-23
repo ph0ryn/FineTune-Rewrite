@@ -28,6 +28,7 @@ struct MixerContractTests {
     let copy = MixerHeaderCopy()
     #expect(copy.reorder == "Reorder devices")
     #expect(copy.doneReordering == "Done reordering")
+    #expect(copy.dragHint == "Drag to set priority")
     #expect(copy.retryAudio == "Retry Audio")
     #expect(copy.settings == "Settings")
     #expect(copy.outputTab == "Output Devices")
@@ -193,5 +194,18 @@ struct MixerContractTests {
     #expect(
       MixerPopupSemantics(snapshot: absent.snapshot, bindings: absent.bindings).captureNotice
         == nil)
+  }
+
+  @Test("Live drag exchanges the dragged row with the row under the pointer")
+  func dragSwapsRowsBeforeDrop() {
+    let uids = ["first", "second", "third", "fourth"]
+    #expect(
+      MixerBindings.swappedPriority(uids, dragged: "first", target: "third")
+        == ["third", "second", "first", "fourth"])
+    #expect(
+      MixerBindings.swappedPriority(uids, dragged: "second", target: "fourth")
+        == ["first", "fourth", "third", "second"])
+    #expect(MixerBindings.swappedPriority(uids, dragged: "second", target: "second") == uids)
+    #expect(MixerBindings.swappedPriority(uids, dragged: "missing", target: "first") == uids)
   }
 }

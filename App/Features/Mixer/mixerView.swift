@@ -92,6 +92,8 @@ struct MixerView: View {
   @State private var iconSelection: DeviceSelection?
   @State private var profileSelection: DeviceSelection?
   @State private var draggedDeviceUID: String?
+  @State private var livePriority: [String]?
+  @State private var lastLiveSwapTarget: String?
   @State private var navigation = PopupKeyboardNavModel()
   @State private var keyboard = MixerKeyboardState()
   @FocusState private var anchorFocused: Bool
@@ -99,12 +101,14 @@ struct MixerView: View {
   init(
     read: @escaping () -> MixerSnapshot, actions: MixerActions, profiles: MixerProfileInterface,
     quit: @escaping () -> Void,
+    initialEditing: Bool = false,
     initialExpandedAppID: String? = nil
   ) {
     self.read = read
     self.actions = actions
     self.profiles = profiles
     self.quit = quit
+    _isEditing = State(initialValue: initialEditing)
     _expandedAppID = State(initialValue: initialExpandedAppID)
   }
 
@@ -157,6 +161,8 @@ struct MixerView: View {
       .onChange(of: scope) { _, _ in
         keyboard = MixerKeyboardState()
         draggedDeviceUID = nil
+        livePriority = nil
+        lastLiveSwapTarget = nil
         syncNavigation()
       }
       .popover(item: $inspected) { selection in inspector(selection, bindings: eventBindings) }
@@ -185,6 +191,8 @@ struct MixerView: View {
           isEditing.toggle()
           keyboard = MixerKeyboardState()
           draggedDeviceUID = nil
+          livePriority = nil
+          lastLiveSwapTarget = nil
           syncNavigation()
         }, retryAudio: actions.requestCapturePermission, settings: actions.openSettings)
       if let notice = semantics.captureNotice {
@@ -291,7 +299,15 @@ struct MixerView: View {
 
   private func deviceSection(bindings: MixerBindings) -> some View {
     let sectionScope = scope
-    let devices = bindings.devices(scope: sectionScope, editing: isEditing)
+    let connected = bindings.devices(scope: sectionScope, editing: isEditing)
+    let devices =
+      livePriority.map { order in
+        connected.sorted { left, right in
+          let leftIndex = order.firstIndex(of: left.id) ?? Int.max
+          let rightIndex = order.firstIndex(of: right.id) ?? Int.max
+          return leftIndex < rightIndex
+        }
+      } ?? connected
     return VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
       if devices.isEmpty {
         Text("No \(scope.rawValue) devices connected.")
@@ -300,43 +316,39 @@ struct MixerView: View {
       }
       ForEach(Array(devices.enumerated()), id: \.element.id) { index, device in
         if isEditing {
-          HStack(spacing: DesignTokens.Spacing.sm) {
-            Image(systemName: "line.3.horizontal").foregroundStyle(.tertiary)
-              .accessibilityLabel("Drag to reorder \(device.device.name)")
-            TextField(
-              "Priority",
-              value: Binding(
-                get: { index + 1 },
-                set: {
-                  moveDevice(device.id, to: $0 - 1, scope: sectionScope, bindings: bindings)
-                }),
-              format: .number
-            )
-            .frame(width: 28).accessibilityLabel("Priority for \(device.device.name)")
-            deviceContent(device, bindings: bindings)
-            if device.isDefault {
-              Text("DEFAULT").font(DesignTokens.Typography.caption).foregroundStyle(.secondary)
-            }
-            Button {
+          DeviceEditRow(
+            device: device,
+            icon: bindings.deviceIcon(device, scope: sectionScope),
+            isInput: sectionScope == .input,
+            isHidden: bindings.current(device, scope: sectionScope).isHidden,
+            onDragBegin: {
+              draggedDeviceUID = device.id
+              livePriority = connected.map(\.id)
+              lastLiveSwapTarget = nil
+            },
+            onDragEnd: { finishDrag(scope: sectionScope, bindings: bindings) },
+            onToggleHidden: {
               actions.device.setHidden(
                 sectionScope, device.id, !bindings.current(device, scope: sectionScope).isHidden)
-            } label: {
-              Image(systemName: device.isHidden ? "eye.slash" : "eye")
+            },
+            onSelectIcon: {
+              iconSelection = DeviceSelection(scope: sectionScope, uid: device.id)
+            },
+            onShowDetails: {
+              inspected = DeviceSelection(scope: sectionScope, uid: device.id)
             }
-            .buttonStyle(.plain).disabled(device.isDefault)
-            .accessibilityLabel("\(device.isHidden ? "Show" : "Hide") \(device.device.name)")
-          }
-          .opacity(device.isHidden ? 0.6 : 1)
-          .onDrag {
-            draggedDeviceUID = device.id
-            return NSItemProvider(object: device.id as NSString)
-          }
-          .onDrop(of: [UTType.text], isTargeted: nil) { _ in
-            guard let uid = draggedDeviceUID else { return false }
-            moveDevice(uid, to: index, scope: sectionScope, bindings: bindings)
-            draggedDeviceUID = nil
-            return true
-          }
+          )
+          .onDrop(
+            of: [UTType.text],
+            delegate: DeviceDropDelegate(
+              onEnter: {
+                liveSwap(with: device.id, scope: sectionScope, bindings: bindings)
+              },
+              onDrop: {
+                finishDrag(scope: sectionScope, bindings: bindings)
+                return true
+              })
+          )
         } else {
           deviceContent(device, bindings: bindings)
             .id(PopupKeyboardNavModel.RowID.device(uid: device.id))
@@ -352,7 +364,7 @@ struct MixerView: View {
     let renderScope = scope
     let profile = profiles.read(device.id)
     let subtitle =
-      renderScope == .output && !isEditing
+      renderScope == .output
       ? profile.selection.flatMap {
         DeviceRow.autoEQSubtitle(
           profileName: MixerProfileBindings(deviceUID: device.id, interface: profiles)
@@ -364,7 +376,7 @@ struct MixerView: View {
         bindings.deviceRow(device, scope: renderScope, autoEQSubtitle: subtitle)
         // AutoEQ availability must not change the width offered to DeviceRow.
         Group {
-          if renderScope == .output && device.device.supportsAutoEQ && !isEditing {
+          if renderScope == .output && device.device.supportsAutoEQ {
             Button("AutoEQ") {
               profileSelection = DeviceSelection(scope: renderScope, uid: device.id)
             }
@@ -382,14 +394,6 @@ struct MixerView: View {
         }
         .buttonStyle(.plain).frame(width: DesignTokens.Dimensions.minTouchTarget)
         .accessibilityLabel("Details for \(device.device.name)")
-        if isEditing {
-          Button {
-            iconSelection = DeviceSelection(scope: renderScope, uid: device.id)
-          } label: {
-            Image(systemName: "paintbrush.pointed")
-          }
-          .buttonStyle(.plain).accessibilityLabel("Icon for \(device.device.name)")
-        }
       }
       if let draft = keyboard.percentageDraft, keyboard.selectedRow == .device(uid: device.id) {
         Text("Volume: \(draft)%").font(DesignTokens.Typography.percentage)
@@ -442,14 +446,26 @@ struct MixerView: View {
     }
   }
 
-  private func moveDevice(
-    _ uid: String, to proposedIndex: Int, scope: MixerDeviceScope, bindings: MixerBindings
-  ) {
-    var uids = bindings.devices(scope: scope, editing: true).map(\.id)
-    guard let index = uids.firstIndex(of: uid) else { return }
-    uids.remove(at: index)
-    uids.insert(uid, at: max(0, min(uids.count, proposedIndex)))
-    actions.device.setPriority(scope, uids)
+  /// Swaps the dragged row with the row currently under the pointer, before the drop happens.
+  private func liveSwap(with target: String, scope: MixerDeviceScope, bindings: MixerBindings) {
+    guard let dragged = draggedDeviceUID, dragged != target, target != lastLiveSwapTarget else {
+      return
+    }
+    let current = livePriority ?? bindings.devices(scope: scope, editing: true).map(\.id)
+    let swapped = MixerBindings.swappedPriority(current, dragged: dragged, target: target)
+    guard swapped != current else { return }
+    lastLiveSwapTarget = target
+    withAnimation(.spring(response: 0.22, dampingFraction: 0.85)) { livePriority = swapped }
+  }
+
+  /// Commits the order seen during the drag once, whether the drag ended on a row or outside.
+  private func finishDrag(scope: MixerDeviceScope, bindings: MixerBindings) {
+    if let order = livePriority, order != bindings.devices(scope: scope, editing: true).map(\.id) {
+      actions.device.setPriority(scope, order)
+    }
+    draggedDeviceUID = nil
+    livePriority = nil
+    lastLiveSwapTarget = nil
   }
 
   private func selectionBackground(_ row: PopupKeyboardNavModel.RowID) -> some View {
@@ -527,6 +543,25 @@ struct MixerView: View {
   private func perform(_ effect: MixerKeyboardEffect) {
     MixerKeyboardRouter.perform(
       effect, scope: &scope, expandedAppID: &expandedAppID, bindings: eventBindings)
+  }
+}
+
+/// Proposes `.move` explicitly so macOS does not show the copy (`+`) cursor, and triggers the
+/// live swap as soon as the drag enters a row.
+private struct DeviceDropDelegate: DropDelegate {
+  let onEnter: () -> Void
+  let onDrop: () -> Bool
+
+  func dropEntered(info: DropInfo) {
+    onEnter()
+  }
+
+  func dropUpdated(info: DropInfo) -> DropProposal? {
+    DropProposal(operation: .move)
+  }
+
+  func performDrop(info: DropInfo) -> Bool {
+    onDrop()
   }
 }
 
