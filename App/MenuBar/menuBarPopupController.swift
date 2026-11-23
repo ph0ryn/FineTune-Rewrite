@@ -65,8 +65,8 @@ final class MenuBarPopupController: MenuBarPopupControlling {
   }
 }
 
-/// Keeps the hosted content transparent inside the actual glass surface, and publishes ideal size
-/// changes to NSPopover. No screen-sized viewport or scrolling participates in popup sizing.
+/// Hosts the SwiftUI content directly in the popover's native glass surface and publishes its
+/// ideal size to NSPopover. No screen-sized viewport or scrolling participates in popup sizing.
 @MainActor
 final class MenuBarPopupContentController: NSViewController {
   private let content: AnyView
@@ -94,21 +94,11 @@ final class MenuBarPopupContentController: NSViewController {
 
   override func loadView() {
     let content = hosting.view
-    if #available(macOS 26, *) {
-      let glass = NSGlassEffectView()
-      glass.style = .regular
-      glass.cornerRadius = DesignTokens.Dimensions.cornerRadius + DesignTokens.Spacing.sm
-      // AppKit only guarantees glass z-order for contentView, not arbitrary subviews.
-      glass.contentView = content
-      view = glass
-    } else {
-      view = content
-    }
+    // NSPopover draws its own glass surface and arrow; a second glass view here would desync.
+    view = content
     let size = hosting.sizeThatFits(
       in: NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude))
     view.setFrameSize(size)
-    content.frame = view.bounds
-    content.autoresizingMask = [.width, .height]
     publishContentSize(size)
   }
 

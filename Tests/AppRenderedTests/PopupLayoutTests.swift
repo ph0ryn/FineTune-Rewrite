@@ -47,26 +47,19 @@ struct PopupLayoutTests {
     #expect(!popover.isShown && source.events.isEmpty)
   }
 
-  @Test("Menu-bar production content uses native glass with the hosting view inside contentView")
+  @Test("Menu-bar production content sits directly in the popover's native glass")
   func nativeGlassContainsActualContent() throws {
     _ = NSApplication.shared
     let source = MixerTestSource()
     let popover = MenuBarPresentation.makePopover(content: popupView(source))
     let controller = try #require(popover.contentViewController)
     controller.loadViewIfNeeded()
+    #expect(controller.view is NSHostingView<AnyView>)
+    #expect(!controller.view.isOpaque)
     if #available(macOS 26, *) {
-      let usesNativeGlass = controller.view is NSGlassEffectView
-      #expect(usesNativeGlass)
-      guard let glass = controller.view as? NSGlassEffectView else { return }
-      let content = try #require(glass.contentView)
-      #expect(content is NSHostingView<AnyView>)
-      #expect(!content.isOpaque)
-      #expect(glass.style == .regular)
-      #expect(glass.tintColor == nil)
-      #expect(controller.preferredContentSize.height > 0)
-    } else {
-      #expect(controller.view is NSHostingView<AnyView>)
+      #expect(!leafDescendants(of: controller.view).contains { $0 is NSGlassEffectView })
     }
+    #expect(controller.preferredContentSize.height > 0)
     #expect(source.events.isEmpty)
   }
 
