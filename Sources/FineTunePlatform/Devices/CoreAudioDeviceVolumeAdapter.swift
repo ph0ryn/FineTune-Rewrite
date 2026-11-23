@@ -424,9 +424,8 @@ public final class CoreAudioDeviceVolumeAdapter: DeviceVolumeProviding {
         }
       }
     }
-    for (key, observation) in observations where !wanted.contains(key) {
-      observation.cancel()
-      observations[key] = nil
+    for key in Set(observations.keys).subtracting(wanted) {
+      observations.removeValue(forKey: key)?.cancel()
     }
     let epoch = generation
     for key in wanted where observations[key] == nil {

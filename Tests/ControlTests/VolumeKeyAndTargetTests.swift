@@ -92,4 +92,24 @@ struct VolumeKeyAndTargetTests {
     frontmost.value = "com.external.Editor"
     #expect(resolver.resolveTargetBundleID(audibleCandidates: []) == "com.external.Editor")
   }
+
+  @Test("Audio daemons are never retained as activation or fallback targets")
+  func audioDaemonsAreNotTargetCandidates() {
+    let ownBundleID = "com.finetune.app"
+    let activationResolver = TargetAppResolver(
+      ownBundleID: ownBundleID, frontmostBundleIDProvider: { nil })
+    for daemon in ["com.apple.systemsoundserverd", "com.apple.coreaudiod"] {
+      activationResolver.handleActivation(bundleID: daemon)
+    }
+    #expect(activationResolver.resolveTargetBundleID(audibleCandidates: []) == nil)
+
+    let daemonFrontmost = MutableBox<String?>("com.apple.coreaudiod")
+    let frontmostResolver = TargetAppResolver(
+      ownBundleID: ownBundleID, frontmostBundleIDProvider: { daemonFrontmost.value })
+    #expect(frontmostResolver.resolveTargetBundleID(audibleCandidates: []) == nil)
+
+    #expect(
+      activationResolver.resolveTargetBundleID(
+        audibleCandidates: [ownBundleID, "com.apple.coreaudiod", "com.spotify"]) == "com.spotify")
+  }
 }

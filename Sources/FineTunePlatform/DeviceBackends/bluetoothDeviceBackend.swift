@@ -77,7 +77,8 @@ public final class BluetoothDeviceBackend {
     refreshTask = nil
     observation?.cancel()
     observation = nil
-    for (id, attempt) in attempts {
+    for id in Array(attempts.keys) {
+      guard let attempt = attempts[id] else { continue }
       finish(id: id, token: attempt.token, result: .failure(CancellationError()))
     }
     for task in errorClearTasks.values { task.cancel() }
@@ -119,7 +120,9 @@ public final class BluetoothDeviceBackend {
       isPoweredOn = snapshot.isPoweredOn
       knownPeers = Dictionary(uniqueKeysWithValues: snapshot.peers.map { ($0.id, $0) })
       if lastErrorDeviceID == nil { lastError = nil }
-      for (id, attempt) in attempts {
+      // Settle against a stable key set: finishing removes entries from `attempts`.
+      for id in Array(attempts.keys) {
+        guard let attempt = attempts[id] else { continue }
         if snapshot.isPoweredOn != true || knownPeers[id] == nil {
           finish(
             id: id, token: attempt.token,
@@ -141,7 +144,8 @@ public final class BluetoothDeviceBackend {
       guard isRunning, generation == epoch, refreshGeneration == ticket else { return }
       isPoweredOn = nil
       knownPeers.removeAll()
-      for (id, attempt) in attempts {
+      for id in Array(attempts.keys) {
+        guard let attempt = attempts[id] else { continue }
         finish(id: id, token: attempt.token, result: .failure(error))
       }
       lastError = error

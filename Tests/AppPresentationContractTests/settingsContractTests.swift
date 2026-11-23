@@ -53,6 +53,16 @@ struct SettingsContractTests {
     #expect(metadata.copyright == "© 2026–2028 Yuta Fudaba")
   }
 
+  @Test("Copyright never prints a reversed year range")
+  func copyrightYearRange() {
+    func copyright(_ year: Int) -> String {
+      SettingsAboutPresentation(version: "1", build: "1", year: year).copyright
+    }
+    #expect(copyright(2025) == "© 2026 Yuta Fudaba")
+    #expect(copyright(2026) == "© 2026 Yuta Fudaba")
+    #expect(copyright(2027) == "© 2026–2027 Yuta Fudaba")
+  }
+
   @Test("Updates renders exactly these section, state and version-line strings")
   func updatesCopy() {
     let copy = SettingsUpdatesCopy()

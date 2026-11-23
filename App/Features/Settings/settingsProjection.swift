@@ -78,7 +78,7 @@ struct SettingsAboutPresentation {
   }
 
   var copyright: String {
-    let years = year == 2026 ? "2026" : "2026–\(year)"
+    let years = year > 2026 ? "2026–\(year)" : "2026"
     return "© \(years) Yuta Fudaba"
   }
 }

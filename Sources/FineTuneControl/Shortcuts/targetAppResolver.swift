@@ -6,6 +6,10 @@ public protocol TargetAppResolving: AnyObject {
 /// Target selection owns only application identifiers. Workspace observation is a Platform adapter.
 @MainActor
 public final class TargetAppResolver: TargetAppResolving {
+  private static let audioDaemonBundleIDs: Set<String> = [
+    "com.apple.systemsoundserverd", "com.apple.coreaudiod",
+  ]
+
   private let ownBundleID: String
   private let frontmostBundleIDProvider: @MainActor () -> String?
   private var lastExternalFrontmost: String?
@@ -19,16 +23,14 @@ public final class TargetAppResolver: TargetAppResolving {
   }
 
   public func handleActivation(bundleID: String?) {
-    if let bundleID, bundleID != ownBundleID { lastExternalFrontmost = bundleID }
+    if let bundleID, isSelectable(bundleID) { lastExternalFrontmost = bundleID }
   }
 
   public func resolveTargetBundleID(audibleCandidates: [String]) -> String? {
-    let candidates = audibleCandidates.filter {
-      $0 != ownBundleID && $0 != "com.apple.systemsoundserverd" && $0 != "com.apple.coreaudiod"
-    }
-    let frontmost = frontmostBundleIDProvider()
+    let candidates = audibleCandidates.filter { isSelectable($0) }
+    let frontmost = frontmostBundleIDProvider().flatMap { isSelectable($0) ? $0 : nil }
     if candidates.isEmpty {
-      return frontmost.flatMap { $0 == ownBundleID ? nil : $0 } ?? lastExternalFrontmost
+      return frontmost ?? lastExternalFrontmost
     }
     if let frontmost, candidates.contains(frontmost) {
       lastTarget = frontmost
@@ -36,6 +38,12 @@ public final class TargetAppResolver: TargetAppResolving {
       lastTarget = candidates.first
     }
     return lastTarget
+  }
+
+  /// The same eligibility rule applies to activation history, frontmost fallback and audible
+  /// candidates, so an unaddressable daemon can never become a volume-control target.
+  private func isSelectable(_ bundleID: String) -> Bool {
+    bundleID != ownBundleID && !Self.audioDaemonBundleIDs.contains(bundleID)
   }
 }
 

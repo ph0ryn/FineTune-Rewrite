@@ -409,11 +409,8 @@ public final class SettingsManager {
   }
 
   public func resetAllSettings() {
-    let version = settings.version
-    change {
-      $0 = Settings()
-      $0.version = version
-    }
+    // A reset writes a fresh document: keep the current schema marker, not a loaded legacy one.
+    change { $0 = Settings() }
     applyLoginRegistration(false)
   }
 }

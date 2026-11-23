@@ -335,6 +335,25 @@ struct PersistenceTests {
     #expect(spy.requests.isEmpty)
   }
 
+  @Test("Reset writes the current schema version even when loaded settings carried an older one")
+  func resetReplacesLoadedVersion() throws {
+    let directory = try temporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let file = directory.appendingPathComponent("settings.json")
+    try Data(#"{"version":9,"appVolumes":{"app":0.25}}"#.utf8).write(to: file)
+
+    let manager = SettingsManager(directory: directory, launchAtLoginService: LoginSpy())
+    let loaded = try JSONDecoder().decode(SavedSettings.self, from: Data(contentsOf: file))
+    #expect(loaded.version == 9)
+
+    manager.resetAllSettings()
+    manager.flushSync()
+    let saved = try JSONDecoder().decode(SavedSettings.self, from: Data(contentsOf: file))
+    #expect(saved.version == SavedSettings().version)
+    #expect(saved.version != 9)
+    #expect(saved.appVolumes.isEmpty)
+  }
+
   @Test("Reset clears storage fields and requests unregister through the injected service")
   func resetUsesInjectedService() throws {
     let directory = try temporaryDirectory()

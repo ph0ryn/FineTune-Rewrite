@@ -21,6 +21,8 @@ private final class CompatLaunchAtLoginService: LaunchAtLoginService {
 private final class CompatAccessibilityTrust: AccessibilityTrustProviding {
   var isTrusted: Bool
   var refreshCallCount = 0
+  /// Simulates a process-trust change that only becomes visible through `refresh()`.
+  var isTrustedAfterRefresh: Bool?
 
   init(isTrusted: Bool = true) {
     self.isTrusted = isTrusted
@@ -28,6 +30,7 @@ private final class CompatAccessibilityTrust: AccessibilityTrustProviding {
 
   func refresh() {
     refreshCallCount += 1
+    if let isTrustedAfterRefresh { isTrusted = isTrustedAfterRefresh }
   }
 }
 
@@ -696,6 +699,20 @@ struct UpstreamMediaKeyLifecycleCompatibilityTests {
     #expect(!revokedStatus.isOffline)
     #expect(!revokedMonitor.watchdogOpen)
     #expect(trust.refreshCallCount == 2)
+  }
+
+  @Test("Tap-disabled re-reads process trust before starting the watchdog")
+  func tapDisabledRefreshesTrustBeforeWatchdog() {
+    let (monitor, status, trust, tap, _) = makeMonitor(trusted: true)
+    trust.isTrustedAfterRefresh = false
+
+    monitor.handleTapDisabled()
+
+    #expect(trust.refreshCallCount == 1)
+    #expect(!trust.isTrusted)
+    #expect(!monitor.watchdogOpen)
+    #expect(!status.isOffline)
+    #expect(tap.events == ["stop"])
   }
 }
 

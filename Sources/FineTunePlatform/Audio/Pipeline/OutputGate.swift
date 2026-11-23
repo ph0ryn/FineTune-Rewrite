@@ -17,7 +17,10 @@ public enum OutputGate {
     guard let silent = Int32(exactly: state.silent_frames) else {
       preconditionFailure("Output-gate counter exceeded adapter range")
     }
-    phase = UInt8(state.phase)
+    guard let nextPhase = UInt8(exactly: state.phase) else {
+      preconditionFailure("Output-gate phase exceeded adapter range")
+    }
+    phase = nextPhase
     progress = state.progress
     silentSamples = silent
     return multiplier

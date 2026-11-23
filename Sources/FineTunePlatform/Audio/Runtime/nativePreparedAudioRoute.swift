@@ -253,7 +253,9 @@ final class NativePreparedAudioRoute: PreparedAudioRoute {
   }
 
   private func emit(_ observation: AudioRouteObservation, sequence: UInt64) {
-    guard sequence >= deliveredSequence else { return }
+    // Each caller takes a fresh, strictly increasing sequence. Drop late or repeated
+    // deliveries so an older snapshot cannot overwrite a newer observation.
+    guard sequence > deliveredSequence else { return }
     deliveredSequence = sequence
     guard observation != lastObservation else { return }
     lastObservation = observation

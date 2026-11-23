@@ -87,9 +87,10 @@ final class MediaKeyMonitor {
   }
 
   func handleTapDisabled() {
+    // The tap can be disabled by a trust change made after this process last checked it.
+    accessibility.refresh()
     guard accessibility.isTrusted else {
       stop()
-      accessibility.refresh()
       return
     }
     if watchdogOpen {

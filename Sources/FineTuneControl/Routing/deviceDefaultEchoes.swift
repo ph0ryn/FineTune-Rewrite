@@ -37,8 +37,10 @@ final class DeviceDefaultEchoes {
     return token
   }
 
+  /// Settle the newest in-flight write for `uid`. Older echoes to the same UID are already
+  /// superseded; the owner ignores their timeouts because it gates them by the pending token.
   func consume(_ uid: String) -> Bool {
-    guard let token = entries.keys.filter({ entries[$0]?.uid == uid }).min() else { return false }
+    guard let token = entries.keys.filter({ entries[$0]?.uid == uid }).max() else { return false }
     cancel(token)
     return true
   }
