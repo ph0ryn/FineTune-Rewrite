@@ -140,6 +140,9 @@ final class MenuBarPresentation: NSObject, NSPopoverDelegate {
 
   static func makePopover<Content: View>(content: Content) -> NSPopover {
     let popover = NSPopover()
+    // Animated resize applies a queued size against the previous target while shown, leaving the
+    // window shorter than its content after Edit/Done and clipping the header.
+    popover.animates = false
     let controller = MenuBarPopupContentController(content: content) { [weak popover] size in
       popover?.contentSize = size
     }

@@ -63,6 +63,14 @@ struct PopupLayoutTests {
     #expect(source.events.isEmpty)
   }
 
+  @Test("The production popover resizes without animation so queued sizes cannot clip content")
+  func popoverDoesNotAnimateResize() throws {
+    let source = MixerTestSource()
+    let popover = MenuBarPresentation.makePopover(content: popupView(source))
+    #expect(!popover.animates)
+    #expect(source.events.isEmpty)
+  }
+
   @Test("Popover content size follows cold, warm, shrink, and equalizer expansion transitions")
   func popoverResizesOnSnapshotAndEqualizerChanges() throws {
     let source = MixerTestSource()
