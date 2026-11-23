@@ -24,7 +24,7 @@ final class CaptureUsageRuntime: AudioRoutingRuntime {
     guard isConfigured else {
       throw AudioRouteFailure(
         kind: .unavailable, stage: "capture-metadata",
-        message: "Live audio is unavailable in this executable. Use the built FineTune Rewrite app."
+        message: "Live audio is unavailable in this executable. Use the built FineTune-Rewrite app."
       )
     }
     return try await runtime.prepare(request)

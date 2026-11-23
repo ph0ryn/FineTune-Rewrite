@@ -27,7 +27,7 @@ final class ApplicationHost: NSObject, NSApplicationDelegate {
       startupTask = Task { await root.lifecycle.start() }
     } catch {
       let alert = NSAlert()
-      alert.messageText = "Couldn’t open FineTune Rewrite"
+      alert.messageText = "Couldn’t open FineTune-Rewrite"
       alert.informativeText = String(describing: error)
       alert.addButton(withTitle: "Quit")
       alert.runModal()
@@ -84,7 +84,7 @@ final class ApplicationHost: NSObject, NSApplicationDelegate {
   private func installMenu() {
     let main = NSMenu()
     let applicationItem = NSMenuItem()
-    let applicationMenu = NSMenu(title: "FineTune Rewrite")
+    let applicationMenu = NSMenu(title: "FineTune-Rewrite")
     let settings = NSMenuItem(
       title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
     settings.target = self
@@ -92,7 +92,7 @@ final class ApplicationHost: NSObject, NSApplicationDelegate {
     applicationMenu.addItem(.separator())
     applicationMenu.addItem(
       NSMenuItem(
-        title: "Quit FineTune Rewrite", action: #selector(NSApplication.terminate(_:)),
+        title: "Quit FineTune-Rewrite", action: #selector(NSApplication.terminate(_:)),
         keyEquivalent: "q"))
     applicationItem.submenu = applicationMenu
     main.addItem(applicationItem)

@@ -22,7 +22,7 @@ struct NativeRouteFailureClassificationTests {
       ),
       (
         FT_NATIVE_PERMISSION_DENIED, AudioRouteFailureKind.permissionDenied,
-        "Allow audio recording for FineTune in macOS Privacy & Security, then try again."
+        "Allow audio recording for FineTune-Rewrite in macOS Privacy & Security, then try again."
       ),
       (
         FT_NATIVE_UNSUPPORTED, AudioRouteFailureKind.unsupported,

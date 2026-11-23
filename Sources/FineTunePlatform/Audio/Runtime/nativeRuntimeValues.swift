@@ -129,7 +129,7 @@ func nativeRouteFailure(_ error: FTNativeError) -> AudioRouteFailure {
   let message: String
   if error.operation == FT_NATIVE_USAGE_DESCRIPTION {
     message =
-      "Audio capture is unavailable in this build. Use the configured FineTune app or AudioProbe build."
+      "Audio capture is unavailable in this build. Use the configured FineTune-Rewrite app or AudioProbe build."
   } else if let rejected = resolveOutputMessage(error) {
     message = rejected
   } else {
@@ -137,7 +137,8 @@ func nativeRouteFailure(_ error: FTNativeError) -> AudioRouteFailure {
     case .captureNotRequested:
       message = "Enable live audio processing before starting this route."
     case .permissionDenied:
-      message = "Allow audio recording for FineTune in macOS Privacy & Security, then try again."
+      message =
+        "Allow audio recording for FineTune-Rewrite in macOS Privacy & Security, then try again."
     case .unsupported:
       message = "This route has an unsupported format, processing configuration, or input topology."
     case .bindingChanged:

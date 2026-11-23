@@ -74,7 +74,7 @@ struct FineTuneSettingsView: View {
         }
       }
       Section("Menu Bar") {
-        setting("Icon Style", description: "How FineTune appears in your menu bar") {
+        setting("Icon Style", description: "How FineTune-Rewrite appears in your menu bar") {
           Picker("Icon Style", selection: bindings.field(\AppSettings.menuBarIconStyle)) {
             ForEach(MenuBarIconStyle.allCases) { Text($0.rawValue).tag($0) }
           }
@@ -193,7 +193,8 @@ struct FineTuneSettingsView: View {
       }
       Section("Media Keys") {
         setting(
-          "Media Keys Control", description: "Use F11/F12 (or volume keys) to control FineTune"
+          "Media Keys Control",
+          description: "Use F11/F12 (or volume keys) to control FineTune-Rewrite"
         ) {
           Toggle("Media Keys Control", isOn: bindings.field(\AppSettings.mediaKeyControlEnabled))
             .labelsHidden()
@@ -288,9 +289,15 @@ struct SettingsAboutView: View {
       Text(copy.independentRewrite)
         .font(DesignTokens.Typography.rowDescription).foregroundStyle(.secondary)
       Spacer()
-      Link(copy.starLabel, destination: copy.starURL)
+      HStack(spacing: DesignTokens.Spacing.md) {
+        Link(copy.rewriteLabel, destination: copy.rewriteURL)
+        Text("·")
+        Link(copy.originalLabel, destination: copy.originalURL)
+      }
       HStack(spacing: DesignTokens.Spacing.xs) {
         Link(copy.licenseLabel, destination: copy.licenseURL)
+        Text("·")
+        Link(copy.noticesLabel, destination: copy.noticesURL)
         Text("·")
         Text(metadata.copyright)
       }

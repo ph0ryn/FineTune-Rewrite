@@ -100,7 +100,7 @@ final class ProductionRoot {
         actions: settingsActions,
         updates: .unavailable(
           reason: "Automatic updates are not configured for this rewrite build.")))
-    window.title = "FineTune Rewrite Settings"
+    window.title = "FineTune-Rewrite Settings"
     return window
   }()
 

@@ -15,7 +15,7 @@ struct SettingsContractTests {
   func generalCopy() {
     let copy = SettingsGeneralCopy()
     #expect(copy.launchAtLoginTitle == "Launch at Login")
-    #expect(copy.launchAtLoginDescription == "Start FineTune when you log in")
+    #expect(copy.launchAtLoginDescription == "Start FineTune-Rewrite when you log in")
     #expect(copy.themeTitle == "Theme")
     #expect(copy.themeDescription == "Match macOS, or lock to Light or Dark")
     #expect(copy.disconnectAlertsTitle == "Device Disconnect Alerts")
@@ -26,21 +26,31 @@ struct SettingsContractTests {
   @Test("About renders exactly these project, license and icon strings and destinations")
   func aboutCopy() {
     let copy = SettingsAboutCopy()
-    #expect(copy.title == "FineTune")
-    #expect(copy.appIconLabel == "FineTune app icon")
+    #expect(copy.title == "FineTune-Rewrite")
+    #expect(copy.appIconLabel == "FineTune-Rewrite app icon")
     #expect(copy.appIconUnavailable == "App icon unavailable")
-    #expect(copy.independentRewrite == "Independent rewrite · Original project by Ronit Singh")
-    #expect(copy.starLabel == "Star on GitHub")
-    #expect(copy.starURL == URL(string: "https://github.com/ronitsingh10/FineTune")!)
-    #expect(copy.licenseLabel == "GPL-3.0-only")
-    #expect(copy.licenseURL == URL(string: "https://www.gnu.org/licenses/gpl-3.0.html")!)
+    #expect(copy.independentRewrite == "Independent rewrite of FineTune by Ronit Singh")
+    #expect(copy.rewriteLabel == "FineTune-Rewrite")
+    #expect(copy.rewriteURL == URL(string: "https://github.com/ph0ryn/FineTune-Rewrite")!)
+    #expect(copy.originalLabel == "FineTune (Original)")
+    #expect(copy.originalURL == URL(string: "https://github.com/ronitsingh10/FineTune")!)
+    #expect(copy.licenseLabel == "LICENSE")
+    #expect(
+      copy.licenseURL
+        == URL(string: "https://github.com/ph0ryn/FineTune-Rewrite/blob/main/LICENSE")!)
+    #expect(copy.noticesLabel == "THIRD_PARTY_NOTICES")
+    #expect(
+      copy.noticesURL
+        == URL(
+          string:
+            "https://github.com/ph0ryn/FineTune-Rewrite/blob/main/App/Resources/THIRD_PARTY_NOTICES.txt"
+        )!)
   }
-
   @Test("Missing About metadata formats itself instead of borrowing a shipped version")
   func aboutMissingMetadataFormatting() {
     let metadata = SettingsAboutPresentation(version: nil, build: nil, year: 2028)
     #expect(metadata.versionDescription == "Version unavailable (build unavailable)")
-    #expect(metadata.copyright == "© 2026–2028 Ronit Singh")
+    #expect(metadata.copyright == "© 2026–2028 Yuta Fudaba")
   }
 
   @Test("Updates renders exactly these section, state and version-line strings")

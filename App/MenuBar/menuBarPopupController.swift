@@ -15,7 +15,7 @@ final class MenuBarPopupController: MenuBarPopupControlling {
   private var toggleOwnedPopup: (() -> Void)?
 
   init(
-    accessibilityTitle: String = "FineTune",
+    accessibilityTitle: String = "FineTune-Rewrite",
     eventPoster: @escaping (NSEvent) -> Void = { event in
       let application = NSApplication.shared
       if !application.isActive { application.activate(ignoringOtherApps: true) }
@@ -138,9 +138,9 @@ final class MenuBarPresentation: NSObject, NSPopoverDelegate {
     statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     popupController = MenuBarPopupController()
     super.init()
-    statusItem.button?.setAccessibilityTitle("FineTune")
+    statusItem.button?.setAccessibilityTitle("FineTune-Rewrite")
     statusItem.button?.image = NSImage(
-      systemSymbolName: "slider.horizontal.3", accessibilityDescription: "FineTune")
+      systemSymbolName: "slider.horizontal.3", accessibilityDescription: "FineTune-Rewrite")
     statusItem.button?.target = self
     statusItem.button?.action = #selector(toggle)
     popover.behavior = .transient

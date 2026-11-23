@@ -20,8 +20,8 @@ struct MixerHeaderCopy: Equatable {
 struct MixerFooterCopy: Equatable {
   var quit = "Quit"
   var shortcut = "⌘Q"
-  var accessibilityLabel = "Quit FineTune"
-  var help = "Quit FineTune (⌘Q)"
+  var accessibilityLabel = "Quit FineTune-Rewrite"
+  var help = "Quit FineTune-Rewrite (⌘Q)"
 }
 
 /// Compact original controls, independent of device services and application lifecycle.

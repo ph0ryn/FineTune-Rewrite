@@ -5,7 +5,7 @@
   <key>CFBundleDevelopmentRegion</key>
   <string>en</string>
   <key>CFBundleDisplayName</key>
-  <string>FineTune Rewrite</string>
+  <string>FineTune-Rewrite</string>
   <key>CFBundleExecutable</key>
   <string>$(EXECUTABLE_NAME)</string>
   <key>CFBundleIdentifier</key>
@@ -25,9 +25,9 @@
   <key>LSUIElement</key>
   <true/>
   <key>NSAudioCaptureUsageDescription</key>
-  <string>FineTune Rewrite needs access to adjust audio from your applications.</string>
+  <string>FineTune-Rewrite needs access to adjust audio from your applications.</string>
   <key>NSBluetoothAlwaysUsageDescription</key>
-  <string>FineTune Rewrite uses Bluetooth to show and connect your paired audio devices.</string>
+  <string>FineTune-Rewrite uses Bluetooth to show and connect your paired audio devices.</string>
   <key>CFBundleURLTypes</key>
   <array>
     <dict>

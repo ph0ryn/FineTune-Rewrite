@@ -15,7 +15,7 @@ struct SettingsSnapshot {
 /// same strings are used by the visible preference labels and descriptions.
 struct SettingsGeneralCopy: Equatable {
   var launchAtLoginTitle = "Launch at Login"
-  var launchAtLoginDescription = "Start FineTune when you log in"
+  var launchAtLoginDescription = "Start FineTune-Rewrite when you log in"
   var themeTitle = "Theme"
   var themeDescription = "Match macOS, or lock to Light or Dark"
   var disconnectAlertsTitle = "Device Disconnect Alerts"
@@ -24,14 +24,22 @@ struct SettingsGeneralCopy: Equatable {
 
 /// Copy and destinations rendered by the About tab; `SettingsAboutView` reads them directly.
 struct SettingsAboutCopy: Equatable {
-  var title = "FineTune"
-  var appIconLabel = "FineTune app icon"
+  var title = "FineTune-Rewrite"
+  var appIconLabel = "FineTune-Rewrite app icon"
   var appIconUnavailable = "App icon unavailable"
-  var independentRewrite = "Independent rewrite · Original project by Ronit Singh"
-  var starLabel = "Star on GitHub"
-  var starURL = URL(string: "https://github.com/ronitsingh10/FineTune")!
-  var licenseLabel = "GPL-3.0-only"
-  var licenseURL = URL(string: "https://www.gnu.org/licenses/gpl-3.0.html")!
+  var independentRewrite = "Independent rewrite of FineTune by Ronit Singh"
+  var rewriteLabel = "FineTune-Rewrite"
+  var rewriteURL = URL(string: "https://github.com/ph0ryn/FineTune-Rewrite")!
+  var originalLabel = "FineTune (Original)"
+  var originalURL = URL(string: "https://github.com/ronitsingh10/FineTune")!
+  var licenseLabel = "LICENSE"
+  var licenseURL = URL(string: "https://github.com/ph0ryn/FineTune-Rewrite/blob/main/LICENSE")!
+  var noticesLabel = "THIRD_PARTY_NOTICES"
+  var noticesURL =
+    URL(
+      string:
+        "https://github.com/ph0ryn/FineTune-Rewrite/blob/main/App/Resources/THIRD_PARTY_NOTICES.txt"
+    )!
 }
 
 /// Copy rendered by the Updates tab; `SettingsUpdatesView` reads these values directly.
@@ -71,7 +79,7 @@ struct SettingsAboutPresentation {
 
   var copyright: String {
     let years = year == 2026 ? "2026" : "2026–\(year)"
-    return "© \(years) Ronit Singh"
+    return "© \(years) Yuta Fudaba"
   }
 }
 

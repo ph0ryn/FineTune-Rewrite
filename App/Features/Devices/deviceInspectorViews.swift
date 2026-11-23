@@ -327,11 +327,12 @@ struct DeviceDetailSheet: View {
           .background(DesignTokens.Colors.glassFillStrong, in: Capsule())
           .fixedSize()
           .accessibilityLabel(Self.automaticTierAccessibilityLabel(autoDetectedTier))
-        Toggle("Use FineTune's software volume", isOn: useSoftwareBinding).toggleStyle(.switch)
+        Toggle("Use FineTune-Rewrite's software volume", isOn: useSoftwareBinding)
+          .toggleStyle(.switch)
           .font(DesignTokens.Typography.pickerText)
       }
       Text(
-        "Turn on only if the volume slider doesn't work. FineTune remembers this for each device."
+        "Turn on only if the volume slider doesn't work. FineTune-Rewrite remembers this for each device."
       )
       .font(DesignTokens.Typography.caption).foregroundStyle(DesignTokens.Colors.textTertiary)
     }

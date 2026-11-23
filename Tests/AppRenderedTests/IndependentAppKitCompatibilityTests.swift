@@ -162,7 +162,7 @@ struct IndependentAppKitCompatibilityTests {
     defer { presentation.shutdown() }
 
     let button = try #require(presentation.statusItem.button)
-    #expect(button.accessibilityTitle() == "FineTune")
+    #expect(button.accessibilityTitle() == "FineTune-Rewrite")
     #expect(presentation.popupController.findStatusItem() === presentation.statusItem)
 
     presentation.popupController.toggle()

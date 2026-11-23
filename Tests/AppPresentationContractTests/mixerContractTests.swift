@@ -41,7 +41,7 @@ struct MixerContractTests {
     let copy = MixerFooterCopy()
     #expect(copy.quit == "Quit")
     #expect(copy.shortcut == "⌘Q")
-    #expect(copy.accessibilityLabel == "Quit FineTune")
+    #expect(copy.accessibilityLabel == "Quit FineTune-Rewrite")
   }
 
   @Test("Device badge selection resolves to the documented fill and glyph")

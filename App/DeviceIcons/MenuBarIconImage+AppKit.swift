@@ -4,7 +4,7 @@ import AppKit
 extension MenuBarIconImage {
   static let canvasSize = NSSize(width: 22, height: 18)
 
-  func nsImage(accessibilityDescription: String = "FineTune") -> NSImage? {
+  func nsImage(accessibilityDescription: String = "FineTune-Rewrite") -> NSImage? {
     let source: NSImage?
     switch self {
     case .systemSymbol(let symbol):

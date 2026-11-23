@@ -93,8 +93,8 @@ final class HUDWindowController {
   func showPerAppNotControlledHUD(displayName: String?, bundleID: String?, icon: NSImage?) {
     let title =
       [displayName, bundleID].compactMap { $0 }.first { !$0.isEmpty }
-      ?? "FineTune isn't controlling this app yet"
-    presentApp(title: title, icon: icon, fraction: 0, message: "Not controlled by FineTune")
+      ?? "FineTune-Rewrite isn't controlling this app yet"
+    presentApp(title: title, icon: icon, fraction: 0, message: "Not controlled by FineTune-Rewrite")
   }
 
   private func presentApp(title: String, icon: NSImage?, fraction: Double, message: String?) {

@@ -239,13 +239,13 @@ final class RootPresentation {
     if !hasCaptureUsageDescription {
       return MixerCaptureNotice(
         message:
-          "Live audio is unavailable in this executable. Use the built FineTune Rewrite app.",
+          "Live audio is unavailable in this executable. Use the built FineTune-Rewrite app.",
         action: nil)
     }
     if graph.controller.captureIntent != .none, graph.controller.knownPermissionDenied {
       return MixerCaptureNotice(
         message:
-          "Audio capture permission was denied. Review FineTune’s access in System Settings.",
+          "Audio capture permission was denied. Review FineTune-Rewrite’s access in System Settings.",
         action: .openSettings)
     }
     // Per-app acquisition failures use the same row/global ownership as other route faults.

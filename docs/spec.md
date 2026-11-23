@@ -12,6 +12,12 @@ The comparison baseline is the [pinned FineTune revision](https://github.com/ron
 - Route all entry points (UI, keyboard, URL scheme, etc.) through shared Control operations; do not split volume semantics or state update paths by entry point.
 - Maintain independent mutable DSP state per route and channel so initial audio onset and resume after silence are not lost.
 
+## Rights and Attribution Divergences
+
+- Rights-driven changes relative to upstream are intentional and are not contract gaps: upstream's Donate links are not preserved.
+- The Settings About tab presents this project, not upstream: repository links open both [FineTune-Rewrite](https://github.com/ph0ryn/FineTune-Rewrite) and the [original FineTune](https://github.com/ronitsingh10/FineTune), the license links open the bundled `LICENSE` and `THIRD_PARTY_NOTICES.txt` on GitHub, and the copyright line names this project's author.
+- The product name is `FineTune-Rewrite` across user-facing surfaces (bundle display name, About tab, and app-referencing copy). The `finetune` URL scheme, bundle identifier, and executable name remain unchanged for compatibility.
+
 ## Mixer Presentation
 
 - Volume sliders use a 4pt track and display a native mini thumb on hover or drag.
@@ -28,7 +34,7 @@ The comparison baseline is the [pinned FineTune revision](https://github.com/ron
 - The app section uses an `APPS` header, 0pt row spacing in normal mode, a 2-column grid with 4pt spacing in edit mode, a separate Ignored grid, and a centered empty state.
 - Base ordering is pinned active → pinned inactive → unpinned active, sorted within each group by locale-aware case-insensitive name with persistent ID as tiebreaker. Unpinned inactive metadata (shown only in edit mode) and ignored apps remain in separate trailing groups.
 - Visual order and keyboard navigation follow the same projection order. Do not alter saved pin/ignore values or route ownership.
-- Upstream Donate links, restoring gain to `1.0` on clicking `0%`, and fallback values for missing device properties are outside this contract. Pixel-for-pixel parity across the entire Mixer is not guaranteed.
+- Restoring gain to `1.0` on clicking `0%`, and fallback values for missing device properties are outside this contract. Pixel-for-pixel parity across the entire Mixer is not guaranteed.
 
 ## Device Switching and Failure Recovery
 
