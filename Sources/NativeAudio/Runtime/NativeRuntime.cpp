@@ -202,6 +202,8 @@ OSStatus audioCallback(AudioObjectID device, const AudioTimeStamp *now,
         return noErr;
     }
     state.timing.observeOutput(state.output.get(), outputFrames * 2);
+    state.timing.observeFidelity(state.input.get(), state.output.get(), outputFrames,
+                                 state.cachedLevels.target_gain);
     state.processingRevision.store(state.installedRevision, std::memory_order_release);
     state.levelsRevision.store(state.cachedLevels.revision, std::memory_order_release);
     state.armed.store(true, std::memory_order_release);

@@ -193,6 +193,10 @@ typedef struct FTNativeTimingSnapshot {
     double max_io_offset_change_frames;
     double max_output_sample_delta;  // Largest adjacent-sample jump in rendered output.
     uint64_t output_discontinuities; // Adjacent jumps far above the smoothed local mean.
+    // Opt-in fidelity counters: input-side discontinuities and samples where rendered output
+    // differs from the tap input by more than the applied gain would explain.
+    uint64_t input_discontinuities;
+    uint64_t input_output_mismatches;
 } FTNativeTimingSnapshot;
 
 typedef struct FTNativeOutputDescription {

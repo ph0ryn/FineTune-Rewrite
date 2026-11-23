@@ -47,6 +47,7 @@ class CallbackTiming {
         largeHostGaps{0}, overBudget{0}, maxEntryGap{0}, maxDuration{0}, maxHostGap{0},
         latestOffset{0}, maxOffsetChange{0}, discontinuities{0};
     std::atomic<std::uint32_t> validMask{0}, maxSampleDelta{0};
+    std::atomic<std::uint64_t> inputDiscontinuities{0}, inputOutputMismatches{0};
 
     static void maximum(std::atomic<std::uint64_t> &destination, std::uint64_t value) noexcept {
         // Single exclusive callback writer: no CAS loop, lock or retry.
@@ -170,6 +171,23 @@ class CallbackTiming {
             maxSampleDelta.store(deltaBits, std::memory_order_relaxed);
         discontinuities.fetch_add(spikes, std::memory_order_relaxed);
     }
+    // Opt-in comparison of the tap input against the rendered output. No samples are copied or
+    // logged: a mismatch means our own path changed the signal, while input spikes without a
+    // matching mismatch mean the corruption arrived from the tap.
+    void observeFidelity(const float *input, const float *output, std::uint32_t frames,
+                         float gain) noexcept {
+        if (!enabled || !input || !output || frames < 2)
+            return;
+        std::uint64_t inputSpikes = 0, mismatches = 0;
+        for (std::uint32_t n = 2; n < frames * 2; ++n) {
+            if (std::fabs(input[n] - input[n - 2]) > 0.2F)
+                ++inputSpikes;
+            if (std::fabs(output[n] - input[n] * gain) > 0.25F)
+                ++mismatches;
+        }
+        inputDiscontinuities.fetch_add(inputSpikes, std::memory_order_relaxed);
+        inputOutputMismatches.fetch_add(mismatches, std::memory_order_relaxed);
+    }
     FTNativeTimingSnapshot snapshot() const noexcept {
         FTNativeTimingSnapshot value{};
         value.enabled = enabled;
@@ -197,6 +215,8 @@ class CallbackTiming {
         value.max_output_sample_delta =
             std::bit_cast<float>(maxSampleDelta.load(std::memory_order_relaxed));
         value.output_discontinuities = discontinuities.load(std::memory_order_relaxed);
+        value.input_discontinuities = inputDiscontinuities.load(std::memory_order_relaxed);
+        value.input_output_mismatches = inputOutputMismatches.load(std::memory_order_relaxed);
         return value;
     }
 };
