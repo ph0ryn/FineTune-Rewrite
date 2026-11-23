@@ -32,6 +32,20 @@ struct MixerKeyboardContractTests {
     #expect(keyboard.selectedRow == .app(persistenceID: "second"))
   }
 
+  @Test("Pointer activity yields the selection and any draft only while navigation is engaged")
+  func pointerActivityYieldsSelection() {
+    let navigation = PopupKeyboardNavModel()
+    navigation.syncOrder(activeDevices: [], appPersistenceIDs: ["player"], isEditingPriority: false)
+    var keyboard = MixerKeyboardState()
+    _ = keyboard.process(.down, navigation: navigation, defaultOutputUID: nil)
+    _ = keyboard.process(.digit(8), navigation: navigation, defaultOutputUID: nil)
+    #expect(keyboard.isEngaged && keyboard.selectedRow == .app(persistenceID: "player"))
+    keyboard.yieldToPointer()
+    #expect(!keyboard.isEngaged && keyboard.selectedRow == nil && keyboard.percentageDraft == nil)
+    keyboard.yieldToPointer()
+    #expect(!keyboard.isEngaged && keyboard.selectedRow == nil)
+  }
+
   @Test("Keyboard percentage entry is a transient draft until Return")
   func keyboardPercentageDraft() {
     let navigation = PopupKeyboardNavModel()

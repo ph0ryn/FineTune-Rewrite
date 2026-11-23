@@ -26,6 +26,13 @@ struct MixerKeyboardState {
   private(set) var isEngaged = false
   private(set) var percentageDraft: String?
 
+  /// Mouse use yields the transient selection and any draft. The engaged guard also keeps pointer
+  /// callbacks from invalidating a popup whose keyboard navigation never woke.
+  mutating func yieldToPointer() {
+    guard isEngaged else { return }
+    self = MixerKeyboardState()
+  }
+
   mutating func process(
     _ input: MixerKeyboardInput, navigation: PopupKeyboardNavModel, defaultOutputUID: String?
   ) -> MixerKeyboardEffect {

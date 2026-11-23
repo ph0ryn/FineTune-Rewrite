@@ -142,10 +142,17 @@ struct MixerView: View {
       // Suppress only the anchor's outline; actual controls keep their own focus effects.
       .focusable().focusEffectDisabled(anchorFocused).focused($anchorFocused)
       .onKeyPress { handleKey($0) }
+      // Any pointer activity yields the transient keyboard selection to the mouse.
+      .onContinuousHover { phase in
+        if case .active = phase { keyboard.yieldToPointer() }
+      }
+      .pointerInteraction { keyboard.yieldToPointer() }
       .onAppear {
         syncNavigation()
         anchorFocused = true
       }
+      // The popover's content survives close, so a fresh open must not restore a stale selection.
+      .onDisappear { keyboard = MixerKeyboardState() }
       .onChange(of: rowIDs) { _, _ in syncNavigation() }
       .onChange(of: scope) { _, _ in
         keyboard = MixerKeyboardState()

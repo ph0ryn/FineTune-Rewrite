@@ -34,6 +34,7 @@ The comparison baseline is the [pinned FineTune revision](https://github.com/ron
 - The app section uses an `APPS` header, 0pt row spacing in normal mode, a 2-column grid with 4pt spacing in edit mode, a separate Ignored grid, and a centered empty state.
 - Base ordering is pinned active → pinned inactive → unpinned active, sorted within each group by locale-aware case-insensitive name with persistent ID as tiebreaker. Unpinned inactive metadata (shown only in edit mode) and ignored apps remain in separate trailing groups.
 - Visual order and keyboard navigation follow the same projection order. Do not alter saved pin/ignore values or route ownership.
+- The transient keyboard-selection highlight exists only while keyboard navigation is engaged: pointer activity inside the popup yields it, and closing the popup clears it so the next open starts without a selection or percentage draft.
 - Restoring gain to `1.0` on clicking `0%`, and fallback values for missing device properties are outside this contract. Pixel-for-pixel parity across the entire Mixer is not guaranteed.
 
 ## Device Switching and Failure Recovery
