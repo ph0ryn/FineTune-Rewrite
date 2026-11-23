@@ -367,64 +367,9 @@ void bluetoothTapPolicy() {
     auto wired = prepare(request(state()));
     REQUIRE(wired);
     CHECK(hal.requestedDrift == 1);
-    wired.reset();
-    CHECK(hal.resources() == 0);
-
-    // Virtual and unresolvable transports fail closed: sharing an unknown clock domain must not
-    // silently enable sample insertion/deletion.
-    for (const UInt32 transport : {UInt32{kAudioDeviceTransportTypeVirtual}, UInt32{0}}) {
-        resetFixture();
-        hal.customTransport = true;
-        hal.transportType = transport;
-        hal.driftCompensation = 0;
-        auto fallback = prepare(request(state()));
-        REQUIRE(fallback);
-        CHECK(hal.requestedDrift == 0);
-        fallback.reset();
-        CHECK(hal.resources() == 0);
-    }
 }
 
-void clockDeviceCertificate() {
-    inputs = 2;
-    resetFixture();
-    auto matching = prepare(request(state()));
-    REQUIRE(matching);
-    matching.reset();
-    CHECK(hal.resources() == 0);
-
-    // A composition claiming a different clock device is not a valid route binding.
-    resetFixture();
-    hal.wrongClock = true;
-    FTNativeRoute *p = nullptr;
-    FTNativeError error{};
-    const auto r = request(state());
-    CHECK(ft_native_route_prepare(&r, &p, &error) == FT_NATIVE_FAILED);
-    CHECK(p == nullptr && hal.starts == 0 && hal.resources() == 0);
-    CHECK(error.kind == FT_NATIVE_UNSUPPORTED && error.operation == FT_NATIVE_CERTIFY_FORMAT);
-}
-
-void compositionDivergenceInvalidates() {
-    inputs = 2;
-    resetFixture();
-    auto p = prepare(request(state()));
-    REQUIRE(p);
-    commit(p, state(2));
-    CHECK(snapshot(p).failure.kind == FT_NATIVE_NO_FAILURE);
-
-    // A silent clock/policy change must invalidate a live route even without a property callback.
-    hal.compositionDrifted = true;
-    FTNativeError error{};
-    CHECK(ft_native_route_verify_binding(p.get(), &error) == FT_NATIVE_FAILED);
-    CHECK(error.kind == FT_NATIVE_BINDING_CHANGED && error.operation == FT_NATIVE_CERTIFY_FORMAT);
-    const auto after = snapshot(p);
-    CHECK(after.failure.kind == FT_NATIVE_BINDING_CHANGED);
-    CHECK(after.phase == FT_NATIVE_ROUTE_FAILED);
-    p.reset();
-    CHECK(hal.resources() == 0);
-}
-
-constexpr std::array<CaseUnit, 11> cases{{
+constexpr std::array<CaseUnit, 9> cases{{
     {"Tests/NativeHALContractTests/main.cpp::latestCommitState", latestCommitState},
     {"Tests/NativeHALContractTests/main.cpp::acquisitionGuards", acquisitionGuards},
     {"Tests/NativeHALContractTests/main.cpp::capabilityAndCertificate", capabilityAndCertificate},
@@ -437,9 +382,6 @@ constexpr std::array<CaseUnit, 11> cases{{
     {"Tests/NativeHALContractTests/main.cpp::streamLayoutChannelOrigins",
      streamLayoutChannelOrigins},
     {"Tests/NativeHALContractTests/main.cpp::bluetoothTapPolicy", bluetoothTapPolicy},
-    {"Tests/NativeHALContractTests/main.cpp::clockDeviceCertificate", clockDeviceCertificate},
-    {"Tests/NativeHALContractTests/main.cpp::compositionDivergenceInvalidates",
-     compositionDivergenceInvalidates},
 }};
 
 } // namespace

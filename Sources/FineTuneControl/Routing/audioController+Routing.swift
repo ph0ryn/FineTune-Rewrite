@@ -1,4 +1,10 @@
 import FineTuneDomain
+import Foundation
+import os
+
+private let routeRebuildLogger = Logger(subsystem: "com.finetune-rewrite", category: "AudioRoute")
+private let routeRebuildDiagnosticsEnabled =
+  ProcessInfo.processInfo.environment["FINETUNE_AUDIO_DIAGNOSTICS"] == "1"
 
 extension AudioController {
   func changed(_ identifiers: [String], explicitRetry: Bool = false) {
@@ -59,8 +65,22 @@ extension AudioController {
       return
     }
     let plan = AudioRoutePlan(
-      processRevision: application.processRevision, processObjectIDs: application.processObjectIDs,
-      sessionID: sessionID, outputs: chosen)
+      processRevision: application.processRevision, sessionID: sessionID, outputs: chosen)
+    if routeRebuildDiagnosticsEnabled, let previous = plans[identifier],
+      !plan.hasSameBindings(as: previous)
+    {
+      let priorBindings = Dictionary(
+        uniqueKeysWithValues: previous.outputs.map { ($0.uid, $0.bindingRevision) })
+      let bindingChanges = plan.outputs.compactMap { output -> String? in
+        guard let before = priorBindings[output.uid] else { return "\(output.uid):added" }
+        return before == output.bindingRevision
+          ? nil : "\(output.uid):\(before)->\(output.bindingRevision)"
+      }
+      let uidChanged = Set(previous.outputs.map(\.uid)) != Set(plan.outputs.map(\.uid))
+      routeRebuildLogger.notice(
+        "rebuild app=\(identifier, privacy: .public) processRevision=\(previous.processRevision)->\(application.processRevision) uidChanged=\(uidChanged) bindings=\(bindingChanges.joined(separator: ","), privacy: .public) force=\(force) explicitRetry=\(explicitRetry) defaultUID=\(self.defaultOutputUID ?? "none", privacy: .public) followsDefault=\(followsDefault)"
+      )
+    }
     if !force, let previous = plans[identifier], plan.hasSameBindings(as: previous),
       (!explicitRetry && routingTasks[identifier] != nil)
         || ((active[identifier] ?? [:]).count == plan.outputs.count
@@ -146,7 +166,6 @@ extension AudioController {
         let output = plan.outputs.first(where: { $0.uid == uid })
       else { return false }
       return record.processRevision == plan.processRevision && record.sessionID == plan.sessionID
-        && record.processObjectIDs == plan.processObjectIDs
         && record.output.bindingRevision == output.bindingRevision
     }
   }
@@ -186,8 +205,8 @@ extension AudioController {
             message: "The prepared owner returned a different route binding.")
         }
         let record = ManagedAudioRoute(
-          handle: handle, processRevision: plan.processRevision,
-          processObjectIDs: plan.processObjectIDs, sessionID: plan.sessionID, output: output)
+          handle: handle, processRevision: plan.processRevision, sessionID: plan.sessionID,
+          output: output)
         candidates.append(record)
         owned[key] = record
         routeObservations[key] = AudioRouteObservation(key: key, phase: .prepared)

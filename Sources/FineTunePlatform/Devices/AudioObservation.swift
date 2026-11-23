@@ -17,18 +17,10 @@ public final class AudioDeviceMonitor: AudioDeviceObservationProviding {
   public var onInputDeviceDisconnected: ((String, String) -> Void)?
   public var onInputDeviceConnected: ((String, String) -> Void)?
   public var onSampleRateChanged: ((String, Double) -> Void)?
-  /// Bluetooth can report several nominal rates while a codec/profile transition settles. A
-  /// format revision published mid-transition invalidates a healthy aggregate and can leave it
-  /// rendering at a rate the device no longer uses.
-  static let rateSettlingInterval: Duration = .milliseconds(150)
-
   private let inventory: any AudioDeviceInventoryReading
   private let subscriptions: AudioObservationSubscriptions
-  private let rateClock: DeviceBackendClock
   private var projection = DeviceObservationProjection()
   private var rates: [String: Double] = [:]
-  private var pendingRateUIDs: Set<String> = []
-  private var rateTasks: [String: Task<Void, Never>] = [:]
   private var running = false
   private var generation: UInt64 = 0
 
@@ -36,13 +28,9 @@ public final class AudioDeviceMonitor: AudioDeviceObservationProviding {
     self.init(
       inventory: CoreAudioObservationInventory(), observer: CoreAudioDevicePropertyObserver())
   }
-  init(
-    inventory: any AudioDeviceInventoryReading, observer: any AudioDevicePropertyObserving,
-    rateClock: DeviceBackendClock = .continuous
-  ) {
+  init(inventory: any AudioDeviceInventoryReading, observer: any AudioDevicePropertyObserving) {
     self.inventory = inventory
-    self.subscriptions = AudioObservationSubscriptions(observer: observer)
-    self.rateClock = rateClock
+    subscriptions = AudioObservationSubscriptions(observer: observer)
   }
 
   public func device(for uid: String) -> AudioDevice? { outputDevices.first { $0.uid == uid } }
@@ -62,7 +50,6 @@ public final class AudioDeviceMonitor: AudioDeviceObservationProviding {
     running = false
     generation += 1
     subscriptions.cancel()
-    cancelRateSettling()
     guard observation.health != .notStarted else { return }
     observation = AudioDeviceObservationSnapshot(
       outputDevices: outputDevices, inputDevices: inputDevices, health: .notStarted,
@@ -70,47 +57,12 @@ public final class AudioDeviceMonitor: AudioDeviceObservationProviding {
     onObservationChanged?()
   }
 
-  public func refresh() { refresh(settledRateUID: nil) }
-
-  /// `settledRateUID` is the device whose rate survived the settling window; its new format is
-  /// published now instead of arming another window.
-  private func refresh(settledRateUID: String?) {
+  public func refresh() {
     let currentGeneration = generation
     do {
       let raw = try inventory.readDevices()
-      let oldRates = rates
-      if let settledRateUID { pendingRateUIDs.remove(settledRateUID) }
-      var observedRates: [String: Double] = [:]
-      for row in raw.devices where !row.outputStreams.isEmpty {
-        observedRates[row.device.uid] = row.sampleRate
-      }
-      // The link can return to its original rate before the window closes. Drop the hold instead
-      // of leaving the UID pending forever, which would suppress every later rate transition.
-      for (uid, rate) in observedRates where pendingRateUIDs.contains(uid) {
-        guard let held = oldRates[uid], !Self.isMeaningfulRateChange(oldRate: held, newRate: rate)
-        else { continue }
-        pendingRateUIDs.remove(uid)
-        rateTasks[uid]?.cancel()
-        rateTasks[uid] = nil
-      }
-      for uid in observedRates.keys {
-        guard uid != settledRateUID, let old = oldRates[uid],
-          Self.isMeaningfulRateChange(oldRate: old, newRate: observedRates[uid]!)
-        else { continue }
-        if pendingRateUIDs.insert(uid).inserted {
-          scheduleRateSettling(uid: uid, generation: currentGeneration)
-        }
-      }
-      var effective = raw.devices
-      for index in effective.indices where pendingRateUIDs.contains(effective[index].device.uid) {
-        guard let heldRate = oldRates[effective[index].device.uid] else { continue }
-        effective[index].sampleRate = heldRate
-        for stream in effective[index].outputStreams.indices {
-          effective[index].outputStreams[stream].format.mSampleRate = heldRate
-        }
-      }
       var nextProjection = projection
-      let devices = try nextProjection.project(effective)
+      let devices = try nextProjection.project(raw.devices)
       if running {
         try subscriptions.sync(raw.observationTargets) { [weak self] in
           guard let self, self.running, self.generation == currentGeneration else { return }
@@ -119,14 +71,13 @@ public final class AudioDeviceMonitor: AudioDeviceObservationProviding {
       }
       let oldOutputs = outputDevices
       let oldInputs = inputDevices
+      let oldRates = rates
       var nextRates: [String: Double] = [:]
       for row in raw.devices where devices.outputs.contains(where: { $0.uid == row.device.uid }) {
         nextRates[row.device.uid] = row.sampleRate
       }
-      var storedRates = nextRates
-      for uid in pendingRateUIDs { storedRates[uid] = oldRates[uid] }
       projection = nextProjection
-      rates = storedRates
+      rates = nextRates
       guard
         observation.health != .healthy || !sameDeviceObservation(oldOutputs, devices.outputs)
           || !sameDeviceObservation(oldInputs, devices.inputs)
@@ -145,31 +96,11 @@ public final class AudioDeviceMonitor: AudioDeviceObservationProviding {
         oldInputs, new: devices.inputs, removed: onInputDeviceDisconnected,
         added: onInputDeviceConnected)
       for (uid, rate) in nextRates {
-        guard !pendingRateUIDs.contains(uid), let old = oldRates[uid],
-          Self.isMeaningfulRateChange(oldRate: old, newRate: rate)
-        else { continue }
-        onSampleRateChanged?(uid, rate)
+        if let old = oldRates[uid], Self.isMeaningfulRateChange(oldRate: old, newRate: rate) {
+          onSampleRateChanged?(uid, rate)
+        }
       }
     } catch { fail(error) }
-  }
-
-  private func scheduleRateSettling(uid: String, generation: UInt64) {
-    rateTasks[uid]?.cancel()
-    rateTasks[uid] = Task { @MainActor [weak self] in
-      guard let self else { return }
-      do {
-        try await self.rateClock.sleep(Self.rateSettlingInterval)
-      } catch { return }
-      guard self.generation == generation else { return }
-      self.rateTasks[uid] = nil
-      self.refresh(settledRateUID: uid)
-    }
-  }
-
-  private func cancelRateSettling() {
-    for task in rateTasks.values { task.cancel() }
-    rateTasks.removeAll()
-    pendingRateUIDs.removeAll()
   }
 
   private func fail(_ error: any Error) {

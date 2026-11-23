@@ -311,24 +311,6 @@ public final class AudioController: AudioCommandHandling {
     } catch { commandFailure = failure(error, stage: "command") }
   }
 
-  /// A settled output sample-rate change invalidates every aggregate bound to that UID. Rebuild
-  /// those routes once, clearing failures latched while the BT link was still renegotiating.
-  public func observeOutputRateChange(uid: String) {
-    captureRetryRevision &+= 1
-    revision &+= 1
-    let affected = Set(applications.map(\.identifier)).filter { identifier in
-      (settingsStore.isFollowingDefault(for: identifier) && defaultRoutingUID() == uid)
-        || plans[identifier]?.outputs.contains(where: { $0.uid == uid }) == true
-        || active[identifier]?[uid] != nil
-    }
-    for identifier in affected {
-      appRevisions[identifier] = revision
-      captureRetryFailures[identifier] = nil
-      routeRetryRevisions[identifier, default: 0] &+= 1
-      reconcile(identifier, force: true, explicitRetry: true)
-    }
-  }
-
   /// Internal lifecycle stop, unlike the explicit user command, preserves the durable wish.
   public func suspend() {
     captureIntent = .none
@@ -436,7 +418,6 @@ final class ManagedAudioRoute {
   let handle: any PreparedAudioRoute
   let key: AudioRouteKey
   let processRevision: UInt64
-  let processObjectIDs: [UInt32]
   let sessionID: UInt64
   var output: AudioOutputDescriptor
   // Admission never reopens after Control has begun closing this owner.
@@ -450,13 +431,12 @@ final class ManagedAudioRoute {
     handle.cancel()
   }
   init(
-    handle: any PreparedAudioRoute, processRevision: UInt64, processObjectIDs: [UInt32],
-    sessionID: UInt64, output: AudioOutputDescriptor
+    handle: any PreparedAudioRoute, processRevision: UInt64, sessionID: UInt64,
+    output: AudioOutputDescriptor
   ) {
     self.handle = handle
     key = handle.key
     self.processRevision = processRevision
-    self.processObjectIDs = processObjectIDs
     self.sessionID = sessionID
     self.output = output
   }

@@ -284,9 +284,8 @@ bool sameLayout(const StereoLayout &a, const StereoLayout &b) noexcept {
 bool validCertificate(const FormatCertificate &value, const OutputDevice &output,
                       const TapDescription &tap) noexcept {
     return validLayout(value.input) && validLayout(value.output) && value.onlyOwnedTapInput &&
-           value.intendedPhysicalOutput && value.clockDeviceUID == output.uid &&
-           value.ioStreamsEnabled && value.maximumFrames > 0 && value.maximumFrames <= 65536 &&
-           value.subTap != kAudioObjectUnknown &&
+           value.intendedPhysicalOutput && value.ioStreamsEnabled && value.maximumFrames > 0 &&
+           value.maximumFrames <= 65536 && value.subTap != kAudioObjectUnknown &&
            value.subTapDriftCompensation == expectedDriftCompensation(output) &&
            value.subTapDriftQuality == kAudioAggregateDriftCompensationHighQuality &&
            value.input.sampleRate == value.output.sampleRate &&
@@ -782,33 +781,6 @@ extern "C" FTNativeResult ft_native_route_snapshot(const FTNativeRoute *route,
         snapshot->failure = route->primary;
     snapshot->cleanup_failure = route->cleanup;
     return FT_NATIVE_OK;
-}
-extern "C" FTNativeResult ft_native_route_verify_binding(FTNativeRoute *route,
-                                                         FTNativeError *error) {
-    if (error)
-        *error = {};
-    if (!route || !route->render || !route->api.policyStillValid)
-        return fail(failure(FT_NATIVE_UNAVAILABLE, FT_NATIVE_CERTIFY_FORMAT), error);
-    if (route->cancelled.load(std::memory_order_acquire) || route->phase == FT_NATIVE_RETIRING ||
-        route->phase == FT_NATIVE_RETIRED || route->phase == FT_NATIVE_ROUTE_FAILED)
-        return FT_NATIVE_OK;
-    auto &state = *route->render;
-    auto problem = recheck(*route);
-    if (problem.kind == FT_NATIVE_NO_FAILURE) {
-        const bool policyValid = route->api.policyStillValid(
-            route->api.context, route->aggregate, route->tapDescription.uid.c_str(),
-            route->physical.uid.c_str(), state.format.subTapDriftCompensation,
-            state.format.subTapDriftQuality);
-        if (!policyValid)
-            problem = failure(FT_NATIVE_BINDING_CHANGED, FT_NATIVE_CERTIFY_FORMAT);
-    }
-    if (problem.kind == FT_NATIVE_NO_FAILURE)
-        return FT_NATIVE_OK;
-    FTNativeInvalidationSnapshot metadata{};
-    metadata.source = FT_NATIVE_INVALIDATION_PROPERTY;
-    metadata.reason = FT_NATIVE_INVALIDATION_PROPERTY_NOTIFICATION;
-    invalidate(state, route->cookie, FT_NATIVE_CERTIFY_FORMAT, metadata);
-    return fail(problem, error);
 }
 extern "C" FTNativeResult ft_native_route_enable_timing(FTNativeRoute *route,
                                                         FTNativeError *error) {

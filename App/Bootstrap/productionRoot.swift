@@ -245,9 +245,6 @@ final class ProductionRoot {
     processes.onObservationChanged = lifecycle.callbackWhileRunning { [weak self] in
       self?.graph.engine.ingestObservations()
     }
-    devices.onSampleRateChanged = lifecycle.callbackWhileRunning { [weak self] uid, _ in
-      self?.graph.controller.observeOutputRateChange(uid: uid)
-    }
     let levels = lifecycle.callbackWhileRunning { [weak self] in
       self?.graph.engine.refreshDeviceLevels()
       self?.updateMenuBarIcon()

@@ -45,8 +45,6 @@ struct Aggregate {
     AudioObjectID id;
     std::string outputUID;
     std::string tapUID;
-    std::string clockUID;
-    UInt32 drift = 0, quality = 0;
     bool destroyRequested = false;
 };
 struct FakeHAL {
@@ -54,8 +52,6 @@ struct FakeHAL {
     bool mismatchedOutputUID = false, aggregateOutput = false;
     bool wrongTapFormat = false, wrongRate = false, wrongCertificate = false, planar = false;
     bool wrongPhysicalOutput = false, bluetooth = false, wrongDrift = false;
-    bool customTransport = false, wrongClock = false, compositionDrifted = false;
-    UInt32 transportType = 0;
     UInt32 requestedDrift = 99; // Sentinel: createAggregate observed a physical device policy.
     bool partial = true, holdAggregate = false;
     Fault fault = Fault::none, cleanupFault = Fault::none;
@@ -133,10 +129,8 @@ struct FakeHAL {
             out.aggregate = f.aggregateOutput;
             out.outputChannels = 2;
             out.nominalSampleRate = f.nominalRate;
-            out.transportType = f.customTransport
-                                    ? f.transportType
-                                    : (f.bluetooth ? kAudioDeviceTransportTypeBluetooth
-                                                   : kAudioDeviceTransportTypeBuiltIn);
+            out.transportType =
+                f.bluetooth ? kAudioDeviceTransportTypeBluetooth : kAudioDeviceTransportTypeBuiltIn;
             out.output = stereo(f.planar);
             out.output.nativePackedFloat32 = !f.unsupportedOutput;
             out.stereoOrderKnown = f.preferredStereo;
@@ -184,8 +178,7 @@ struct FakeHAL {
                 return acquisitionError;
             id = f.nextID++;
             f.requestedDrift = expectedDriftCompensation(physical);
-            f.aggregates.push_back({id, physical.uid, tap, physical.uid, f.requestedDrift,
-                                    kAudioAggregateDriftCompensationHighQuality, false});
+            f.aggregates.push_back({id, physical.uid, tap});
             return f.fault == Fault::aggregate ? acquisitionError : noErr;
         };
         a.destroyAggregate = [](void *c, AudioObjectID id) -> OSStatus {
@@ -272,23 +265,11 @@ struct FakeHAL {
             out.subTapDriftCompensation =
                 f.wrongDrift ? 1 - expectedDriftCompensation(physical) : f.driftCompensation;
             out.subTapDriftQuality = f.driftQuality;
-            out.clockDeviceUID = f.wrongClock ? "unrelated-clock" : physical.uid;
             out.hasVariableBufferFrames = f.variableFrames;
             out.ioStreamsEnabled = !f.disabledStreams;
             out.inputStreams = {device + 1000};
             out.outputStreams = {device + 2000};
             return noErr;
-        };
-        a.policyStillValid = [](void *c, AudioObjectID aggregate, const char *tapUID,
-                                const char *clockUID, UInt32 drift, UInt32 quality) -> bool {
-            auto &f = at(c);
-            if (f.compositionDrifted)
-                return false;
-            for (const auto &a : f.aggregates)
-                if (a.id == aggregate)
-                    return a.tapUID == tapUID && a.clockUID == clockUID && a.drift == drift &&
-                           a.quality == quality;
-            return false;
         };
         a.start = [](void *c, AudioObjectID, AudioDeviceIOProcID id) -> OSStatus {
             auto &f = at(c);

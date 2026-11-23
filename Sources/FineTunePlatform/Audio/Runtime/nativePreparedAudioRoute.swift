@@ -25,10 +25,6 @@ final class NativePreparedAudioRoute: PreparedAudioRoute {
   private var lastDiagnosticTime: TimeInterval?
   private var lastDiagnosticPhase: FTNativePhase?
   private var didTraceInvalidation = false
-  /// Composition is re-read once per second (50 × 20 ms polls). Core Audio can change an
-  /// aggregate's clock or sub-tap policy without emitting a notification.
-  private var verificationPolls = 0
-  private static let pollsPerBindingVerification = 50
 
   init(key: AudioRouteKey, owner: NativeRouteOwner, initialRevision: UInt64) {
     self.key = key
@@ -170,21 +166,11 @@ final class NativePreparedAudioRoute: PreparedAudioRoute {
     let operationSequence = nextSequence()
     let shouldRetire = retiring
     let diagnostics = diagnosticsEnabled
-    verificationPolls &+= 1
-    let shouldVerify =
-      !shouldRetire && !cancelled && verificationPolls % Self.pollsPerBindingVerification == 0
     let result = await owner.perform { pointer in
       var error = FTNativeError()
-      var result = shouldRetire ? ft_native_route_retire(pointer, &error) : FT_NATIVE_OK
+      let result = shouldRetire ? ft_native_route_retire(pointer, &error) : FT_NATIVE_OK
       var snapshot = FTNativeRouteSnapshot()
       let snapshotResult = ft_native_route_snapshot(pointer, &snapshot)
-      if shouldVerify {
-        var verificationError = FTNativeError()
-        if ft_native_route_verify_binding(pointer, &verificationError) != FT_NATIVE_OK {
-          result = FT_NATIVE_FAILED
-          error = verificationError
-        }
-      }
       return NativeRouteResult(
         result: snapshotResult == FT_NATIVE_OK ? result : FT_NATIVE_FAILED,
         snapshot: snapshot, failure: error,
@@ -197,15 +183,7 @@ final class NativePreparedAudioRoute: PreparedAudioRoute {
     if shouldRetire {
       _ = receiveRetirement(result, sequence: operationSequence)
     } else if !cancelled {
-      if result.result == FT_NATIVE_OK {
-        emit(
-          nativeRouteObservation(key: key, snapshot: result.snapshot), sequence: operationSequence)
-      } else {
-        emit(
-          AudioRouteObservation(
-            key: key, phase: .failed, failure: nativeRouteFailure(result.failure)),
-          sequence: operationSequence)
-      }
+      emit(nativeRouteObservation(key: key, snapshot: result.snapshot), sequence: operationSequence)
     }
   }
 

@@ -335,68 +335,6 @@ struct AudioControllerHandoffTests {
     await controller.shutdown()
   }
 
-  @Test("A settled output rate change rebuilds only routes bound to that output")
-  func settledRateChangeRebuildsAffectedRoutes() async throws {
-    let (controller, settings, runtime) = makeController()
-    let pinned = AudioApplicationDescriptor(
-      identifier: "unit.pinned", processID: 102, processRevision: 1,
-      displayName: "Pinned", bundleID: "unit.pinned")
-    settings.setDeviceRouting(for: pinned.identifier, deviceUID: "B")
-    controller.observeOutputs([a, b], defaultUID: "A")
-    controller.observeApplications([application, pinned])
-    controller.perform(.requestCaptureStart)
-    await controller.waitForCurrentWork()
-    let following = try #require(runtime.handle("A"))
-    let fixed = try #require(runtime.handle("B"))
-    #expect(runtime.requests.count == 2)
-
-    controller.observeOutputRateChange(uid: "A")
-    await controller.waitForCurrentWork()
-
-    #expect(runtime.requests.count == 3)
-    #expect(following.retired && !following.ioRunning)
-    #expect(runtime.handle("A") !== following)
-    #expect(runtime.handle("B") === fixed)
-    #expect(controller.activeDeviceUIDs(for: application.identifier) == ["A"])
-    #expect(controller.lastFailure == nil)
-    await controller.shutdown()
-  }
-
-  @Test("A rate change on an unused output leaves healthy routes untouched")
-  func unrelatedRateChangeDoesNotRebuild() async throws {
-    let (controller, _, runtime) = makeController()
-    controller.observeOutputs([a, b], defaultUID: "A")
-    controller.observeApplications([application])
-    controller.perform(.requestCaptureStart)
-    await controller.waitForCurrentWork()
-    #expect(runtime.requests.count == 1)
-
-    controller.observeOutputRateChange(uid: "B")
-    await controller.waitForCurrentWork()
-    #expect(runtime.requests.count == 1)
-    await controller.shutdown()
-  }
-
-  @Test("A settled output rate change releases a failure latched during the transition")
-  func settledRateChangeClearsLatchedFailure() async throws {
-    let (controller, _, runtime) = makeController()
-    runtime.prepareFailure = AudioRouteFailure(
-      kind: .unavailable, stage: "transition", message: "rate not settled")
-    controller.observeOutputs([a], defaultUID: "A")
-    controller.observeApplications([application])
-    controller.perform(.requestCaptureStart)
-    await controller.waitForCurrentWork()
-    #expect(controller.captureRetryFailure != nil)
-
-    runtime.prepareFailure = nil
-    controller.observeOutputRateChange(uid: "A")
-    await controller.waitForCurrentWork()
-
-    #expect(controller.captureRetryFailure == nil)
-    #expect(controller.activeDeviceUIDs(for: application.identifier) == ["A"])
-    await controller.shutdown()
-  }
-
   @Test(
     "Repeated explicit retry joins PENDING cleanup and honors its current ACK",
     arguments: [false, true])
@@ -538,55 +476,6 @@ struct AudioControllerHandoffTests {
     #expect(controller.activeDeviceUIDs(for: application.identifier) == [target])
     #expect(replacement.rendering && !replacement.retired)
     #expect(controller.captureRetryFailure == nil && controller.lastFailure == nil)
-    await controller.shutdown()
-  }
-
-  @Test("A new helper process object rebuilds the tap even when its revision is unchanged")
-  func helperProcessObjectForcesRebuild() async throws {
-    let (controller, _, runtime) = makeController()
-    let initial = AudioApplicationDescriptor(
-      identifier: application.identifier, processID: application.processID, processRevision: 1,
-      displayName: application.displayName, bundleID: application.bundleID,
-      processObjectIDs: [20])
-    controller.observeOutputs([a], defaultUID: "A")
-    controller.observeApplications([initial])
-    controller.perform(.requestCaptureStart)
-    await controller.waitForCurrentWork()
-    #expect(runtime.requests.count == 1)
-
-    let withHelper = AudioApplicationDescriptor(
-      identifier: application.identifier, processID: application.processID, processRevision: 1,
-      displayName: application.displayName, bundleID: application.bundleID,
-      processObjectIDs: [20, 21])
-    controller.observeApplications([withHelper])
-    await controller.waitForCurrentWork()
-
-    #expect(controller.applications.first?.processObjectIDs == [20, 21])
-    #expect(controller.activeDeviceUIDs(for: application.identifier) == ["A"])
-    #expect(runtime.requests.count == 2)
-    await controller.shutdown()
-  }
-
-  @Test("One binding-changed episode forces one rebuild, not one per distinct error detail")
-  func bindingChangeEpisodeIsCoalesced() async throws {
-    let (controller, _, runtime) = makeController()
-    controller.observeOutputs([a, b], defaultUID: "A")
-    controller.observeApplications([application])
-    controller.perform(.requestCaptureStart)
-    await controller.waitForCurrentWork()
-    let original = try #require(runtime.handle("A"))
-    original.rendering = false
-
-    let first = AudioRouteFailure(
-      kind: .bindingChanged, stage: "certifyFormat", code: -5101, message: "first")
-    original.onObservation?(
-      AudioRouteObservation(key: original.key, phase: .failed, failure: first))
-    let second = AudioRouteFailure(
-      kind: .bindingChanged, stage: "resolveOutput", code: -5102, message: "second")
-    original.onObservation?(
-      AudioRouteObservation(key: original.key, phase: .failed, failure: second))
-    await controller.waitForCurrentWork()
-    #expect(runtime.requests.count == 2)
     await controller.shutdown()
   }
 

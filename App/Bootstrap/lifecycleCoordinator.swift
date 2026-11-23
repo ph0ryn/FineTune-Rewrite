@@ -82,16 +82,6 @@ final class LifecycleCoordinator {
     }
   }
 
-  func callbackWhileRunning<A, B>(
-    _ action: @escaping @MainActor (A, B) -> Void
-  ) -> @MainActor (A, B) -> Void {
-    let current = generation
-    return { [weak self] first, second in
-      guard let self, self.phase == .running, self.generation == current else { return }
-      action(first, second)
-    }
-  }
-
   /// Application-owned cached observations share this coordinator's lifetime.
   func observeWhileStarted(
     read: @escaping @MainActor () -> Void, onChange: @escaping @MainActor () -> Void

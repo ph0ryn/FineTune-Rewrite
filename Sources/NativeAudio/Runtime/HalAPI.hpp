@@ -37,13 +37,6 @@ inline bool bluetoothTransport(UInt32 transport) noexcept {
            transport == kAudioDeviceTransportTypeBluetoothLE;
 }
 
-// Bluetooth, virtual and unresolvable transports cannot be assumed to have a crystal clock domain
-// independent of the process tap. Enabling drift there makes the HAL insert/delete samples.
-inline bool sharesClockDomain(UInt32 transport) noexcept {
-    return bluetoothTransport(transport) || transport == kAudioDeviceTransportTypeVirtual ||
-           transport == kAudioDeviceTransportTypeUnknown;
-}
-
 struct OutputDevice {
     AudioObjectID id = kAudioObjectUnknown;
     std::string uid;
@@ -57,10 +50,11 @@ struct OutputDevice {
     std::vector<AudioObjectID> outputStreams;
 };
 
-// Fail closed: only a device with a known independent clock domain gets drift compensation.
-// An unresolvable transport must not silently opt into sample insertion/deletion.
+// A Bluetooth output and its process tap share the BT clock domain. Drift compensation there
+// makes the HAL insert/delete samples on the ~50ppm offset (audible periodic crackle), so only
+// other transports request and certify it.
 inline UInt32 expectedDriftCompensation(const OutputDevice &output) noexcept {
-    return sharesClockDomain(output.transportType) ? 0 : 1;
+    return bluetoothTransport(output.transportType) ? 0 : 1;
 }
 struct TapDescription {
     AudioObjectID id = kAudioObjectUnknown;
@@ -72,7 +66,6 @@ struct FormatCertificate {
     StereoLayout output;
     std::uint32_t maximumFrames = 0;
     AudioObjectID subTap = kAudioObjectUnknown;
-    std::string clockDeviceUID;
     UInt32 subTapDriftCompensation = 0;
     UInt32 subTapDriftQuality = 0;
     bool hasVariableBufferFrames = false;
@@ -101,11 +94,6 @@ struct HalAPI {
     OSStatus (*destroyIOProc)(void *, AudioObjectID, AudioDeviceIOProcID) = nullptr;
     OSStatus (*certify)(void *, AudioObjectID, AudioDeviceIOProcID, const OutputDevice &,
                         const TapDescription &, FormatCertificate &) = nullptr;
-    // Read-only re-check of the aggregate's immutable clock and sub-tap policy. Core Audio can
-    // change these without emitting a Composition notification, so certification alone is not
-    // proof that a live route still has the binding it was prepared with.
-    bool (*policyStillValid)(void *, AudioObjectID, const char *, const char *, UInt32,
-                             UInt32) = nullptr;
     OSStatus (*start)(void *, AudioObjectID, AudioDeviceIOProcID) = nullptr;
     OSStatus (*stop)(void *, AudioObjectID, AudioDeviceIOProcID) = nullptr;
     OSStatus (*addListener)(void *, AudioObjectID, AudioObjectPropertyAddress,
