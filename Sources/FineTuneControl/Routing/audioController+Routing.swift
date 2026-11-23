@@ -59,7 +59,8 @@ extension AudioController {
       return
     }
     let plan = AudioRoutePlan(
-      processRevision: application.processRevision, sessionID: sessionID, outputs: chosen)
+      processRevision: application.processRevision, processObjectIDs: application.processObjectIDs,
+      sessionID: sessionID, outputs: chosen)
     if !force, let previous = plans[identifier], plan.hasSameBindings(as: previous),
       (!explicitRetry && routingTasks[identifier] != nil)
         || ((active[identifier] ?? [:]).count == plan.outputs.count
@@ -145,6 +146,7 @@ extension AudioController {
         let output = plan.outputs.first(where: { $0.uid == uid })
       else { return false }
       return record.processRevision == plan.processRevision && record.sessionID == plan.sessionID
+        && record.processObjectIDs == plan.processObjectIDs
         && record.output.bindingRevision == output.bindingRevision
     }
   }
@@ -184,8 +186,8 @@ extension AudioController {
             message: "The prepared owner returned a different route binding.")
         }
         let record = ManagedAudioRoute(
-          handle: handle, processRevision: plan.processRevision, sessionID: plan.sessionID,
-          output: output)
+          handle: handle, processRevision: plan.processRevision,
+          processObjectIDs: plan.processObjectIDs, sessionID: plan.sessionID, output: output)
         candidates.append(record)
         owned[key] = record
         routeObservations[key] = AudioRouteObservation(key: key, phase: .prepared)

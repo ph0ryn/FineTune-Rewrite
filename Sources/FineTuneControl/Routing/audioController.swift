@@ -436,6 +436,7 @@ final class ManagedAudioRoute {
   let handle: any PreparedAudioRoute
   let key: AudioRouteKey
   let processRevision: UInt64
+  let processObjectIDs: [UInt32]
   let sessionID: UInt64
   var output: AudioOutputDescriptor
   // Admission never reopens after Control has begun closing this owner.
@@ -449,12 +450,13 @@ final class ManagedAudioRoute {
     handle.cancel()
   }
   init(
-    handle: any PreparedAudioRoute, processRevision: UInt64, sessionID: UInt64,
-    output: AudioOutputDescriptor
+    handle: any PreparedAudioRoute, processRevision: UInt64, processObjectIDs: [UInt32],
+    sessionID: UInt64, output: AudioOutputDescriptor
   ) {
     self.handle = handle
     key = handle.key
     self.processRevision = processRevision
+    self.processObjectIDs = processObjectIDs
     self.sessionID = sessionID
     self.output = output
   }

@@ -791,17 +791,22 @@ extern "C" FTNativeResult ft_native_route_verify_binding(FTNativeRoute *route,
         route->phase == FT_NATIVE_RETIRED || route->phase == FT_NATIVE_ROUTE_FAILED)
         return FT_NATIVE_OK;
     auto &state = *route->render;
-    const bool valid = route->api.policyStillValid(
-        route->api.context, route->aggregate, route->tapDescription.uid.c_str(),
-        route->physical.uid.c_str(), state.format.subTapDriftCompensation,
-        state.format.subTapDriftQuality);
-    if (valid)
+    auto problem = recheck(*route);
+    if (problem.kind == FT_NATIVE_NO_FAILURE) {
+        const bool policyValid = route->api.policyStillValid(
+            route->api.context, route->aggregate, route->tapDescription.uid.c_str(),
+            route->physical.uid.c_str(), state.format.subTapDriftCompensation,
+            state.format.subTapDriftQuality);
+        if (!policyValid)
+            problem = failure(FT_NATIVE_BINDING_CHANGED, FT_NATIVE_CERTIFY_FORMAT);
+    }
+    if (problem.kind == FT_NATIVE_NO_FAILURE)
         return FT_NATIVE_OK;
     FTNativeInvalidationSnapshot metadata{};
     metadata.source = FT_NATIVE_INVALIDATION_PROPERTY;
     metadata.reason = FT_NATIVE_INVALIDATION_PROPERTY_NOTIFICATION;
     invalidate(state, route->cookie, FT_NATIVE_CERTIFY_FORMAT, metadata);
-    return fail(failure(FT_NATIVE_BINDING_CHANGED, FT_NATIVE_CERTIFY_FORMAT), error);
+    return fail(problem, error);
 }
 extern "C" FTNativeResult ft_native_route_enable_timing(FTNativeRoute *route,
                                                         FTNativeError *error) {

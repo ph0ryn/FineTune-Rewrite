@@ -76,7 +76,8 @@ final class AudioEngine {
         processes.activeApps.map { app in
           AudioApplicationDescriptor(
             identifier: app.persistenceIdentifier, processID: app.id,
-            processRevision: app.processRevision, displayName: app.name, bundleID: app.bundleID)
+            processRevision: app.processRevision, displayName: app.name, bundleID: app.bundleID,
+            processObjectIDs: app.processObjectIDs)
         })
     }
   }

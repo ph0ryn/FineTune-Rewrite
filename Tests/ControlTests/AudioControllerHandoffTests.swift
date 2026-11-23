@@ -541,6 +541,32 @@ struct AudioControllerHandoffTests {
     await controller.shutdown()
   }
 
+  @Test("A new helper process object rebuilds the tap even when its revision is unchanged")
+  func helperProcessObjectForcesRebuild() async throws {
+    let (controller, _, runtime) = makeController()
+    let initial = AudioApplicationDescriptor(
+      identifier: application.identifier, processID: application.processID, processRevision: 1,
+      displayName: application.displayName, bundleID: application.bundleID,
+      processObjectIDs: [20])
+    controller.observeOutputs([a], defaultUID: "A")
+    controller.observeApplications([initial])
+    controller.perform(.requestCaptureStart)
+    await controller.waitForCurrentWork()
+    #expect(runtime.requests.count == 1)
+
+    let withHelper = AudioApplicationDescriptor(
+      identifier: application.identifier, processID: application.processID, processRevision: 1,
+      displayName: application.displayName, bundleID: application.bundleID,
+      processObjectIDs: [20, 21])
+    controller.observeApplications([withHelper])
+    await controller.waitForCurrentWork()
+
+    #expect(controller.applications.first?.processObjectIDs == [20, 21])
+    #expect(controller.activeDeviceUIDs(for: application.identifier) == ["A"])
+    #expect(runtime.requests.count == 2)
+    await controller.shutdown()
+  }
+
   @Test("One binding-changed episode forces one rebuild, not one per distinct error detail")
   func bindingChangeEpisodeIsCoalesced() async throws {
     let (controller, _, runtime) = makeController()
