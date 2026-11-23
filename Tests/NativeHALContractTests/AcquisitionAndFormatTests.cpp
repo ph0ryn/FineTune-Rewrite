@@ -404,7 +404,27 @@ void clockDeviceCertificate() {
     CHECK(error.kind == FT_NATIVE_UNSUPPORTED && error.operation == FT_NATIVE_CERTIFY_FORMAT);
 }
 
-constexpr std::array<CaseUnit, 10> cases{{
+void compositionDivergenceInvalidates() {
+    inputs = 2;
+    resetFixture();
+    auto p = prepare(request(state()));
+    REQUIRE(p);
+    commit(p, state(2));
+    CHECK(snapshot(p).failure.kind == FT_NATIVE_NO_FAILURE);
+
+    // A silent clock/policy change must invalidate a live route even without a property callback.
+    hal.compositionDrifted = true;
+    FTNativeError error{};
+    CHECK(ft_native_route_verify_binding(p.get(), &error) == FT_NATIVE_FAILED);
+    CHECK(error.kind == FT_NATIVE_BINDING_CHANGED && error.operation == FT_NATIVE_CERTIFY_FORMAT);
+    const auto after = snapshot(p);
+    CHECK(after.failure.kind == FT_NATIVE_BINDING_CHANGED);
+    CHECK(after.phase == FT_NATIVE_ROUTE_FAILED);
+    p.reset();
+    CHECK(hal.resources() == 0);
+}
+
+constexpr std::array<CaseUnit, 11> cases{{
     {"Tests/NativeHALContractTests/main.cpp::latestCommitState", latestCommitState},
     {"Tests/NativeHALContractTests/main.cpp::acquisitionGuards", acquisitionGuards},
     {"Tests/NativeHALContractTests/main.cpp::capabilityAndCertificate", capabilityAndCertificate},
@@ -418,6 +438,8 @@ constexpr std::array<CaseUnit, 10> cases{{
      streamLayoutChannelOrigins},
     {"Tests/NativeHALContractTests/main.cpp::bluetoothTapPolicy", bluetoothTapPolicy},
     {"Tests/NativeHALContractTests/main.cpp::clockDeviceCertificate", clockDeviceCertificate},
+    {"Tests/NativeHALContractTests/main.cpp::compositionDivergenceInvalidates",
+     compositionDivergenceInvalidates},
 }};
 
 } // namespace

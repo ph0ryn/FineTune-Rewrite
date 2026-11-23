@@ -411,6 +411,32 @@ OSStatus certify(void *, AudioObjectID aggregate, AudioDeviceIOProcID io,
     output.ioStreamsEnabled = status == noErr;
     return status;
 }
+bool policyStillValid(void *, AudioObjectID aggregate, const char *tapUID, const char *clockUID,
+                      UInt32 drift, UInt32 quality) {
+    if (!tapUID || !clockUID)
+        return false;
+    CFDictionaryRef composition = nullptr;
+    if (scalar(aggregate, kAudioAggregateDevicePropertyComposition, composition) != noErr)
+        return false;
+    CFGuard guard(composition);
+    if (!composition || CFGetTypeID(composition) != CFDictionaryGetTypeID())
+        return false;
+    const auto clock =
+        CFDictionaryGetValue(composition, CFSTR(kAudioAggregateDeviceClockDeviceKey));
+    if (!clock || CFGetTypeID(clock) != CFStringGetTypeID())
+        return false;
+    std::string observedClock;
+    if (copyString(static_cast<CFStringRef>(clock), observedClock) != noErr ||
+        observedClock != clockUID)
+        return false;
+    auto expectedTap = CFStringCreateWithCString(nullptr, tapUID, kCFStringEncodingUTF8);
+    CFGuard tapGuard(expectedTap);
+    if (!expectedTap)
+        return false;
+    AggregateTapPolicy observed{};
+    return decodeAggregateTapPolicy(composition, expectedTap, observed) &&
+           observed.driftCompensation == drift && observed.driftQuality == quality;
+}
 OSStatus aggregatePresent(void *, AudioObjectID object, bool &present) {
     AudioClassID type = 0;
     const auto status = scalar(object, kAudioObjectPropertyClass, type);
@@ -446,6 +472,7 @@ const HalAPI &systemHalAPI() noexcept {
             return AudioDeviceDestroyIOProcID(device, io);
         },
         certify,
+        policyStillValid,
         [](void *, AudioObjectID device, AudioDeviceIOProcID io) {
             return AudioDeviceStart(device, io);
         },

@@ -231,6 +231,10 @@ void ft_native_route_cancel(FTNativeRoute *route);
 // Snapshot is not a pure getter and must run on the route's serialized NRT owner lane.
 FTNativeResult ft_native_route_snapshot(const FTNativeRoute *route,
                                         FTNativeRouteSnapshot *snapshot);
+// NRT read-only re-check of the live aggregate clock and sub-tap policy. Core Audio can change
+// these without a Composition notification. A mismatch closes render admission and returns a
+// bindingChanged failure so the owner can be rebuilt instead of rendering against a stale clock.
+FTNativeResult ft_native_route_verify_binding(FTNativeRoute *route, FTNativeError *failure);
 // Opt-in NRT diagnostics, same serialized owner lane. Enable only after successful prepare and
 // before any start/commit; never toggled/reset while callbacks run. Adds numeric timing reads
 // only, with no logs/samples/controls in the callback. Existing snapshot ABI is unchanged.

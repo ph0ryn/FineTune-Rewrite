@@ -101,6 +101,11 @@ struct HalAPI {
     OSStatus (*destroyIOProc)(void *, AudioObjectID, AudioDeviceIOProcID) = nullptr;
     OSStatus (*certify)(void *, AudioObjectID, AudioDeviceIOProcID, const OutputDevice &,
                         const TapDescription &, FormatCertificate &) = nullptr;
+    // Read-only re-check of the aggregate's immutable clock and sub-tap policy. Core Audio can
+    // change these without emitting a Composition notification, so certification alone is not
+    // proof that a live route still has the binding it was prepared with.
+    bool (*policyStillValid)(void *, AudioObjectID, const char *, const char *, UInt32,
+                             UInt32) = nullptr;
     OSStatus (*start)(void *, AudioObjectID, AudioDeviceIOProcID) = nullptr;
     OSStatus (*stop)(void *, AudioObjectID, AudioDeviceIOProcID) = nullptr;
     OSStatus (*addListener)(void *, AudioObjectID, AudioObjectPropertyAddress,
