@@ -62,12 +62,11 @@ struct DeviceObservationProjection {
         guard let rate = record.sampleRate, rate.isFinite, rate > 0 else {
           throw AudioObservationFailure(message: "Invalid device sample rate.")
         }
-        let ordered = streams.sorted { $0.id < $1.id }
-        guard Set(ordered.map(\.id)).count == ordered.count else {
+        guard Set(streams.map(\.id)).count == streams.count else {
           throw AudioObservationFailure(message: "Duplicate audio stream bindings.")
         }
-        let format = Format(rate: rate, streams: ordered.map { StreamFormatFingerprint($0.format) })
-        let binding = Binding(id: record.device.id, streamIDs: ordered.map(\.id), format: format)
+        let format = Format(rate: rate, streams: streams.map { StreamFormatFingerprint($0.format) })
+        let binding = Binding(id: record.device.id, streamIDs: streams.map(\.id), format: format)
         let key = Key(uid: record.device.uid, input: input)
         guard next[key] == nil else {
           throw AudioObservationFailure(message: "Duplicate device UID in one stream role.")

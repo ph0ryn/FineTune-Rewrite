@@ -114,7 +114,10 @@ struct CoreAudioObservationInventory: AudioDeviceInventoryReading, AudioProcessI
   {
     let ids: [AudioStreamID] = try reader.readArray(
       device, selector: kAudioDevicePropertyStreams, scope: scope, initial: AudioStreamID.unknown)
-    return try Set(ids).sorted().map { stream in
+    guard Set(ids).count == ids.count else {
+      throw AudioObservationFailure(message: "Duplicate audio stream bindings.")
+    }
+    return try ids.map { stream in
       let format = try reader.readScalar(
         stream, selector: kAudioStreamPropertyPhysicalFormat,
         scope: kAudioObjectPropertyScopeGlobal, initial: AudioStreamBasicDescription())

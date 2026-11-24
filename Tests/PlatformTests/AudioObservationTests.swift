@@ -157,6 +157,31 @@ struct AudioObservationTests {
     #expect(formatted.formatRevision != rebound.formatRevision)
   }
 
+  @Test("A stream-list reorder advances the device binding")
+  func streamOrderIsPartOfBinding() throws {
+    let source = DeviceObservationFixture()
+    let format = observationDevice().outputStreams[0].format
+    let device = AudioDevice(id: 11, uid: "device", name: "Device", icon: nil, supportsAutoEQ: true)
+    let initial = AudioDeviceRecord(
+      device: device,
+      outputStreams: [
+        AudioStreamRecord(id: 21, format: format), AudioStreamRecord(id: 22, format: format),
+      ],
+      inputStreams: [], sampleRate: 48_000)
+    source.reader.inventory = observationDevices([initial])
+    source.monitor.refresh()
+    let before = try #require(source.monitor.outputDevices.first)
+
+    let reordered = AudioDeviceRecord(
+      device: device,
+      outputStreams: [initial.outputStreams[1], initial.outputStreams[0]],
+      inputStreams: [], sampleRate: 48_000)
+    source.reader.inventory = observationDevices([reordered])
+    source.monitor.refresh()
+    let after = try #require(source.monitor.outputDevices.first)
+    #expect(after.bindingRevision != before.bindingRevision)
+  }
+
   @Test("Changing physical format with unchanged UID/rate advances the native reprepare binding")
   func physicalFormatRevision() throws {
     let source = DeviceObservationFixture()
