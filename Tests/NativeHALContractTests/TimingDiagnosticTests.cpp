@@ -314,6 +314,24 @@ void timingDetectsOutputWaveformDiscontinuity() {
     CHECK(after.max_output_sample_delta > 0.5F);
 }
 
+void timingIgnoresMutedWaveform() {
+    inputs = 2;
+    resetFixture();
+    auto p = prepare(request(state(1, 1)));
+    REQUIRE(p && !hal.ios.empty());
+    enableTiming(p);
+    commit(p, state(2, 1));
+    const auto io = hal.ios.back();
+
+    FTNativeLevels muted{3, 1, true, 1};
+    CHECK(ft_native_route_request_levels(p.get(), muted) == FT_NATIVE_OK);
+    Signal spike;
+    spike.input[16] = 4.0F;
+    spike.render(io);
+    CHECK(spike.zero());
+    CHECK(timingSnapshot(p).output_discontinuities == 0);
+}
+
 void timingDetectsCallbackBoundaryDiscontinuity() {
     inputs = 2;
     resetFixture();
@@ -336,7 +354,7 @@ void timingDetectsCallbackBoundaryDiscontinuity() {
     CHECK(after.output_discontinuities >= baseline.output_discontinuities + 2);
 }
 
-constexpr std::array<CaseUnit, 11> cases{{
+constexpr std::array<CaseUnit, 12> cases{{
     {"Tests/NativeHALContractTests/main.cpp::timingDisabledByDefault", timingDisabledByDefault},
     {"Tests/NativeHALContractTests/main.cpp::timingEnableLifecycleAndNullSafety",
      timingEnableLifecycleAndNullSafety},
@@ -357,6 +375,8 @@ constexpr std::array<CaseUnit, 11> cases{{
      timingDetectsOutputWaveformDiscontinuity},
     {"Tests/NativeHALContractTests/main.cpp::timingDetectsCallbackBoundaryDiscontinuity",
      timingDetectsCallbackBoundaryDiscontinuity},
+    {"Tests/NativeHALContractTests/main.cpp::timingIgnoresMutedWaveform",
+     timingIgnoresMutedWaveform},
 }};
 
 } // namespace

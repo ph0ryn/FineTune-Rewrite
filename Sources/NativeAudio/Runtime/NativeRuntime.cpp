@@ -166,12 +166,20 @@ OSStatus audioCallback(AudioObjectID device, const AudioTimeStamp *now,
     }
     const auto timing = state.timing.observe(now, inputTime, outputTime, inputFrames, outputFrames,
                                              inputStatus == 1 || inputFrames == 0);
+    // Diagnostics must describe samples actually handed to the HAL: silent paths get a zeroed
+    // scratch buffer so a transition into silence is recorded instead of a muted DSP waveform.
+    auto observeSilence = [&]() noexcept {
+        if (outputFrames)
+            std::fill_n(state.output.get(), outputFrames * 2, 0.0F);
+        state.timing.observeOutput(state.output.get(), outputFrames * 2);
+    };
     // An idle tap may advertise valid frames without source data. A certified nonzero output
     // callback establishes transport readiness, not capture authorization or first-applied audio.
     // Do not keep the old physical IO alive waiting for an idle app to produce samples.
     if (inputStatus == 1 || inputFrames == 0) {
         if (outputFrames != 0)
             state.armed.store(true, std::memory_order_release);
+        observeSilence();
         clearOutput(output);
         state.peak.store(0, std::memory_order_release);
         return noErr;
@@ -199,12 +207,10 @@ OSStatus audioCallback(AudioObjectID device, const AudioTimeStamp *now,
     if (status != FT_PIPELINE_OK) {
         recordError(state, failure(FT_NATIVE_FAILURE, FT_NATIVE_PROCESS,
                                    static_cast<std::int32_t>(status)));
+        observeSilence();
         clearOutput(output);
         return noErr;
     }
-    state.timing.observeOutput(state.output.get(), outputFrames * 2);
-    state.timing.observeFidelity(state.input.get(), state.output.get(), outputFrames,
-                                 state.cachedLevels.target_gain);
     state.processingRevision.store(state.installedRevision, std::memory_order_release);
     state.levelsRevision.store(state.cachedLevels.revision, std::memory_order_release);
     state.armed.store(true, std::memory_order_release);
@@ -213,9 +219,13 @@ OSStatus audioCallback(AudioObjectID device, const AudioTimeStamp *now,
     const bool permitted = permitRequested && state.installedRevision >= required &&
                            state.cachedLevels.revision >= required;
     if (!permitted || state.cachedLevels.muted) {
+        observeSilence();
         clearOutput(output);
         state.peak.store(0, std::memory_order_release);
     } else {
+        state.timing.observeOutput(state.output.get(), outputFrames * 2);
+        state.timing.observeFidelity(state.input.get(), state.output.get(), outputFrames,
+                                     state.cachedLevels.target_gain);
         float peak = 0;
         for (std::uint32_t n = 0; n < outputFrames * 2; ++n)
             peak = std::max(peak, std::fabs(state.output[n]));
