@@ -284,8 +284,9 @@ bool sameLayout(const StereoLayout &a, const StereoLayout &b) noexcept {
 bool validCertificate(const FormatCertificate &value, const OutputDevice &output,
                       const TapDescription &tap) noexcept {
     return validLayout(value.input) && validLayout(value.output) && value.onlyOwnedTapInput &&
-           value.intendedPhysicalOutput && value.ioStreamsEnabled && value.maximumFrames > 0 &&
-           value.maximumFrames <= 65536 && value.subTap != kAudioObjectUnknown &&
+           value.intendedPhysicalOutput && value.clockDeviceUID == output.uid &&
+           value.ioStreamsEnabled && value.maximumFrames > 0 && value.maximumFrames <= 65536 &&
+           value.subTap != kAudioObjectUnknown &&
            value.subTapDriftCompensation == expectedDriftCompensation(output) &&
            value.subTapDriftQuality == kAudioAggregateDriftCompensationHighQuality &&
            value.input.sampleRate == value.output.sampleRate &&

@@ -45,13 +45,14 @@ struct Aggregate {
     AudioObjectID id;
     std::string outputUID;
     std::string tapUID;
+    std::string clockUID;
     bool destroyRequested = false;
 };
 struct FakeHAL {
     bool usage = true, selfPID = false, microphone = false, unsupportedOutput = false;
     bool mismatchedOutputUID = false, aggregateOutput = false;
     bool wrongTapFormat = false, wrongRate = false, wrongCertificate = false, planar = false;
-    bool wrongPhysicalOutput = false, bluetooth = false, wrongDrift = false;
+    bool wrongPhysicalOutput = false, bluetooth = false, wrongDrift = false, wrongClock = false;
     UInt32 requestedDrift = 99; // Sentinel: createAggregate observed a physical device policy.
     bool partial = true, holdAggregate = false;
     Fault fault = Fault::none, cleanupFault = Fault::none;
@@ -178,7 +179,7 @@ struct FakeHAL {
                 return acquisitionError;
             id = f.nextID++;
             f.requestedDrift = expectedDriftCompensation(physical);
-            f.aggregates.push_back({id, physical.uid, tap});
+            f.aggregates.push_back({id, physical.uid, tap, physical.uid, false});
             return f.fault == Fault::aggregate ? acquisitionError : noErr;
         };
         a.destroyAggregate = [](void *c, AudioObjectID id) -> OSStatus {
@@ -265,6 +266,7 @@ struct FakeHAL {
             out.subTapDriftCompensation =
                 f.wrongDrift ? 1 - expectedDriftCompensation(physical) : f.driftCompensation;
             out.subTapDriftQuality = f.driftQuality;
+            out.clockDeviceUID = f.wrongClock ? "unrelated-clock" : physical.uid;
             out.hasVariableBufferFrames = f.variableFrames;
             out.ioStreamsEnabled = !f.disabledStreams;
             out.inputStreams = {device + 1000};
