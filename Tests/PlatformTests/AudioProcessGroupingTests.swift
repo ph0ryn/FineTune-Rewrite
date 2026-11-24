@@ -137,6 +137,29 @@ struct AudioProcessGroupingTests {
     }
   }
 
+  @Test("Helper enumeration order does not change a nameless owner's identity")
+  func helperOrderDoesNotRenameOwner() throws {
+    let source = ProcessObservationFixture()
+    source.metadata.apps = [
+      ProcessApplicationMetadata(
+        pid: 100, name: nil, bundleID: nil, icon: NSImage(), isApplication: true)
+    ]
+    source.metadata.responsibility = [200: 100, 201: 100]
+    source.metadata.names = [200: "Helper A", 201: "Helper B"]
+    source.inventory.processes = [
+      observationProcess(41, pid: 200), observationProcess(42, pid: 201),
+    ]
+    source.monitor.refresh()
+    let first = try #require(source.monitor.activeApps.only)
+    source.inventory.processes = [
+      observationProcess(42, pid: 201), observationProcess(41, pid: 200),
+    ]
+    source.monitor.refresh()
+    let second = try #require(source.monitor.activeApps.only)
+    #expect(first.persistenceIdentifier == second.persistenceIdentifier)
+    #expect(first.processRevision == second.processRevision)
+  }
+
   @Test("Helpers of a bundleless owner cannot override its saved identity")
   func bundlelessOwnerUsesNameIdentityForAllHelpers() throws {
     let source = ProcessObservationFixture()

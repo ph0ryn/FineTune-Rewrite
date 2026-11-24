@@ -63,8 +63,20 @@ struct AudioProcessGrouper {
         throw AudioObservationFailure(
           message: "An audio process returned an empty bundle identifier.")
       }
+      // The owner, not the first enumerated helper, supplies the display name. Without this,
+      // helper ordering could change the saved identifier and process revision of one app.
+      let ownerName: String? = {
+        switch owner {
+        case .app(let app):
+          return app.name ?? (try? metadata.processName(for: app.pid)) ?? "Process \(app.pid)"
+        case .standalone:
+          return applications[process.pid]?.name
+        case .excluded:
+          return nil
+        }
+      }()
       let name =
-        try info?.name ?? metadata.processName(for: process.pid)
+        try ownerName ?? metadata.processName(for: process.pid)
         ?? bundleID?.components(separatedBy: ".").last
       guard let name, !name.isEmpty else {
         throw AudioObservationFailure(
