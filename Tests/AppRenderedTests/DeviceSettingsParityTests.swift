@@ -100,8 +100,8 @@ struct DeviceSettingsParityTests {
     #expect(observed.overrides == [.software, nil])
   }
 
-  @Test("Every settings tab renders as a selectable tab item, including the lazy Shortcuts tab")
-  func settingsTabsRenderAllItems() throws {
+  @Test("Settings tabs render as in-bounds plain buttons without a clipped TabView")
+  func settingsTabsRenderInsideBounds() throws {
     let snapshot = SettingsSnapshot(
       settings: AppSettings(), isAccessibilityTrusted: false, isMediaKeyOffline: false,
       error: nil, device: testDeviceSettings())
@@ -111,11 +111,52 @@ struct DeviceSettingsParityTests {
     let view = FineTuneSettingsView(
       read: { snapshot }, actions: actions, updates: .unavailable(reason: "No test feed."))
     let fixture = try OffscreenHostFixture(view, width: 720, height: 560)
-    let titles = leafDescendants(of: fixture.host).compactMap { $0 as? NSTabView }
-      .flatMap { $0.tabViewItems.compactMap(\.label) }
+    let tabs = settingsTabButtons(in: fixture.host)
+    #expect(tabs.map(\.title) == ["General", "Audio", "Shortcuts", "Updates", "About"])
+    #expect(!leafDescendants(of: fixture.host).contains { $0 is NSTabView })
+    #expect(tabs.allSatisfy { !$0.isBordered && $0.image == nil })
+    for tab in tabs {
+      let frame = fixture.host.convert(tab.bounds, from: tab)
+      #expect(frame.width > 0 && frame.height > 0)
+      #expect(fixture.host.bounds.contains(frame), "\(tab.title) rendered at \(frame)")
+      let topDistance = min(frame.minY, fixture.host.bounds.maxY - frame.maxY)
+      #expect(topDistance < 60, "\(tab.title) must stay in the top tab row")
+    }
+  }
+
+  @Test("Settings tabs switch content and mount shortcut recorders only while selected")
+  func settingsTabsSwitchAndRemainLazy() throws {
+    let snapshot = SettingsSnapshot(
+      settings: AppSettings(), isAccessibilityTrusted: false, isMediaKeyOffline: false,
+      error: nil, device: testDeviceSettings())
+    let actions = SettingsActions(
+      updateSettings: { _ in }, recordShortcut: { _, _ in }, requestAccessibility: {},
+      retryMediaKeys: {}, resetAll: {}, device: recordingDeviceSettingsActions { _ in })
+    let view = FineTuneSettingsView(
+      read: { snapshot }, actions: actions, updates: .unavailable(reason: "No test feed."))
+    let fixture = try OffscreenHostFixture(view, width: 720, height: 560)
+    let tabs = settingsTabButtons(in: fixture.host)
+    let audio = try #require(tabs.first { $0.title == "Audio" })
+    let shortcuts = try #require(tabs.first { $0.title == "Shortcuts" })
+    let general = try #require(tabs.first { $0.title == "General" })
+
+    audio.performClick(nil)
+    fixture.render()
     #expect(
-      titles == ["General", "Audio", "Shortcuts", "Updates", "About"],
-      "The Settings tab bar must expose all five tabs; missing tabs hide whole feature areas")
+      !leafDescendants(of: fixture.host).compactMap { $0 as? NSTextField }
+        .filter(\.isEditable).isEmpty)
+    #expect(leafDescendants(of: fixture.host).compactMap { $0 as? NSSearchField }.isEmpty)
+
+    shortcuts.performClick(nil)
+    fixture.render()
+    #expect(leafDescendants(of: fixture.host).compactMap { $0 as? NSSearchField }.count == 4)
+
+    general.performClick(nil)
+    fixture.render()
+    #expect(leafDescendants(of: fixture.host).compactMap { $0 as? NSSearchField }.isEmpty)
+    #expect(
+      leafDescendants(of: fixture.host).compactMap { $0 as? NSTextField }
+        .filter(\.isEditable).isEmpty)
   }
 
   @Test("Updates switch disables when unavailable and bridges live clicks when available")
@@ -201,17 +242,23 @@ private final class OffscreenHostFixture<Content: View> {
   let host: NSHostingView<AnyView>
   let window: NSWindow
 
-  init(_ content: Content, width: CGFloat, height: CGFloat? = nil) throws {
+  init(
+    _ content: Content, width: CGFloat, height: CGFloat? = nil,
+    colorScheme: ColorScheme = .light
+  ) throws {
     _ = NSApplication.shared
+    let appearance = NSAppearance(named: colorScheme == .dark ? .darkAqua : .aqua)
     host = NSHostingView(
-      rootView: AnyView(content.environment(\.colorScheme, .light).background(Color.white)))
-    host.appearance = NSAppearance(named: .aqua)
+      rootView: AnyView(
+        content.environment(\.colorScheme, colorScheme)
+          .background(Color(nsColor: .windowBackgroundColor))))
+    host.appearance = appearance
     host.setFrameSize(NSSize(width: width, height: height ?? host.fittingSize.height))
     window = NSWindow(
       contentRect: NSRect(x: -10_000, y: -10_000, width: width, height: host.frame.height),
       styleMask: .borderless, backing: .buffered, defer: false)
     window.isReleasedWhenClosed = false
-    window.appearance = NSAppearance(named: .aqua)
+    window.appearance = appearance
     window.contentView = host
     render()
     // Trigger one offscreen display pass so SwiftUI creates native AppKit control bridges.
@@ -226,6 +273,13 @@ private final class OffscreenHostFixture<Content: View> {
     window.displayIfNeeded()
     host.layoutSubtreeIfNeeded()
   }
+}
+
+@MainActor
+private func settingsTabButtons(in host: NSView) -> [NSButton] {
+  let titles = ["General", "Audio", "Shortcuts", "Updates", "About"]
+  return leafDescendants(of: host).compactMap { $0 as? NSButton }
+    .filter { titles.contains($0.title) }
 }
 
 @MainActor

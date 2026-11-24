@@ -68,6 +68,9 @@ This section defines the boundary contract and does not prescribe individual API
 | Level meters, callback counts, and applied generation | Recorded on the real-time side and read by the non-real-time side |
 
 Keep persisted user intent, observed OS state, and active execution routes separate.
+
+High-frequency route peak levels are published separately from route lifecycle/failure diagnostics. Mixer presentation observes the meter projection; Settings observes only the diagnostic revision and preference/device state. Settings controls bind to one render snapshot, while event handlers read fresh state before merging writes.
+
 Temporary fallbacks during device disconnects must not overwrite saved preferences so they can be restored on reconnect.
 Distinguish persistent app identity from live processes and runtime OS objects.
 

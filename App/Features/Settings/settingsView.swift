@@ -5,40 +5,51 @@ import FineTunePlatform
 import KeyboardShortcuts
 import SwiftUI
 
+enum SettingsTab: CaseIterable, Hashable {
+  case general, audio, shortcuts, updates, about
+
+  var title: String {
+    switch self {
+    case .general: "General"
+    case .audio: "Audio"
+    case .shortcuts: "Shortcuts"
+    case .updates: "Updates"
+    case .about: "About"
+    }
+  }
+}
+
 @MainActor
 struct FineTuneSettingsView: View {
   let read: () -> SettingsSnapshot
   let actions: SettingsActions
   let updates: SettingsUpdateCapability
   var generalCopy = SettingsGeneralCopy()
-  @State private var tab: Tab = .general
+  @State private var tab: SettingsTab = .general
   @State private var confirmingReset = false
-
-  private enum Tab { case general, audio, shortcuts, updates, about }
-  private var bindings: SettingsBindings { SettingsBindings(read: read, actions: actions) }
 
   var body: some View {
     let snapshot = read()
+    let bindings = SettingsBindings(snapshot: snapshot, actions: actions, readFresh: read)
     VStack(spacing: 0) {
+      tabBar
+      Divider()
       if let error = snapshot.error {
-        Label(error, systemImage: "exclamationmark.triangle.fill")
-          .font(DesignTokens.Typography.rowDescription).foregroundStyle(.orange)
-          .padding(DesignTokens.Spacing.sm)
+        HStack(alignment: .top, spacing: DesignTokens.Spacing.sm) {
+          Image(systemName: "exclamationmark.triangle.fill")
+          Text(error).fixedSize(horizontal: false, vertical: true)
+        }
+        .font(DesignTokens.Typography.rowDescription)
+        .foregroundStyle(.orange)
+        .padding(.horizontal, DesignTokens.Spacing.xl)
+        .padding(.vertical, DesignTokens.Spacing.sm)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        Divider()
       }
-      TabView(selection: $tab) {
-        general.tabItem { Label("General", systemImage: "gearshape") }.tag(Tab.general)
-        audio.tabItem { Label("Audio", systemImage: "speaker.wave.2") }.tag(Tab.audio)
-        // The tabItem must attach to the mounted Form itself: a Group whose conditional
-        // content is empty renders no tab item at all on current SwiftUI, hiding Shortcuts.
-        // Laziness still holds because TabView instantiates the recorder NSViews only when
-        // this tab becomes selected; the General tab never creates a recorder control.
-        shortcuts.tabItem { Label("Shortcuts", systemImage: "keyboard") }.tag(Tab.shortcuts)
-        SettingsUpdatesView(capability: updates)
-          .tabItem { Label("Updates", systemImage: "arrow.triangle.2.circlepath") }.tag(Tab.updates)
-        SettingsAboutView().tabItem { Label("About", systemImage: "info.circle") }.tag(Tab.about)
-      }
+      content(for: tab, snapshot: snapshot, bindings: bindings)
     }
     .frame(width: 720, height: 560)
+    .background(Color(nsColor: .windowBackgroundColor))
     .background(WindowAppearanceBridge(appearance: snapshot.settings.appearance.nsAppearance))
     .preferredColorScheme(snapshot.settings.appearance.swiftUIColorScheme)
     .environment(\.appearancePreference, snapshot.settings.appearance)
@@ -49,12 +60,33 @@ struct FineTuneSettingsView: View {
     }
   }
 
-  private var general: some View {
-    Form {
-      Section("General") {
+  private var tabBar: some View {
+    SettingsTabSelector(selection: $tab)
+      .frame(height: 36)
+      .padding(.horizontal, DesignTokens.Spacing.lg)
+      .padding(.top, DesignTokens.Spacing.sm)
+  }
+
+  @ViewBuilder
+  private func content(
+    for tab: SettingsTab, snapshot: SettingsSnapshot, bindings: SettingsBindings
+  ) -> some View {
+    switch tab {
+    case .general: general(bindings: bindings)
+    case .audio: audio(snapshot: snapshot, bindings: bindings)
+    case .shortcuts: shortcuts(snapshot: snapshot, bindings: bindings)
+    case .updates: SettingsUpdatesView(capability: updates)
+    case .about: SettingsAboutView()
+    }
+  }
+
+  private func general(bindings: SettingsBindings) -> some View {
+    SettingsScrollView {
+      SettingsSection("General") {
         setting(generalCopy.launchAtLoginTitle, description: generalCopy.launchAtLoginDescription) {
-          Toggle(generalCopy.launchAtLoginTitle, isOn: bindings.field(\AppSettings.launchAtLogin))
-            .labelsHidden()
+          SettingsNativeToggle(
+            isOn: bindings.field(\AppSettings.launchAtLogin),
+            title: generalCopy.launchAtLoginTitle)
         }
         setting(generalCopy.themeTitle, description: generalCopy.themeDescription) {
           Picker(generalCopy.themeTitle, selection: bindings.field(\AppSettings.appearance)) {
@@ -66,14 +98,12 @@ struct FineTuneSettingsView: View {
           generalCopy.disconnectAlertsTitle,
           description: generalCopy.disconnectAlertsDescription
         ) {
-          Toggle(
-            generalCopy.disconnectAlertsTitle,
-            isOn: bindings.field(\AppSettings.showDeviceDisconnectAlerts)
-          )
-          .labelsHidden()
+          SettingsNativeToggle(
+            isOn: bindings.field(\AppSettings.showDeviceDisconnectAlerts),
+            title: generalCopy.disconnectAlertsTitle)
         }
       }
-      Section("Menu Bar") {
+      SettingsSection("Menu Bar") {
         setting("Icon Style", description: "How FineTune-Rewrite appears in your menu bar") {
           Picker("Icon Style", selection: bindings.field(\AppSettings.menuBarIconStyle)) {
             ForEach(MenuBarIconStyle.allCases) { Text($0.rawValue).tag($0) }
@@ -90,26 +120,24 @@ struct FineTuneSettingsView: View {
           .labelsHidden().fixedSize()
         }
       }
-      Section("Data") {
+      SettingsSection("Data") {
         setting("Reset All Settings", description: "Clear all volumes, EQ, and device routings") {
           Button("Reset", role: .destructive) { confirmingReset = true }
         }
       }
     }
-    .formStyle(.grouped).controlSize(.small)
   }
 
-  private var audio: some View {
-    Form {
-      Section("Volume") {
+  private func audio(snapshot: SettingsSnapshot, bindings: SettingsBindings) -> some View {
+    SettingsScrollView {
+      SettingsSection("Volume") {
         setting(
           "Live Audio Processing",
           description: "macOS may ask for audio capture permission. Turn off to stop processing."
         ) {
-          Toggle(
-            "Live Audio Processing", isOn: bindings.field(\AppSettings.explicitUserCaptureEnabled)
-          )
-          .labelsHidden()
+          SettingsNativeToggle(
+            isOn: bindings.field(\AppSettings.explicitUserCaptureEnabled),
+            title: "Live Audio Processing")
         }
         setting("Default Volume", description: "Initial volume for new apps") {
           HStack(spacing: DesignTokens.Spacing.sm) {
@@ -120,16 +148,16 @@ struct FineTuneSettingsView: View {
           }
         }
         setting("Loudness Compensation", description: "Boost low frequencies at low volume") {
-          Toggle("Loudness Compensation", isOn: bindings.unifiedLoudness).labelsHidden()
+          SettingsNativeToggle(isOn: bindings.unifiedLoudness, title: "Loudness Compensation")
         }
       }
-      Section("Devices") {
+      SettingsSection("Devices") {
         setting("Lock Input Device", description: "Prevent auto-switching when devices connect") {
-          Toggle("Lock Input Device", isOn: bindings.field(\AppSettings.lockInputDevice))
-            .labelsHidden()
+          SettingsNativeToggle(
+            isOn: bindings.field(\AppSettings.lockInputDevice), title: "Lock Input Device")
         }
         setting("System Sounds", description: "Where alerts and effects play") {
-          systemSoundsPicker
+          systemSoundsPicker(snapshot: snapshot, bindings: bindings)
         }
         setting("Alert Volume", description: "Volume for alerts and notifications") {
           if let volume = bindings.alertVolume {
@@ -139,10 +167,10 @@ struct FineTuneSettingsView: View {
                   .accessibilityLabel("Alert volume")
                 VolumePercentageField(
                   value: volume, range: 0...100, label: "Alert volume percentage")
-                if read().device.alertIsApplying { ProgressView().controlSize(.small) }
+                if snapshot.device.alertIsApplying { ProgressView().controlSize(.small) }
               }
-              .disabled(read().device.alertIsApplying || read().device.alertVolumeSilenced)
-              if read().device.alertVolumeSilenced {
+              .disabled(snapshot.device.alertIsApplying || snapshot.device.alertVolumeSilenced)
+              if snapshot.device.alertVolumeSilenced {
                 Text("Alerts are silenced while the System Sounds device is muted.")
                   .font(DesignTokens.Typography.rowDescription).foregroundStyle(.secondary)
               }
@@ -151,17 +179,18 @@ struct FineTuneSettingsView: View {
             Text("Alert volume is unavailable.").foregroundStyle(.secondary)
           }
         }
-        if let error = read().device.error {
+        if let error = snapshot.device.error {
           Label(error, systemImage: "exclamationmark.triangle")
             .font(DesignTokens.Typography.rowDescription).foregroundStyle(.orange)
         }
       }
     }
-    .formStyle(.grouped).controlSize(.small)
   }
 
-  private var systemSoundsPicker: some View {
-    let current = read().device
+  private func systemSoundsPicker(
+    snapshot: SettingsSnapshot, bindings: SettingsBindings
+  ) -> some View {
+    let current = snapshot.device
     return Picker("System Sounds", selection: bindings.systemSounds) {
       Text("System Default").tag(SettingsSystemSoundChoice.followDefault)
       ForEach(current.systemOutputOptions) { device in
@@ -178,9 +207,11 @@ struct FineTuneSettingsView: View {
     .labelsHidden().fixedSize().disabled(!current.canSetSystemOutput)
   }
 
-  private var shortcuts: some View {
-    Form {
-      Section("Volume") {
+  private func shortcuts(
+    snapshot: SettingsSnapshot, bindings: SettingsBindings
+  ) -> some View {
+    SettingsScrollView {
+      SettingsSection("Volume") {
         setting(
           "Volume Step",
           description: "Used by media keys, configured hotkeys, and arrow keys in the mixer"
@@ -191,15 +222,15 @@ struct FineTuneSettingsView: View {
           .labelsHidden().fixedSize()
         }
       }
-      Section("Media Keys") {
+      SettingsSection("Media Keys") {
         setting(
           "Media Keys Control",
           description: "Use F11/F12 (or volume keys) to control FineTune-Rewrite"
         ) {
-          Toggle("Media Keys Control", isOn: bindings.field(\AppSettings.mediaKeyControlEnabled))
-            .labelsHidden()
+          SettingsNativeToggle(
+            isOn: bindings.field(\AppSettings.mediaKeyControlEnabled), title: "Media Keys Control")
         }
-        if !read().isAccessibilityTrusted {
+        if !snapshot.isAccessibilityTrusted {
           HStack {
             Text("Allow Accessibility access to control volume with media keys.")
               .font(DesignTokens.Typography.rowDescription)
@@ -207,7 +238,7 @@ struct FineTuneSettingsView: View {
             Button("Allow Access", action: actions.requestAccessibility)
           }
         }
-        if read().isMediaKeyOffline {
+        if snapshot.isMediaKeyOffline {
           HStack {
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
               Label("Media key control is offline.", systemImage: "exclamationmark.triangle")
@@ -221,7 +252,7 @@ struct FineTuneSettingsView: View {
             Button("Try Again", action: actions.retryMediaKeys)
           }
         }
-        if read().settings.mediaKeyControlEnabled && read().isAccessibilityTrusted {
+        if snapshot.settings.mediaKeyControlEnabled && snapshot.isAccessibilityTrusted {
           setting("HUD Style", description: "How the volume indicator appears") {
             Picker("HUD Style", selection: bindings.field(\AppSettings.hudStyle)) {
               ForEach(HUDStyle.allCases) { Text($0.rawValue.capitalized).tag($0) }
@@ -230,7 +261,7 @@ struct FineTuneSettingsView: View {
           }
         }
       }
-      Section("Hotkeys") {
+      SettingsSection("Hotkeys") {
         ForEach(ShortcutAction.allCases, id: \.self) { action in
           setting(action.displayName, description: shortcutDescription(action)) {
             KeyboardShortcuts.Recorder(
@@ -240,21 +271,12 @@ struct FineTuneSettingsView: View {
         }
       }
     }
-    .formStyle(.grouped).controlSize(.small)
   }
 
   private func setting<Content: View>(
     _ title: String, description: String, @ViewBuilder content: () -> Content
   ) -> some View {
-    HStack(spacing: DesignTokens.Spacing.lg) {
-      VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
-        Text(title).font(DesignTokens.Typography.rowName)
-        Text(description).font(DesignTokens.Typography.rowDescription).foregroundStyle(.secondary)
-      }
-      Spacer(minLength: DesignTokens.Spacing.md)
-      content()
-    }
-    .padding(.vertical, DesignTokens.Spacing.xs)
+    SettingsRow(title, description: description) { content() }
   }
 
   private func shortcutDescription(_ action: ShortcutAction) -> String {

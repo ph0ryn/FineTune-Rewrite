@@ -3,6 +3,7 @@ import FineTuneControl
 import FineTuneDomain
 import FineTunePlatform
 import Foundation
+import SwiftUI
 import Testing
 
 @testable import FineTune
@@ -86,8 +87,11 @@ struct CaptureUsageTests {
         setAlertVolume: { _ in Issue.record("Unexpected device call") },
         refreshBluetooth: { Issue.record("Unexpected device call") },
         connectBluetooth: { _ in Issue.record("Unexpected device call") }))
-    let binding = SettingsBindings(read: read, actions: actions)
-      .field(\AppSettings.explicitUserCaptureEnabled)
+    func makeCaptureBinding() -> Binding<Bool> {
+      SettingsBindings(snapshot: read(), actions: actions, readFresh: read)
+        .field(\AppSettings.explicitUserCaptureEnabled)
+    }
+    var binding = makeCaptureBinding()
 
     #expect(!binding.wrappedValue && runtime.requests.isEmpty && controller.captureIntent == .none)
     controller.observeOutputs(
@@ -104,6 +108,7 @@ struct CaptureUsageTests {
     #expect(runtime.requests.isEmpty)
 
     binding.wrappedValue = true
+    binding = makeCaptureBinding()
     #expect(settings.appSettings.explicitUserCaptureEnabled && binding.wrappedValue)
     guard case .userInitiated(let session) = controller.captureIntent else {
       Issue.record("The same settings transition must establish capture intent.")
@@ -115,6 +120,7 @@ struct CaptureUsageTests {
     #expect(runtime.requests.count == 1 && route.commits.count == 1)
 
     binding.wrappedValue = false
+    binding = makeCaptureBinding()
     #expect(!settings.appSettings.explicitUserCaptureEnabled && !binding.wrappedValue)
     #expect(controller.captureIntent == .none && route.cancelled)
     await controller.shutdown()

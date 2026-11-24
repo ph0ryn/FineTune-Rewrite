@@ -38,6 +38,13 @@ The comparison baseline is the [pinned FineTune revision](https://github.com/ron
 - The transient keyboard-selection highlight exists only while keyboard navigation is engaged: pointer activity inside the popup yields it, and closing the popup clears it so the next open starts without a selection or percentage draft.
 - Restoring gain to `1.0` on clicking `0%`, and fallback values for missing device properties are outside this contract. Pixel-for-pixel parity across the entire Mixer is not guaranteed.
 
+## Settings Presentation
+
+- Settings exposes General, Audio, Shortcuts, Updates, and About as plain text tabs in normal window content below the title bar. The selected tab is indicated by text weight, color, and a small underline; no grouped tab plate, tab icons, or title-bar overlap is used.
+- Only the selected settings tab is constructed. Switching tabs must not instantiate inactive controls, and shortcut recorders exist only while Shortcuts is selected.
+- Settings sections use the native window background, spacing, and native controls without grouped card fills or decorative section chrome.
+- Peak-level-only audio updates must not invalidate Settings. Settings observes route lifecycle and failure diagnostics, while Mixer alone observes the high-frequency meter values.
+
 ## Device Switching and Failure Recovery
 
 - When an explicit output device selection succeeds, retry failed routes for apps following the default output. Do not expand retries to input selection, failed default writes, or apps with pinned explicit routes.

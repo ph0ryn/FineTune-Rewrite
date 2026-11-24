@@ -93,13 +93,37 @@ struct SettingsContractTests {
     #expect(source.events == ["settings"])
   }
 
-  @Test("A previously created binding also reads externally changed preferences")
-  func fieldGetterRemainsLive() {
+  @Test("A binding keeps its render snapshot while a new binding sees external changes")
+  func fieldGetterUsesRenderSnapshot() {
     let source = SettingsTestSource()
     let enabled = source.bindings.field(\AppSettings.mediaKeyControlEnabled)
     source.snapshot.settings.mediaKeyControlEnabled = false
-    #expect(!enabled.wrappedValue)
+    #expect(enabled.wrappedValue)
+    #expect(!source.bindings.field(\AppSettings.mediaKeyControlEnabled).wrappedValue)
     #expect(source.events.isEmpty)
+  }
+
+  @Test("Binding getters use the render snapshot and setters merge fresh state")
+  func bindingGettersDoNotRebuildSnapshots() {
+    let source = SettingsTestSource()
+    let snapshot = source.snapshot
+    var freshReads = 0
+    let bindings = SettingsBindings(
+      snapshot: snapshot, actions: source.actions,
+      readFresh: {
+        freshReads += 1
+        return source.snapshot
+      })
+    let theme = bindings.field(\AppSettings.appearance)
+    #expect(theme.wrappedValue == .system)
+    #expect(bindings.defaultVolume.wrappedValue == 1)
+    #expect(freshReads == 0)
+
+    source.snapshot.settings.popupSize = .spacious
+    theme.wrappedValue = .dark
+    #expect(freshReads == 1)
+    #expect(source.snapshot.settings.appearance == .dark)
+    #expect(source.snapshot.settings.popupSize == .spacious)
   }
 
   @Test("Unified loudness writes both settings while preserving current unrelated fields")
@@ -162,7 +186,8 @@ struct SettingsContractTests {
     source.snapshot.device.alertVolume = 0.4
     let binding = try #require(source.bindings.alertVolume)
     source.snapshot.device.alertVolume = 0.7
-    #expect(abs(binding.wrappedValue - 0.7) < 0.000_001)
+    #expect(abs(binding.wrappedValue - 0.4) < 0.000_001)
+    #expect(abs((source.bindings.alertVolume?.wrappedValue ?? 0) - 0.7) < 0.000_001)
     binding.wrappedValue = 0.3
     #expect(source.events == ["alert:0.3"])
     #expect(source.snapshot.device.alertVolume == 0.7)

@@ -22,6 +22,12 @@ Only when read-back confirms a single owned stereo tap paired with the intended 
 
 Upstream's software-tier mute attenuates only gain inside the tap, leaving system alert sounds outside the tap audible. Hardware and DDC tiers mute at the device level, which silences alerts as well—so on outputs without hardware mute such as HDMI, unhandled-key beeps still play even when the device is "muted". Treating this gap as an acceptance-criteria difference, we adopt an intentional divergence: set OS alert volume to `0` only while the System Sounds output device is muted via the software tier. Keeping the restore value separate from the app's `Alert Volume` setting stems from this same distinction. See [specification](spec.md) for the contract.
 
+## Settings Performance and Visual Simplicity
+
+The native route monitor publishes level snapshots every 20 ms. When those snapshots were stored in the same observed dictionary used for route diagnostics, Settings subscribed to meter changes through its error projection and rebuilt the whole SwiftUI settings body for every active route. Process sampling showed the main thread repeatedly inside `FineTuneSettingsView.body` and `RootPresentation.settingsSnapshot`; a focused Observation test confirmed that a peak-only update invalidated Settings. The rewrite separates meter values from diagnostic revision so Mixer can remain live while Settings redraws only for preference or diagnostic changes.
+
+The previous SwiftUI `TabView` also placed its tab strip at the content edge under the title bar, producing clipped tops and a grouped gray plate. Settings now uses plain text tabs in normal content with a small selection underline, native window background, and spacing instead of grouped form cards. This intentionally differs from the baseline's conventional settings chrome while preserving every preference and lazy shortcut-recorder behavior. See [specification](spec.md) for the contract.
+
 ## Test Adaptation and Deferred Items
 
 Pure input/output contracts can be carried over directly. By contrast, legacy private APIs, fixtures holding unused engines, legacy vDSP setup ownership, mock self-defaults, and unasserted posts to the real OS are replaced with tests against the new boundaries. Whenever upstream guarantees can be preserved via split or merged units, do not add a large compatibility facade recreating legacy classes.

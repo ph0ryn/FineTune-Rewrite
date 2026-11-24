@@ -38,20 +38,24 @@ struct SettingsUpdatesView: View {
   var copy = SettingsUpdatesCopy()
 
   var body: some View {
-    Form {
-      Section(copy.sectionTitle) {
+    SettingsScrollView {
+      SettingsSection(copy.sectionTitle) {
         switch capability {
         case .unavailable(let reason):
-          HStack {
-            automaticUpdatesLabel
-            Spacer()
-            Text(copy.notConfigured).foregroundStyle(.secondary)
-            Toggle(copy.automaticUpdatesTitle, isOn: .constant(false)).labelsHidden().disabled(true)
+          SettingsRow(
+            copy.automaticUpdatesTitle, description: copy.automaticUpdatesDescription
+          ) {
+            HStack(spacing: DesignTokens.Spacing.sm) {
+              Text(copy.notConfigured).foregroundStyle(.secondary)
+              SettingsNativeToggle(
+                isOn: .constant(false), title: copy.automaticUpdatesTitle, isEnabled: false
+              )
               .accessibilityValue(copy.notConfigured)
+            }
           }
-          HStack {
-            lastCheckedLabel(date: nil)
-            Spacer()
+          SettingsRow(
+            copy.lastCheckedTitle, description: lastCheckedDescription(date: nil)
+          ) {
             checkNowButton
           }
           VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
@@ -61,20 +65,20 @@ struct SettingsUpdatesView: View {
           .font(DesignTokens.Typography.rowDescription)
         case .available(let read, let actions):
           let current = read()
-          HStack {
-            automaticUpdatesLabel
-            Spacer()
-            Toggle(
-              copy.automaticUpdatesTitle,
-              isOn: SettingsUpdateBindings(read: read, actions: actions).automaticChecks
-            )
-            .labelsHidden()
+          SettingsRow(
+            copy.automaticUpdatesTitle, description: copy.automaticUpdatesDescription
+          ) {
+            SettingsNativeToggle(
+              isOn: SettingsUpdateBindings(read: read, actions: actions).automaticChecks,
+              title: copy.automaticUpdatesTitle)
           }
-          HStack {
-            lastCheckedLabel(date: current.lastChecked)
-            Spacer()
-            if current.isChecking { ProgressView().controlSize(.small) }
-            checkNowButton
+          SettingsRow(
+            copy.lastCheckedTitle, description: lastCheckedDescription(date: current.lastChecked)
+          ) {
+            HStack(spacing: DesignTokens.Spacing.sm) {
+              if current.isChecking { ProgressView().controlSize(.small) }
+              checkNowButton
+            }
           }
           if let error = current.error {
             Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
@@ -82,7 +86,6 @@ struct SettingsUpdatesView: View {
         }
       }
     }
-    .formStyle(.grouped).controlSize(.small)
   }
 
   var canCheckNow: Bool {
@@ -101,24 +104,12 @@ struct SettingsUpdatesView: View {
     }
   }
 
-  private var automaticUpdatesLabel: some View {
-    VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
-      Text(copy.automaticUpdatesTitle)
-      Text(copy.automaticUpdatesDescription)
-        .font(DesignTokens.Typography.rowDescription).foregroundStyle(.secondary)
-    }
-  }
-
-  private func lastCheckedLabel(date: Date?) -> some View {
-    VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
-      Text(copy.lastCheckedTitle)
-      if let date {
-        Text("\(copy.versionLinePrefix(version: version)) \(date, style: .relative)")
-          .font(DesignTokens.Typography.rowDescription).foregroundStyle(.secondary)
-      } else {
-        Text("\(copy.versionLinePrefix(version: version)) \(copy.neverChecked)")
-          .font(DesignTokens.Typography.rowDescription).foregroundStyle(.secondary)
+  private func lastCheckedDescription(date: Date?) -> String {
+    let checked =
+      date.map {
+        "\(copy.versionLinePrefix(version: version)) \($0.formatted(Date.RelativeFormatStyle()))"
       }
-    }
+      ?? "\(copy.versionLinePrefix(version: version)) \(copy.neverChecked)"
+    return checked
   }
 }

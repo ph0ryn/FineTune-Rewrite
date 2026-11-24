@@ -101,15 +101,26 @@ struct SettingsActions {
 
 @MainActor
 struct SettingsBindings {
-  let read: () -> SettingsSnapshot
+  let snapshot: SettingsSnapshot
   let actions: SettingsActions
+  /// Fresh state is for event handlers only; view bodies and binding getters use `snapshot`.
+  let readFresh: () -> SettingsSnapshot
+
+  init(
+    snapshot: SettingsSnapshot, actions: SettingsActions,
+    readFresh: (() -> SettingsSnapshot)? = nil
+  ) {
+    self.snapshot = snapshot
+    self.actions = actions
+    self.readFresh = readFresh ?? { snapshot }
+  }
 
   /// A binding never captures an old AppSettings value to overwrite unrelated fields later.
   func field<Value>(_ keyPath: WritableKeyPath<AppSettings, Value>) -> Binding<Value> {
     Binding(
-      get: { read().settings[keyPath: keyPath] },
+      get: { snapshot.settings[keyPath: keyPath] },
       set: { value in
-        var settings = read().settings
+        var settings = readFresh().settings
         settings[keyPath: keyPath] = value
         actions.updateSettings(settings)
       }
@@ -119,10 +130,11 @@ struct SettingsBindings {
   var unifiedLoudness: Binding<Bool> {
     Binding(
       get: {
-        read().settings.loudnessCompensationEnabled && read().settings.loudnessEqualizationEnabled
+        snapshot.settings.loudnessCompensationEnabled
+          && snapshot.settings.loudnessEqualizationEnabled
       },
       set: { value in
-        var settings = read().settings
+        var settings = readFresh().settings
         settings.setUnifiedLoudnessEnabled(value)
         actions.updateSettings(settings)
       }
@@ -132,7 +144,7 @@ struct SettingsBindings {
   var systemSounds: Binding<SettingsSystemSoundChoice> {
     Binding(
       get: {
-        let current = read().device
+        let current = snapshot.device
         if current.followsDefault { return .followDefault }
         return current.systemOutputUID.map(SettingsSystemSoundChoice.device) ?? .unavailable
       },
@@ -146,20 +158,20 @@ struct SettingsBindings {
   }
 
   var alertVolume: Binding<Double>? {
-    guard let displayed = read().device.alertVolume, read().device.canSetAlertVolume else {
+    guard let displayed = snapshot.device.alertVolume, snapshot.device.canSetAlertVolume else {
       return nil
     }
     return Binding(
-      get: { Double(read().device.alertVolume ?? displayed) },
+      get: { Double(snapshot.device.alertVolume ?? displayed) },
       set: { actions.device.setAlertVolume(Float($0)) })
   }
 
   /// The original preference editor is a direct scalar, unlike the per-app perceptual slider.
   var defaultVolume: Binding<Double> {
     Binding(
-      get: { Double(read().settings.defaultNewAppVolume) },
+      get: { Double(snapshot.settings.defaultNewAppVolume) },
       set: { value in
-        var settings = read().settings
+        var settings = readFresh().settings
         settings.defaultNewAppVolume = Float(value)
         actions.updateSettings(settings)
       }

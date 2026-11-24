@@ -123,11 +123,12 @@ struct IndependentAppKitCompatibilityTests {
     let window = SettingsWindowFactory.make(
       content: Text("Settings").frame(width: fitted.width, height: fitted.height))
     defer { window.close() }
-    // contentViewController(NSHostingController) would detach the TabView bar from the title bar.
+    // The tab row is ordinary content below the title bar, not title-bar toolbar content.
     #expect(window.contentViewController == nil)
     let content = try #require(window.contentView)
     #expect(String(describing: type(of: content)).hasPrefix("NSHostingView"))
     #expect(content.frame.size == fitted)
+    #expect(window.backgroundColor == .windowBackgroundColor)
     #expect(!window.isReleasedWhenClosed)
   }
 

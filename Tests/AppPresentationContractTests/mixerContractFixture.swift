@@ -300,7 +300,9 @@ final class SettingsTestSource {
   var lastShortcutAction: ShortcutAction?
   var lastShortcut: ShortcutCodable?
 
-  var bindings: SettingsBindings { SettingsBindings(read: { self.snapshot }, actions: actions) }
+  var bindings: SettingsBindings {
+    SettingsBindings(snapshot: snapshot, actions: actions, readFresh: { self.snapshot })
+  }
 
   var actions: SettingsActions {
     SettingsActions(
