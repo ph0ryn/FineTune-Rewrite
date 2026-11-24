@@ -48,6 +48,8 @@ class CallbackTiming {
         latestOffset{0}, maxOffsetChange{0}, discontinuities{0};
     std::atomic<std::uint32_t> validMask{0}, maxSampleDelta{0};
     std::atomic<std::uint64_t> inputDiscontinuities{0}, inputOutputMismatches{0};
+    float previousFrame[2]{}, previousInputFrame[2]{};
+    bool havePreviousFrame = false, havePreviousFidelityFrame = false;
 
     static void maximum(std::atomic<std::uint64_t> &destination, std::uint64_t value) noexcept {
         // Single exclusive callback writer: no CAS loop, lock or retry.
@@ -149,8 +151,8 @@ class CallbackTiming {
         validMask.store(valid, std::memory_order_relaxed);
         return {this, entry, outputFrames};
     }
-    // Rendered-output waveform check. Counts adjacent jumps that dwarf the smoothed local
-    // mean step, which is what an inserted/deleted sample or a discontinuity sounds like.
+    // Rendered-output waveform check. Counts adjacent same-channel jumps above a fixed threshold,
+    // including the step from the previous callback's last frame into this buffer's first frame.
     void observeOutput(const float *samples, std::uint32_t count) noexcept {
         if (!enabled || !samples || count < 2)
             return;
@@ -159,6 +161,15 @@ class CallbackTiming {
         float peakDelta = 0;
         std::uint64_t spikes = 0;
         constexpr float threshold = 0.2F;
+        if (havePreviousFrame) {
+            for (std::uint32_t channel = 0; channel < 2; ++channel) {
+                const float delta = std::fabs(samples[channel] - previousFrame[channel]);
+                if (delta > peakDelta)
+                    peakDelta = delta;
+                if (delta > threshold)
+                    ++spikes;
+            }
+        }
         for (std::uint32_t n = 2; n < count; ++n) {
             const float delta = std::fabs(samples[n] - samples[n - 2]);
             if (delta > peakDelta)
@@ -166,6 +177,9 @@ class CallbackTiming {
             if (delta > threshold)
                 ++spikes;
         }
+        previousFrame[0] = samples[count - 2];
+        previousFrame[1] = samples[count - 1];
+        havePreviousFrame = true;
         const auto deltaBits = std::bit_cast<std::uint32_t>(peakDelta);
         if (deltaBits > maxSampleDelta.load(std::memory_order_relaxed))
             maxSampleDelta.store(deltaBits, std::memory_order_relaxed);
@@ -179,12 +193,24 @@ class CallbackTiming {
         if (!enabled || !input || !output || frames < 2)
             return;
         std::uint64_t inputSpikes = 0, mismatches = 0;
+        if (havePreviousFidelityFrame) {
+            for (std::uint32_t channel = 0; channel < 2; ++channel) {
+                if (std::fabs(input[channel] - previousInputFrame[channel]) > 0.2F)
+                    ++inputSpikes;
+                if (std::fabs(output[channel] - input[channel] * gain) > 0.25F)
+                    ++mismatches;
+            }
+        }
         for (std::uint32_t n = 2; n < frames * 2; ++n) {
             if (std::fabs(input[n] - input[n - 2]) > 0.2F)
                 ++inputSpikes;
             if (std::fabs(output[n] - input[n] * gain) > 0.25F)
                 ++mismatches;
         }
+        const auto count = frames * 2;
+        previousInputFrame[0] = input[count - 2];
+        previousInputFrame[1] = input[count - 1];
+        havePreviousFidelityFrame = true;
         inputDiscontinuities.fetch_add(inputSpikes, std::memory_order_relaxed);
         inputOutputMismatches.fetch_add(mismatches, std::memory_order_relaxed);
     }

@@ -314,7 +314,29 @@ void timingDetectsOutputWaveformDiscontinuity() {
     CHECK(after.max_output_sample_delta > 0.5F);
 }
 
-constexpr std::array<CaseUnit, 10> cases{{
+void timingDetectsCallbackBoundaryDiscontinuity() {
+    inputs = 2;
+    resetFixture();
+    auto p = prepare(request(state()));
+    REQUIRE(p && !hal.ios.empty());
+    enableTiming(p);
+    commit(p, state());
+    const auto io = hal.ios.back();
+
+    Signal quiet;
+    quiet.input.fill(0);
+    quiet.render(io);
+    const auto baseline = timingSnapshot(p);
+    CHECK(baseline.output_discontinuities == 0);
+
+    Signal step;
+    step.input.fill(1);
+    step.render(io);
+    const auto after = timingSnapshot(p);
+    CHECK(after.output_discontinuities >= baseline.output_discontinuities + 2);
+}
+
+constexpr std::array<CaseUnit, 11> cases{{
     {"Tests/NativeHALContractTests/main.cpp::timingDisabledByDefault", timingDisabledByDefault},
     {"Tests/NativeHALContractTests/main.cpp::timingEnableLifecycleAndNullSafety",
      timingEnableLifecycleAndNullSafety},
@@ -333,6 +355,8 @@ constexpr std::array<CaseUnit, 10> cases{{
      timingRetirementArchivesAndLateCallbacksAreInert},
     {"Tests/NativeHALContractTests/main.cpp::timingDetectsOutputWaveformDiscontinuity",
      timingDetectsOutputWaveformDiscontinuity},
+    {"Tests/NativeHALContractTests/main.cpp::timingDetectsCallbackBoundaryDiscontinuity",
+     timingDetectsCallbackBoundaryDiscontinuity},
 }};
 
 } // namespace
