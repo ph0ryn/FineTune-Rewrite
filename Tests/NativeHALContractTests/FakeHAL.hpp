@@ -52,7 +52,8 @@ struct FakeHAL {
     bool usage = true, selfPID = false, microphone = false, unsupportedOutput = false;
     bool mismatchedOutputUID = false, aggregateOutput = false;
     bool wrongTapFormat = false, wrongRate = false, wrongCertificate = false, planar = false;
-    bool wrongPhysicalOutput = false, bluetooth = false, wrongDrift = false, wrongClock = false;
+    bool wrongPhysicalOutput = false, bluetooth = false, wrongDrift = false, wrongClock = false,
+         wrongClockSource = false;
     UInt32 requestedDrift = 99; // Sentinel: createAggregate observed a physical device policy.
     bool partial = true, holdAggregate = false;
     Fault fault = Fault::none, cleanupFault = Fault::none;
@@ -267,6 +268,7 @@ struct FakeHAL {
                 f.wrongDrift ? 1 - expectedDriftCompensation(physical) : f.driftCompensation;
             out.subTapDriftQuality = f.driftQuality;
             out.clockDeviceUID = f.wrongClock ? "unrelated-clock" : physical.uid;
+            out.clockSourceUID = f.wrongClockSource ? "unrelated-clock" : physical.uid;
             out.hasVariableBufferFrames = f.variableFrames;
             out.ioStreamsEnabled = !f.disabledStreams;
             out.inputStreams = {device + 1000};

@@ -67,6 +67,7 @@ struct FormatCertificate {
     std::uint32_t maximumFrames = 0;
     AudioObjectID subTap = kAudioObjectUnknown;
     std::string clockDeviceUID;
+    std::string clockSourceUID;
     UInt32 subTapDriftCompensation = 0;
     UInt32 subTapDriftQuality = 0;
     bool hasVariableBufferFrames = false;

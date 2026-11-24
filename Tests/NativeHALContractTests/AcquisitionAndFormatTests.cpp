@@ -59,7 +59,7 @@ void capabilityAndCertificate() {
     CHECK(description.input_channels == 0 && description.output_channels == 2);
     CHECK(description.virtual_sample_rate == 48000 && description.stereo_float32_supported);
     CHECK(hal.creates == 0 && hal.starts == 0 && hal.resources() == 0);
-    for (unsigned mode = 0; mode < 11; ++mode) {
+    for (unsigned mode = 0; mode < 12; ++mode) {
         resetFixture();
         if (mode == 0)
             hal.microphone = true;
@@ -83,6 +83,8 @@ void capabilityAndCertificate() {
             hal.driftQuality = kAudioAggregateDriftCompensationLowQuality;
         if (mode == 10)
             hal.wrongClock = true;
+        if (mode == 11)
+            hal.wrongClockSource = true;
         auto r = request(state());
         FTNativeRoute *p = nullptr;
         FTNativeError error{};

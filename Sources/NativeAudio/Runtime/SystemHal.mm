@@ -364,6 +364,14 @@ OSStatus certify(void *, AudioObjectID aggregate, AudioDeviceIOProcID io,
     if (!clock || CFGetTypeID(clock) != CFStringGetTypeID() ||
         copyString(static_cast<CFStringRef>(clock), output.clockDeviceUID) != noErr)
         return kAudioHardwareUnsupportedOperationError;
+    CFStringRef clockSource = nullptr;
+    if (scalar(aggregate, kAudioAggregateDevicePropertyClockDevice, clockSource,
+               kAudioObjectPropertyScopeGlobal, "certifyFormat.clockSource") != noErr)
+        return kAudioHardwareUnsupportedOperationError;
+    CFGuard sourceGuard(clockSource);
+    if (!clockSource || CFGetTypeID(clockSource) != CFStringGetTypeID() ||
+        copyString(clockSource, output.clockSourceUID) != noErr)
+        return kAudioHardwareUnsupportedOperationError;
     AggregateTapPolicy policy{};
     if (!decodeAggregateTapPolicy(composition, expectedUID, policy))
         return kAudioHardwareUnsupportedOperationError;
