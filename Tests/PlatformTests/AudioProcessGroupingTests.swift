@@ -137,6 +137,24 @@ struct AudioProcessGroupingTests {
     }
   }
 
+  @Test("Helpers of a bundleless owner cannot override its saved identity")
+  func bundlelessOwnerUsesNameIdentityForAllHelpers() throws {
+    let source = ProcessObservationFixture()
+    source.metadata.apps = [observationApp(pid: 100, bundle: nil)]
+    source.metadata.responsibility = [200: 100, 201: 100]
+    source.inventory.processes = [
+      observationProcess(41, pid: 200, bundle: "Com.HelperA"),
+      observationProcess(42, pid: 201, bundle: "Com.HelperB"),
+    ]
+    source.monitor.refresh()
+    let app = try #require(source.monitor.activeApps.only)
+    #expect(app.id == 100)
+    #expect(app.bundleID == nil)
+    #expect(app.persistenceIdentifier == "name:Player")
+    #expect(app.processObjectIDs == [41, 42])
+    #expect(source.monitor.observation.health == .healthy)
+  }
+
   @Test("Self, own helpers, original daemons and nonrunning objects never enter grouped apps")
   func exclusions() {
     let source = ProcessObservationFixture()

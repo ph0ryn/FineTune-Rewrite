@@ -46,13 +46,19 @@ struct AudioProcessGrouper {
       let owner = try resolve(
         process.pid, applications: applications, metadata: metadata, currentPID: currentPID)
       let info: ProcessApplicationMetadata?
+      let bundleID: String?
       switch owner {
       case .excluded: continue
-      case .app(let app): info = app
-      case .standalone: info = applications[process.pid]
+      case .app(let app):
+        info = app
+        // The owner is the identity. If AppKit has no bundle ID for it, helpers must not supply
+        // their own: that would change persistenceIdentifier between two helpers of one app.
+        bundleID = app.bundleID
+      case .standalone:
+        info = applications[process.pid]
+        bundleID = info?.bundleID ?? process.bundleID
       }
       let pid = if let info, info.isApplication { info.pid } else { process.pid }
-      let bundleID = info?.bundleID ?? process.bundleID
       if bundleID?.isEmpty == true {
         throw AudioObservationFailure(
           message: "An audio process returned an empty bundle identifier.")
