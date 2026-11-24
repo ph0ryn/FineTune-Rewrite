@@ -35,6 +35,7 @@ struct DeviceObservationProjection {
   private struct Binding: Equatable {
     let id: AudioDeviceID
     let streamIDs: [AudioStreamID]
+    let inputStreamIDs: [AudioStreamID]
     let format: Format
   }
   private struct Entry {
@@ -66,7 +67,9 @@ struct DeviceObservationProjection {
           throw AudioObservationFailure(message: "Duplicate audio stream bindings.")
         }
         let format = Format(rate: rate, streams: streams.map { StreamFormatFingerprint($0.format) })
-        let binding = Binding(id: record.device.id, streamIDs: streams.map(\.id), format: format)
+        let binding = Binding(
+          id: record.device.id, streamIDs: streams.map(\.id),
+          inputStreamIDs: input ? [] : record.inputStreams.map(\.id), format: format)
         let key = Key(uid: record.device.uid, input: input)
         guard next[key] == nil else {
           throw AudioObservationFailure(message: "Duplicate device UID in one stream role.")

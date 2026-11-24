@@ -201,6 +201,27 @@ struct AudioObservationTests {
     #expect(events == ["connected:A", "disconnected:B"])
   }
 
+  @Test("Adding an input stream to an output device advances the output binding")
+  func outputBindingIncludesInputMembership() throws {
+    let source = DeviceObservationFixture()
+    let format = observationDevice().outputStreams[0].format
+    let device = AudioDevice(id: 11, uid: "device", name: "Device", icon: nil, supportsAutoEQ: true)
+    let outputOnly = AudioDeviceRecord(
+      device: device, outputStreams: [AudioStreamRecord(id: 21, format: format)],
+      inputStreams: [], sampleRate: 48_000)
+    source.reader.inventory = observationDevices([outputOnly])
+    source.monitor.refresh()
+    let before = try #require(source.monitor.outputDevices.first)
+
+    let duplex = AudioDeviceRecord(
+      device: device, outputStreams: [AudioStreamRecord(id: 21, format: format)],
+      inputStreams: [AudioStreamRecord(id: 31, format: format)], sampleRate: 48_000)
+    source.reader.inventory = observationDevices([duplex])
+    source.monitor.refresh()
+    let after = try #require(source.monitor.outputDevices.first)
+    #expect(after.bindingRevision != before.bindingRevision)
+  }
+
   @Test("A stream-list reorder advances the device binding")
   func streamOrderIsPartOfBinding() throws {
     let source = DeviceObservationFixture()
