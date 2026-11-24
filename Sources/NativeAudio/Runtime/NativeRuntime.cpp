@@ -173,6 +173,7 @@ OSStatus audioCallback(AudioObjectID device, const AudioTimeStamp *now,
         if (outputFrames != 0)
             state.armed.store(true, std::memory_order_release);
         clearOutput(output);
+        state.peak.store(0, std::memory_order_release);
         return noErr;
     }
     if (state.format.input.bufferCount == 1) {

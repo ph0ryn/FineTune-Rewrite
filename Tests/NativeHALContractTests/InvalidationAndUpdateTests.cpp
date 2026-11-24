@@ -608,7 +608,28 @@ void coalescedCoverage() {
     CHECK(snapshot(p).applied_revision == 3 && snapshot(p).levels_revision == 3);
 }
 
-constexpr std::array<CaseUnit, 10> cases{{
+void idleCallbackResetsPeak() {
+    inputs = 2;
+    resetFixture();
+    auto p = prepare(request(state()));
+    REQUIRE(p);
+    commit(p, state(2));
+    const auto io = hal.ios.back();
+    Signal signal;
+    signal.render(io);
+    CHECK(snapshot(p).peak > 0);
+
+    // An idle tap writes silence; the last audible peak must not survive the idle callback.
+    signal.in.mBuffers[0].mData = nullptr;
+    signal.output.fill(0.875F);
+    signal.render(io);
+    CHECK(signal.zero());
+    CHECK(snapshot(p).peak == 0);
+    p.reset();
+    CHECK(hal.resources() == 0);
+}
+
+constexpr std::array<CaseUnit, 11> cases{{
     {"Tests/NativeHALContractTests/main.cpp::invalidationInitialAndNoninvalidatingErrors",
      invalidationInitialAndNoninvalidatingErrors},
     {"Tests/NativeHALContractTests/main.cpp::invalidationPropertyMetadataAndArchive",
@@ -626,6 +647,7 @@ constexpr std::array<CaseUnit, 10> cases{{
     {"Tests/NativeHALContractTests/main.cpp::lateCloseAndReuse", lateCloseAndReuse},
     {"Tests/NativeHALContractTests/main.cpp::copiedConfiguration", copiedConfiguration},
     {"Tests/NativeHALContractTests/main.cpp::coalescedCoverage", coalescedCoverage},
+    {"Tests/NativeHALContractTests/main.cpp::idleCallbackResetsPeak", idleCallbackResetsPeak},
 }};
 
 } // namespace
