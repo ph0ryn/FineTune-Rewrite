@@ -91,11 +91,15 @@ public final class AudioDeviceMonitor: AudioDeviceObservationProviding {
         return
       }
       notify(
-        oldOutputs, new: devices.outputs, removed: onDeviceDisconnected, added: onDeviceConnected)
+        oldOutputs, new: devices.outputs, removed: onDeviceDisconnected, added: onDeviceConnected,
+        generation: currentGeneration, revision: publishedRevision)
       notify(
         oldInputs, new: devices.inputs, removed: onInputDeviceDisconnected,
-        added: onInputDeviceConnected)
+        added: onInputDeviceConnected, generation: currentGeneration, revision: publishedRevision)
       for (uid, rate) in nextRates {
+        guard generation == currentGeneration, observation.revision == publishedRevision else {
+          return
+        }
         if let old = oldRates[uid], Self.isMeaningfulRateChange(oldRate: old, newRate: rate) {
           onSampleRateChanged?(uid, rate)
         }
@@ -114,12 +118,20 @@ public final class AudioDeviceMonitor: AudioDeviceObservationProviding {
 
   private func notify(
     _ old: [AudioDevice], new: [AudioDevice], removed: ((String, String) -> Void)?,
-    added: ((String, String) -> Void)?
+    added: ((String, String) -> Void)?, generation: UInt64, revision: UInt64
   ) {
     let oldUIDs = Set(old.map(\.uid))
     let newUIDs = Set(new.map(\.uid))
-    for row in old where !newUIDs.contains(row.uid) { removed?(row.uid, row.name) }
-    for row in new where !oldUIDs.contains(row.uid) { added?(row.uid, row.name) }
+    // A callback may synchronously cause another refresh. Each notification must still belong to
+    // the snapshot it describes, not to a newer one published while the loop was running.
+    for row in old where !newUIDs.contains(row.uid) {
+      guard self.generation == generation, observation.revision == revision else { return }
+      removed?(row.uid, row.name)
+    }
+    for row in new where !oldUIDs.contains(row.uid) {
+      guard self.generation == generation, observation.revision == revision else { return }
+      added?(row.uid, row.name)
+    }
   }
 }
 

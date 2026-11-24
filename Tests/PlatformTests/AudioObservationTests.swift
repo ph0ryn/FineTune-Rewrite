@@ -157,6 +157,37 @@ struct AudioObservationTests {
     #expect(formatted.formatRevision != rebound.formatRevision)
   }
 
+  @Test("A reentrant refresh cannot announce a device from a stale snapshot")
+  func reentrantRefreshDoesNotNotifyStaleDevices() {
+    let source = DeviceObservationFixture()
+    source.reader.inventory = observationDevices([])
+    source.monitor.refresh()
+
+    func record(uid: String, id: AudioDeviceID) -> AudioDeviceRecord {
+      let format = observationDevice().outputStreams[0].format
+      return AudioDeviceRecord(
+        device: AudioDevice(
+          id: id, uid: uid, name: uid, icon: nil, supportsAutoEQ: true),
+        outputStreams: [AudioStreamRecord(id: id + 100, format: format)], inputStreams: [],
+        sampleRate: 48_000)
+    }
+    let a = record(uid: "A", id: 31)
+    let b = record(uid: "B", id: 32)
+    var events: [String] = []
+    source.monitor.onDeviceDisconnected = { uid, _ in events.append("disconnected:\(uid)") }
+    source.monitor.onDeviceConnected = { uid, _ in
+      events.append("connected:\(uid)")
+      guard uid == "A" else { return }
+      source.reader.inventory = observationDevices([a])
+      source.monitor.refresh()
+    }
+
+    source.reader.inventory = observationDevices([a, b])
+    source.monitor.refresh()
+
+    #expect(events == ["connected:A", "disconnected:B"])
+  }
+
   @Test("A stream-list reorder advances the device binding")
   func streamOrderIsPartOfBinding() throws {
     let source = DeviceObservationFixture()
