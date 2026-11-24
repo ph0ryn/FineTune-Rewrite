@@ -117,6 +117,8 @@ final class RootPresentation {
 
   private func peakLevel(for identifier: String, isActive: Bool) -> Float? {
     let controller = graph.controller
+    let peakLevels = controller.routePeakLevels
+    _ = controller.routeDiagnosticRevision
     guard isActive, graph.processes.observation.health == .healthy,
       graph.devices.observation.health == .healthy,
       controller.applicationObservationFailure == nil, controller.outputObservationFailure == nil
@@ -126,7 +128,7 @@ final class RootPresentation {
     return routes.compactMap { route -> Float? in
       guard route.key.generation == generation, route.phase == .firstApplied,
         route.failure == nil, route.cleanupFailure == nil,
-        let peak = route.peakLevel, peak.isFinite, peak >= 0
+        let peak = peakLevels[route.key], peak.isFinite, peak >= 0
       else { return nil }
       return peak
     }.max()
@@ -199,6 +201,7 @@ final class RootPresentation {
     includePermissionFailure: Bool = true
   ) -> String? {
     let controller = graph.controller
+    _ = controller.routeDiagnosticRevision
     var messages: [String?] = [
       controller.commandFailure?.message, controller.applicationObservationFailure?.message,
       controller.outputObservationFailure?.message,

@@ -15,7 +15,14 @@ public final class AudioController: AudioCommandHandling {
   public private(set) var defaultOutputUID: String?
   public private(set) var captureIntent: AudioCaptureIntent = .none
   public internal(set) var knownPermissionDenied = false
-  public internal(set) var routeObservations: [AudioRouteKey: AudioRouteObservation] = [:]
+  @ObservationIgnored public internal(set) var routeObservations:
+    [AudioRouteKey: AudioRouteObservation] = [:]
+  {
+    didSet { updateRouteObservationProjection(previous: oldValue) }
+  }
+  /// Meter updates are intentionally separate from route lifecycle/failure diagnostics.
+  public private(set) var routePeakLevels: [AudioRouteKey: Float] = [:]
+  public private(set) var routeDiagnosticRevision: UInt64 = 0
   public internal(set) var commandFailure: AudioRouteFailure?
   public internal(set) var applicationObservationFailure: AudioRouteFailure?
   public internal(set) var outputObservationFailure: AudioRouteFailure?
@@ -60,6 +67,32 @@ public final class AudioController: AudioCommandHandling {
     volumeState = VolumeState(settingsManager: settings)
     if settings.appSettings.explicitUserCaptureEnabled {
       captureIntent = .userInitiated(sessionID: UInt64.random(in: 1...UInt64.max))
+    }
+  }
+
+  private func updateRouteObservationProjection(
+    previous: [AudioRouteKey: AudioRouteObservation]
+  ) {
+    var nextPeakLevels = routePeakLevels
+    for key in previous.keys where routeObservations[key] == nil { nextPeakLevels[key] = nil }
+    for (key, observation) in routeObservations { nextPeakLevels[key] = observation.peakLevel }
+    if nextPeakLevels != routePeakLevels { routePeakLevels = nextPeakLevels }
+    if !Self.sameRouteDiagnostics(previous, routeObservations) {
+      routeDiagnosticRevision &+= 1
+    }
+  }
+
+  private static func sameRouteDiagnostics(
+    _ lhs: [AudioRouteKey: AudioRouteObservation],
+    _ rhs: [AudioRouteKey: AudioRouteObservation]
+  ) -> Bool {
+    guard lhs.keys == rhs.keys else { return false }
+    return lhs.allSatisfy { key, value in
+      guard let other = rhs[key] else { return false }
+      return value.key == other.key && value.phase == other.phase
+        && value.acceptedRevision == other.acceptedRevision
+        && value.appliedRevision == other.appliedRevision
+        && value.failure == other.failure && value.cleanupFailure == other.cleanupFailure
     }
   }
 

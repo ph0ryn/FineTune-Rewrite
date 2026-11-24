@@ -8,6 +8,7 @@ import Observation
 import Testing
 
 @testable import FineTune
+@testable import FineTuneControl
 @testable import FineTunePlatform
 
 @Suite("App composition: RootPresentation read-through and projection wiring")
@@ -39,6 +40,81 @@ struct RootPresentationWiringTests {
     #expect(fixture.graph.bindings.controller === fixture.graph.controller)
     #expect(fixture.graph.devices === fixture.devices && fixture.graph.volumes === fixture.output)
     await fixture.expectPassivePorts()
+  }
+
+  @Test("Settings snapshots ignore peak-only route updates")
+  func settingsSnapshotsIgnorePeakLevels() async throws {
+    let fixture = try RootPresentationFixture()
+    defer { fixture.cleanUp() }
+    let presentation = fixture.presentation()
+    let controller = fixture.graph.controller
+    let key = AudioRouteKey(appIdentifier: "unit.player", deviceUID: "speaker", generation: 1)
+    controller.routeObservations[key] = AudioRouteObservation(
+      key: key, phase: .firstApplied, peakLevel: 0.25)
+
+    let count = await invalidationCount(
+      read: { _ = presentation.settingsSnapshot() },
+      mutate: {
+        controller.routeObservations[key] = AudioRouteObservation(
+          key: key, phase: .firstApplied, peakLevel: 0.75)
+      })
+    #expect(count == 0)
+  }
+
+  @Test("Mixer snapshots still observe peak-only route updates")
+  func mixerSnapshotsObservePeakLevels() async throws {
+    let fixture = try RootPresentationFixture()
+    defer { fixture.cleanUp() }
+    let presentation = fixture.presentation()
+    let controller = fixture.graph.controller
+    let key = AudioRouteKey(appIdentifier: "unit.player", deviceUID: "speaker", generation: 1)
+    fixture.processes.apps = [fixture.app(id: 101, uid: "unit.player", name: "Player")]
+    controller.routeObservations[key] = AudioRouteObservation(
+      key: key, phase: .firstApplied, peakLevel: 0.25)
+
+    let count = await invalidationCount(
+      read: { _ = presentation.mixerSnapshot().apps.first?.peakLevel },
+      mutate: {
+        controller.routeObservations[key] = AudioRouteObservation(
+          key: key, phase: .firstApplied, peakLevel: 0.75)
+      })
+    #expect(count == 1)
+  }
+
+  @Test("Route diagnostic changes still invalidate settings snapshots")
+  func settingsSnapshotsObserveRouteDiagnostics() async throws {
+    let fixture = try RootPresentationFixture()
+    defer { fixture.cleanUp() }
+    let presentation = fixture.presentation()
+    let controller = fixture.graph.controller
+    let key = AudioRouteKey(appIdentifier: "unit.player", deviceUID: "speaker", generation: 1)
+    controller.routeObservations[key] = AudioRouteObservation(
+      key: key, phase: .firstApplied, peakLevel: 0.25)
+
+    let count = await invalidationCount(
+      read: { _ = presentation.settingsSnapshot() },
+      mutate: {
+        controller.routeObservations[key] = AudioRouteObservation(
+          key: key, phase: .failed,
+          failure: AudioRouteFailure(kind: .nativeFailure, stage: "test", message: "Route failed"))
+      })
+    #expect(count == 1)
+  }
+
+  private func invalidationCount(
+    read: () -> Void, mutate: () -> Void
+  ) async -> Int {
+    let invalidations = AsyncStream<Void>.makeStream()
+    withObservationTracking {
+      read()
+    } onChange: {
+      invalidations.continuation.yield(())
+    }
+    mutate()
+    invalidations.continuation.finish()
+    var count = 0
+    for await _ in invalidations.stream { count += 1 }
+    return count
   }
 
   @Test("Output selection failure callback invalidates both snapshots without mutating route state")
