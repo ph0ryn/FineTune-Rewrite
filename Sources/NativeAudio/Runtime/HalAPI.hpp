@@ -50,12 +50,12 @@ struct OutputDevice {
     std::vector<AudioObjectID> outputStreams;
 };
 
-// A Bluetooth output and its process tap share the BT clock domain. Drift compensation there
-// makes the HAL insert/delete samples on the ~50ppm offset (audible periodic crackle), so only
-// other transports request and certify it.
-inline UInt32 expectedDriftCompensation(const OutputDevice &output) noexcept {
-    return bluetoothTransport(output.transportType) ? 0 : 1;
-}
+// Enable sub-tap drift compensation on all transports, including Bluetooth/BLE.
+// AirPods A2DP adaptive latency temporarily warps the BT HAL delivery clock by +/-10%
+// (multiplier 0.9 / 1.1) when shifting between 60ms and 100ms modes; with drift compensation
+// disabled, the uncompensated tap ring buffer shifts into collision and corrupts tap input
+// until latency reverts or the route is rebuilt.
+inline UInt32 expectedDriftCompensation(const OutputDevice &) noexcept { return 1; }
 struct TapDescription {
     AudioObjectID id = kAudioObjectUnknown;
     std::string uid;

@@ -343,18 +343,19 @@ void streamLayoutChannelOrigins() {
 
 void bluetoothTapPolicy() {
     inputs = 4;
-    // A Bluetooth output shares its clock with the process tap: drift compensation is off.
+    // Bluetooth outputs also require sub-tap drift compensation (AirPods adaptive latency warps
+    // the BT HAL clock by +/-10% across latency mode transitions).
     resetFixture();
     hal.bluetooth = true;
-    hal.driftCompensation = 0;
+    hal.driftCompensation = 1;
     auto bt = prepare(request(state()));
     REQUIRE(bt);
-    CHECK(hal.requestedDrift == 0);
+    CHECK(hal.requestedDrift == 1);
     CHECK(snapshot(bt).failure.kind == FT_NATIVE_NO_FAILURE);
     bt.reset();
     CHECK(hal.resources() == 0);
 
-    // A read-back that disagrees with the transport's policy is still rejected.
+    // A read-back that disagrees with the policy is still rejected.
     resetFixture();
     hal.bluetooth = true;
     hal.wrongDrift = true;
