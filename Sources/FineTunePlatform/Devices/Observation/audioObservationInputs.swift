@@ -116,6 +116,8 @@ struct ProcessApplicationMetadata {
     tokens.merge(additions) { current, _ in current }
   }
 
+  var registeredTargets: Set<AudioObservationTarget> { Set(tokens.keys) }
+
   func cancel() {
     for token in tokens.values { token.cancel() }
     tokens.removeAll()

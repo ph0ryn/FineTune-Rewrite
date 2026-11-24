@@ -60,15 +60,24 @@ public final class AudioDeviceMonitor: AudioDeviceObservationProviding {
   public func refresh() {
     let currentGeneration = generation
     do {
-      let raw = try inventory.readDevices()
-      var nextProjection = projection
-      let devices = try nextProjection.project(raw.devices)
+      var raw = try inventory.readDevices()
       if running {
         try subscriptions.sync(raw.observationTargets) { [weak self] in
           guard let self, self.running, self.generation == currentGeneration else { return }
           self.refresh()
         }
+        // Listeners registered for newly discovered objects can fire before their first read.
+        // Publish the state observed after registration instead of the pre-registration snapshot.
+        raw = try inventory.readDevices()
+        if !raw.observationTargets.subtracting(subscriptions.registeredTargets).isEmpty {
+          try subscriptions.sync(raw.observationTargets) { [weak self] in
+            guard let self, self.running, self.generation == currentGeneration else { return }
+            self.refresh()
+          }
+        }
       }
+      var nextProjection = projection
+      let devices = try nextProjection.project(raw.devices)
       let oldOutputs = outputDevices
       let oldInputs = inputDevices
       let oldRates = rates

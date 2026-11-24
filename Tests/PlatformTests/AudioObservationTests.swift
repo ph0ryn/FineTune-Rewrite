@@ -157,6 +157,19 @@ struct AudioObservationTests {
     #expect(formatted.formatRevision != rebound.formatRevision)
   }
 
+  @Test("Publication uses the snapshot read after listener registration")
+  func publishesPostRegistrationSnapshot() {
+    let source = DeviceObservationFixture()
+    source.reader.inventory = observationDevices([observationDevice(name: "First")])
+    source.reader.onRead = { [weak source] in
+      guard source?.reader.reads == 1 else { return }
+      source?.reader.inventory = observationDevices([observationDevice(name: "Second")])
+    }
+    source.monitor.start()
+    #expect(source.reader.reads == 2)
+    #expect(source.monitor.outputDevices.first?.name == "Second")
+  }
+
   @Test("A reentrant refresh cannot announce a device from a stale snapshot")
   func reentrantRefreshDoesNotNotifyStaleDevices() {
     let source = DeviceObservationFixture()
@@ -357,8 +370,10 @@ final class ObservationTestDeviceReader: AudioDeviceInventoryReading {
   var inventory = observationDevices([observationDevice()])
   var failure: (any Error)?
   var reads = 0
+  var onRead: (() -> Void)?
   func readDevices() throws -> AudioDeviceInventory {
     reads += 1
+    onRead?()
     if let failure { throw failure }
     return inventory
   }
