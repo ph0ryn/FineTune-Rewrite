@@ -104,6 +104,7 @@ struct CoreAudioObservationInventory: AudioDeviceInventoryReading, AudioProcessI
       targets.formUnion(deviceTargets.filter(supportsDeviceProperty))
       for stream in output + input {
         targets.insert(.init(object: stream.id, selector: kAudioStreamPropertyPhysicalFormat))
+        targets.insert(.init(object: stream.id, selector: kAudioStreamPropertyVirtualFormat))
       }
     }
     return AudioDeviceInventory(devices: records, observationTargets: targets)

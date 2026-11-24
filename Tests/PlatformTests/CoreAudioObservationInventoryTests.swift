@@ -32,6 +32,24 @@ struct CoreAudioObservationInventoryTests {
     #expect(!observer.registrations.contains { [13, 14, 131, 141].contains($0.object) })
   }
 
+  @Test("Stream physical and virtual formats are both observed", arguments: [false, true])
+  func streamFormatObservations(input: Bool) {
+    let reader = InventoryPropertyReader(input: input)
+    let observer = ObservationTestObserver()
+    let monitor = AudioDeviceMonitor(
+      inventory: CoreAudioObservationInventory(reader: reader), observer: observer)
+    monitor.start()
+    defer { monitor.stop() }
+    #expect(
+      observer.registrations.contains {
+        $0.object == 111 && $0.selector == kAudioStreamPropertyPhysicalFormat
+      })
+    #expect(
+      observer.registrations.contains {
+        $0.object == 111 && $0.selector == kAudioStreamPropertyVirtualFormat
+      })
+  }
+
   @Test(
     "Private children need no identity, stream or observer acquisition", arguments: [false, true])
   func privateMetadataIsNotRequired(input: Bool) {
