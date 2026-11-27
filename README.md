@@ -26,6 +26,9 @@ A reimplementation targeting the core functionality of [FineTune](https://github
   <img src="docs/assets/screenshot-eq.png" alt="FineTune showing the Safari app row expanded with the 10-band EQ panel open" width="582">
 </p>
 
+> [!WARNING]
+> This project is under active development. If you encounter any bugs or issues, please feel free to open an [issue](https://github.com/ph0ryn/FineTune-Rewrite/issues) or submit a [pull request](https://github.com/ph0ryn/FineTune-Rewrite/pulls).
+
 ## Requirements
 
 - macOS 15.4 or later
