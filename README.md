@@ -1,9 +1,19 @@
-# FineTune-Rewrite
+<div align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/icon-dark.png">
+    <source media="(prefers-color-scheme: light)" srcset="docs/assets/icon-light.png">
+    <img src="docs/assets/icon-light.png" alt="FineTune-Rewrite app icon" width="128">
+  </picture>
 
-[![Release](https://img.shields.io/github/v/release/ph0ryn/FineTune-Rewrite?style=flat)](https://github.com/ph0ryn/FineTune-Rewrite/releases)
-[![CI](https://img.shields.io/github/actions/workflow/status/ph0ryn/FineTune-Rewrite/check.yml?label=CI&style=flat)](https://github.com/ph0ryn/FineTune-Rewrite/actions/workflows/check.yml)
-![macOS 15.4+](https://img.shields.io/badge/macOS-15.4%2B-blue?style=flat)
-[![License](https://img.shields.io/badge/license-MIT%20%2F%20GPL--3.0--only-lightgrey?style=flat)](LICENSE)
+  <h1>FineTune-Rewrite</h1>
+
+  <p>
+    <a href="https://github.com/ph0ryn/FineTune-Rewrite/releases"><img src="https://img.shields.io/github/v/release/ph0ryn/FineTune-Rewrite?style=flat" alt="Release"></a>
+    <a href="https://github.com/ph0ryn/FineTune-Rewrite/actions/workflows/check.yml"><img src="https://img.shields.io/github/actions/workflow/status/ph0ryn/FineTune-Rewrite/check.yml?label=CI&style=flat" alt="CI"></a>
+    <img src="https://img.shields.io/badge/macOS-15.4%2B-blue?style=flat" alt="macOS 15.4+">
+    <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT%20%2F%20GPL--3.0--only-lightgrey?style=flat" alt="License"></a>
+  </p>
+</div>
 
 A macOS menu bar app for controlling per-app volume, output routing, equalizer settings, and audio devices.
 
