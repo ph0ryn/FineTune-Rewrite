@@ -64,7 +64,7 @@ This produces `DerivedData/Build/Products/Release/FineTuneRewrite.app`.
 ### Audio Device Management
 
 - **Output and Input Switching** — Switch between **Output Devices** and **Input Devices** from the header tabs to change default devices and control device volume and mute.
-- **Priority and Visibility** — Reorder device priority in edit mode by dragging or typing a number, hide unused devices, and customize device icons.
+- **Priority and Visibility** — Reorder device priority in edit mode by dragging, hide unused devices, and customize device icons.
 - **Bluetooth Connection** — Connect to paired Bluetooth audio devices from edit mode under **Output Devices**.
 - **Headphone Correction (AutoEQ)** — Open **AutoEQ** on supported output devices to search, favorite, and apply headphone profiles, or import a `ParametricEQ.txt` file.
 
@@ -76,7 +76,7 @@ This produces `DerivedData/Build/Products/Release/FineTuneRewrite.app`.
 
 Open **Settings** from the gear icon in the top-right corner of the menu bar popup.
 
-- **General** — Configure launch at login, theme, menu bar **Icon Style**, **Popup Size**, and **Reset** all settings.
+- **General** — Configure launch at login, theme, **Device Disconnect Alerts**, menu bar **Icon Style**, **Popup Size**, and **Reset** all settings.
 - **Audio** — Configure **Live Audio Processing** (enable or disable per-app audio processing), **Default Volume** for new apps, **Loudness Compensation**, **Lock Input Device**, **System Sounds** output, and **Alert Volume**.
 - **Shortcuts** — Configure **Volume Step**, **Media Keys Control** (volume key integration and **HUD Style**), and global hotkeys for toggling the popup or controlling the active app.
 
