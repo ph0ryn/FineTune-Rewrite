@@ -53,7 +53,12 @@ let package = Package(
         .product(name: "KeyboardShortcuts", package: "KeyboardShortcuts"),
       ],
       path: "App",
-      resources: [.copy("Resources/THIRD_PARTY_NOTICES.txt")]
+      exclude: ["Resources/AppIcon.icon"],
+      resources: [
+        .copy("Resources/THIRD_PARTY_NOTICES.txt"),
+        .process("Resources/MenuBarIcon.png"),
+        .process("Resources/MenuBarIcon@2x.png"),
+      ]
     ),
     .executableTarget(
       name: "AudioProbe",
